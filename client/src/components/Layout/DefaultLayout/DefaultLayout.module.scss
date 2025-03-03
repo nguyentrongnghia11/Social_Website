@@ -1,0 +1,28 @@
+.container {
+    width: 100%;
+    display: flex;
+    justify-content: flex;
+    height: 100vh;
+}
+
+
+.wrapper {
+    width: 100%;
+    height: 50px;
+
+}
+
+.main-content {
+    width: 65%;
+    max-height: 100vh;
+    background-color: var(--secondary-background-color);
+    overflow-y: scroll;
+    scrollbar-width: none;
+    // margin: auto;
+    padding: 10px 15px 30px 15px;
+}
+
+.sidebar-content {
+    width: 15%;
+    background-color: var(--primary-background-color);
+}
