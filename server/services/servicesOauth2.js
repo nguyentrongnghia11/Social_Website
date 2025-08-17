@@ -1,34 +1,47 @@
 const passport = require('passport'); // Passport chính
 const OAuth2Strategy = require('passport-oauth2'); // Strategy OAuth2
 const session = require('express-session');
+import { RedisStore } from 'connect-redis'
+ import store from '../config/connectRedis'
 const { request } = require('express');
 const user = require('../modules/user');
-const jwt = require('jsonwebtoken');
+import jwt from 'jsonwebtoken';
 const axios = require('axios');
-const _User = require('../modules/user')
+import _User from '../modules/user'
 require('dotenv').config();
 
 
 
 const config = (app) => {
+
+    const redisStore = new RedisStore({
+        client: store,
+        prefix: "myapp:"
+    })
+
     app.use(session({
+        store: redisStore,
         secret: 'trongnghia',
         resave: false,
-        saveUninitialized: true,
+        saveUninitialized: false, 
         cookie: { secure: false }
     }));
+
     app.use(passport.initialize());
     app.use(passport.session());
 
     passport.serializeUser(function (user, done) {
-        console.log('3');
+        console.log('save redis success');
         return done(null, user);
     });
 
     passport.deserializeUser(function (user, done) {
-        console.log('5');
+        console.log('data in session passport', user)
         return done(null, user);
     });
+
+
+    // dùng oauth2.0 để lấy profile tiện hơn không cần fetch 
 
     passport.use(new OAuth2Strategy({
         authorizationURL: 'https://accounts.google.com/o/oauth2/auth',
@@ -39,6 +52,8 @@ const config = (app) => {
         scope: ['openid', 'profile', 'email']
     },
         async function (accessToken, refreshToken, params, profile, cb) {
+
+            console.log('day la profile', profile)
 
             const res = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
                 headers: {
