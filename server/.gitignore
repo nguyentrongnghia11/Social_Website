@@ -1,0 +1,7 @@
+#nodemodule
+node_modules/
+
+#Environment
+.env
+.env.*
+
