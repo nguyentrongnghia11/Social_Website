@@ -6,11 +6,16 @@ import jwt, { GetPublicKeyOrSecret, JwtPayload, PublicKey, Secret } from 'jsonwe
 import redisClient from '../config/connectRedis';
 import { getPublicKey } from '../services/handleKey.services';
 import { JsonWebKeyInput, PublicKeyInput } from 'crypto';
+import { redis } from 'googleapis/build/src/apis/redis';
+import { json } from 'stream/consumers';
 
 
 // Define ExtendedError type for socket.io middleware error handling
 
 
+const joinGroup = (uid: string) => {
+
+}
 
 export const authSocket = async (socket: Socket, next: (err?: ExtendedError) => void) => {
     console.log('Socket auth :::', socket.id)
@@ -42,8 +47,27 @@ export const authSocket = async (socket: Socket, next: (err?: ExtendedError) => 
             if (err || !user) {
                 return next(new Error("Unauthorizeddd"));
             }
-            socket.user = user._id;
-            await redisClient.SADD(`${keyUserOnline}${user._id}`, socket.id);
+            const uid: string = user._id;
+
+
+            const user_online = await redisClient.get(`USER-ONLINE-${uid}`)
+
+
+            if (!user_online) {
+                console.log("user khong ton tai ", user_online)
+                return;
+            }
+
+            const { payload, groups } = JSON.parse(user_online)
+            await redisClient.sAdd(`${keyUserOnline}${uid}`, socket.id)
+            socket.user = { id: payload._id, groups }
+            console.log(groups)
+
+            socket.join(groups.map((gid: any) => gid._id))
+
+            for (const groupId of groups) {
+                await redisClient.sAdd(`GROUP:${groupId._id}`, socket.id)
+            }
             return next();
         });
 

@@ -74,9 +74,13 @@ const p = (app: any) => {
     };
 
     passport.use(new JwtStrategy(opts, async function (jwt_payload: JwtPayload, done: any) {
-        const { _id, deviceId } = jwt_payload;
-        const user = await User.findOne({ _id: _id }).lean()
-        user ? done(null, user) : done(null, false)
+        try {
+            const { _id, deviceId } = jwt_payload;
+            const user = await User.findOne({ _id: _id }).lean()
+            user ? done(null, user) : done(null, false)
+        } catch (error) {
+            console.log("passport ", error)
+        }
 
     }));
 }

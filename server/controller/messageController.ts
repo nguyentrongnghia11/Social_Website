@@ -25,12 +25,12 @@ const getAllConventionOfUser = async (req: Request, res: Response) => {
     })
         .populate({
             path: 'groupId',
-            select: { members: 1 },
+            select: { members: 1, name : 1 },
             match: { members: userId } // Chỉ lấy group có user này trong members
         })
         .populate([
-            { path: 'senderId', select: 'email _id' },
-            { path: 'receiverId', select: 'email _id ' }
+            { path: 'senderId', select: 'email _id name' },
+            { path: 'receiverId', select: 'email _id name' }
         ])
 
         .select({ __v: 0 })

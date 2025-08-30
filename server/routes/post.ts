@@ -5,7 +5,6 @@ import express, { Request, Response } from 'express'
 const router = express.Router();
 import post from '../controller/PostController';
 const passport = require('passport');
-import verifyToken from '../services/getPublicKey.services';
 import { authenticateMiddleware } from '../middleware/verifyToken_services'
 import commentController from '../controller/commentController';
 const multer = require('multer');

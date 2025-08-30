@@ -36,7 +36,7 @@ uploadWoker()
 
 declare module "socket.io" {
   interface Socket {
-    user?: string;
+    user?: { id: string; groups: string[] };
   }
 }
 

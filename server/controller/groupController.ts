@@ -9,6 +9,8 @@ export const createGroup = async (req: Request, res: Response, next: NextFunctio
     const { _id } = req.user as IUser
     const { name, isPrivate, members } = req.body
 
+    console.log({ name, isPrivate, members })
+
 
     if (!name || typeof isPrivate !== 'boolean' || !members) {
         console.log(1222222)
@@ -17,7 +19,7 @@ export const createGroup = async (req: Request, res: Response, next: NextFunctio
         })
     }
 
-    const newGroup = await _Group.create({ userCreate: _id, name, isPrivate, members })
+    const newGroup = await _Group.create({ userCreate: _id, name, isPrivate, members: [...members, _id] })
 
     if (!newGroup) {
         return res.status(500).json({
@@ -41,7 +43,7 @@ export const createGroup = async (req: Request, res: Response, next: NextFunctio
 
     return res.status(200).json({
         message: "create group success",
-        result: newGroup
+        result: { newGroup, newConversation }
     })
 
 }

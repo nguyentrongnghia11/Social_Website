@@ -9,9 +9,20 @@ const generateToken = (payload, privateKey, publicKey) => {
 }
 
 const verifyToken = (token, publicKey) => {
-    jwt.verify(token, publicKey, (err, decoded) => {
-        decoded ? decoded : null
+    console.log ("Day la public key ", publicKey)
+
+
+    return new Promise((resovle, reject) => {
+        jwt.verify(token, publicKey, (err, decoded) => {
+            if (err) {
+                reject(err)
+            }
+            else {
+                resovle(decoded)
+            }
+        })
     })
+
 }
 
 export {

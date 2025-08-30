@@ -20,9 +20,7 @@ import { group } from 'console';
 const keyUserOnline = "user:online:";
 
 const checkUserOnline = async (id: string) => {
-    console.log("reciere id : ", id);
     const result = await redisClient.sMembers(`${keyUserOnline}${id}`);
-    console.log("Result: ", result)
     return result || [];
 }
 
@@ -75,7 +73,7 @@ export const socketioService = async (socket: Socket) => {
 
 
         console.log('chat ' + msg.type)
-        console.log('sender', socket.user)
+        console.log('sender', socket.user?.id)
         console.log('sender', receiverID)
         let isOnline: string[];
         let existsConvention = await _Conversation.findOne({ _id: msg.conversationId }).lean();
@@ -86,19 +84,21 @@ export const socketioService = async (socket: Socket) => {
             : msg.type === "user" ? (await (new _Conversation({ senderId: socket.user, receiverId: receiverID, type: "user" })).save())
                 : (await (new _Conversation({ groupId: receiverID, type: "group" })).save());
 
-        // const message = await _Message.create({ conversationId: convention._id, senderId: socket.user, content: msg.content, contentType: msg.contentType, type: msg.type })
+        const message = await _Message.create({ conversationId: convention._id, senderId: socket.user?.id, content: msg.content, contentType: msg.contentType, type: msg.type })
 
         console.log("convention ", convention)
 
         if (msg.type === 'group') {
-            const groupId = convention._id
-            socket.to(`group:${groupId}`).emitWithAck("message-group", msg)
+            console.log("Dang goi")
+            const groupId: string = convention.groupId.toString()
+            console.log(groupId)
+            socket.to(groupId).emit("chat-group", msg)
         }
         else {
             if (!convention) {
                 return;
             }
-            const receiver: string = socket.user === convention?.senderId.toString() ? convention?.receiverId.toString() : convention?.senderId.toString()
+            const receiver: string = socket.user?.id === convention?.senderId.toString() ? convention?.receiverId.toString() : convention?.senderId.toString()
             isOnline = await checkUserOnline(receiver)
 
             console.log('day la isonline ', isOnline)
@@ -116,9 +116,34 @@ export const socketioService = async (socket: Socket) => {
 
     })
 
+    // socket.on("listen-keyboard", (msg,receiverID )) {
+
+    // }
+
+    // { senderId: conversation.type === "group" ? conversation.groupId._id : conversation.receiverId?._id, name: user.name },
+    socket.on('typing', async (content) => {
+        console.log("recevier id ", content)
+        let isOnline: string[] = []
+        if (content.type === "user") {
+
+            isOnline = await checkUserOnline(content.receiverId)
+            console.log(isOnline)
+
+            if (isOnline?.length > 0) {
+                console.log('send listen keyboard message online')
+                for (const uid of isOnline) {
+                    socket.to(uid).emit('typing', content)
+                }
+            }
+        }
+        else {
+            socket.to(content.receiverId).emit("typing", content)
+        }
+    })
+
 
     socket.on('disconnect', async () => {
-        await redisClient.SREM(`${keyUserOnline}${socket.user}`, socket.id)
+        await redisClient.SREM(`${keyUserOnline}${socket.user?.id}`, socket.id)
     })
 }
 

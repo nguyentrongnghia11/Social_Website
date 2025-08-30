@@ -1,11 +1,7 @@
 
-const nodeMailer = require('nodemailer');
-const genotp = require('otp-generator');
-const { options } = require('../routes/auth');
-const _otp = require('../modules/otp');
-
-
-
+import nodeMailer from 'nodemailer';
+import genotp from 'otp-generator';
+import _Otp from '../modules/otp';
 
 const sendOtp = async (email: any) => {
     const otpCode = genotp.generate(6, {
@@ -17,7 +13,8 @@ const sendOtp = async (email: any) => {
     })
     console.log(otpCode);
 
-    const otp = new _otp({
+
+    const otp = new _Otp({
         email,
         otp: otpCode
     })

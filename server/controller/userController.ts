@@ -19,6 +19,8 @@ import { admin } from '../config/connectFirebase';
 import message from '../modules/message';
 import { sendEventDevice } from '../services/notification.services';
 import _Notification from '../modules/notification';
+import _Group from '../modules/group';
+import { group } from 'console';
 
 
 
@@ -44,7 +46,7 @@ class UserController {
         const { email, password, name } = req.body;
         const u = await _User.findOne({ email: email });
 
-
+        console.log('signup ', u)
 
         if (u) {
             return res.status(409).json({
@@ -64,7 +66,7 @@ class UserController {
 
     }
     async verifyAccountLocal(req: Request, res: Response, next: NextFunction) {
-        const { otp, email, name, password, role } = req.body;
+        const { otpCode, email, username, password, role } = req.body;
 
 
         const acc = await _User.findOne({ email: email });
@@ -80,7 +82,7 @@ class UserController {
         // check ngay day
 
         if (Otparr.length === 0) {
-            return res.json({
+            return res.status(204).json({
                 message: 'Otp not found',
                 status: 204
             })
@@ -88,14 +90,14 @@ class UserController {
         const lastOtp = Otparr[Otparr.length - 1];
 
 
-        if (lastOtp.otp != otp) {
+        if (lastOtp.otp != otpCode) {
             return res.status(400).json({
                 message: 'Otp not match'
             })
         }
 
         const u = new _User({
-            name: name,
+            name: username,
             password: (await bcrypt.hash(password, 10)).toString(),
             email: email,
             imgUrl: '',
@@ -149,7 +151,7 @@ class UserController {
         const deviceId: string | undefined | string[] = req.headers["x-device-id"]
 
         if (!account || !password || !deviceId) {
-            
+
         }
 
         const u = await _User.findOne({ email: account, type: 'local' }).lean();
@@ -182,29 +184,43 @@ class UserController {
                 }
             })
             const { password, ...payload } = u
-          
+
             const { accessToken, refreshToken } = generateToken({ ...payload, deviceId }, privateKey, publicKey)
 
             // check if user has device
-            const token = await _Token.findOneAndUpdate({ email: account, device: deviceId }, { refreshToken: refreshToken, publicKey: publicKey, deviceId: deviceId }, { new: true, upsert: true }).lean()
 
-            if (!token) {
-                return res.status(403).json({
-                    message: 'Login failed - Forbiden'
-                });
+            try {
+                const [token, groups] = await Promise.all([
+                    _Token.findOneAndUpdate(
+                        { email: account, device: deviceId },
+                        { refreshToken, publicKey, deviceId },
+                        { new: true, upsert: true }
+                    ).lean(),
+                    _Group.find({ members: u._id }).select({ _id: 1 }).lean()
+                ]);
+
+
+                if (!token) {
+                    return res.status(403).json({
+                        message: 'Login failed - Forbiden'
+                    });
+                }
+
+                redisClient.set(`PUBLICKEY-${payload.email}-${deviceId}`, publicKey)
+                redisClient.set(`USER-ONLINE-${payload._id}`, JSON.stringify({ payload, groups }))
+
+                res.cookie('accessToken', accessToken, { httpOnly: true });
+                res.cookie('refreshToken', refreshToken, { httpOnly: true });
+
+
+                return res.status(200).json({
+                    message: "login success",
+                    result: { ...payload, groups, deviceId: token._id },
+                    refreshToken: refreshToken
+                })
+            } catch (error) {
+                console.log("Loi o login ", error)
             }
-
-            redisClient.set(`PUBLICKEY-${payload.email}-${deviceId}`, publicKey)
-
-            res.cookie('accessToken', accessToken, { httpOnly: true });
-            res.cookie('refreshToken', refreshToken, { httpOnly: true });
-
-
-            return res.status(200).json({
-                message: "login success",
-                result: { ...payload, deviceId: token._id },
-                refreshToken: refreshToken
-            })
         }
     }
 
@@ -230,7 +246,11 @@ class UserController {
 
         const token = await _Token.findOne({ refreshToken: refreshToken }).sort({ createdAt: -1 }).lean()
 
-        const payLoad = verifyToken(refreshToken, token?.publicKey)
+        console.log(token?.publicKey)
+
+        const payLoad = await verifyToken(refreshToken, token?.publicKey)
+
+        console.log("Payload ", payLoad)
 
         if (payLoad !== null) {
 
@@ -245,7 +265,15 @@ class UserController {
                     format: 'pem'
                 }
             })
-            const { accessToken, refreshToken } = generateToken(payLoad, privateKey)
+
+            const u = await _User.findOne({ email: payLoad.email, type: 'local' }).lean();
+            if (!u) {
+                return res.status(500).json({
+                    message: "Not found user"
+                })
+            }
+            const { password, ...payload } = u
+            const { accessToken, refreshToken } = generateToken(payload, privateKey)
 
             //cap nhat lai public key voi rereshtToken 
 
@@ -272,12 +300,14 @@ class UserController {
     }
 
     async getRoleUser(req: Request, res: Response, next: NextFunction) {
+        const name = req.query.name
 
+        console.log("day la name ", name)
+        const user = await _User.find({ name: { $regex: `^${name}`, $options: "i" } }).lean()
         return res.status(200).json({
-            message: 'Get role success',
-            result: (req.user as any).role
+            message: "search user success",
+            result: user
         })
-
     }
 
 

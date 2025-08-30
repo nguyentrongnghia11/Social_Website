@@ -38,6 +38,7 @@ export const uploadWoker = async () => {
             try {
                 const data = JSON.parse(msg.content.toString());
                 await handleImageUploadAndUpdate(data)
+                io.to(data.userId).emit("post:uploaded", { postId: data.postId });
                 chanel.ack(msg)
 
             } catch (error) {

@@ -9,6 +9,7 @@ import { authenticateMiddleware } from '../middleware/verifyToken_services';
 
 
 router.post('/v1/login', controller.signin);
+router.get('/v1/user', controller.getRoleUser);
 router.post('/notice', controller.regisGroup);
 router.get('/v1/user', controller.getUser);
 router.patch('/v1/token', authenticateMiddleware, controller.updateTokenDevice);
