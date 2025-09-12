@@ -5,10 +5,11 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon --exec ts-node index.ts",
-    "start:like": "nodemon --exec ts-node likeSync.wokerServices.ts",
-    "start:upload": "nodemon --exec ts-node upload.wokerServices.ts",
+    "start": "nodemon --exec ts-node --files src/index.ts",
+    "start:like": "nodemon --exec ts-node src/workers/likeSync.wokerServices.ts",
+    "start:upload": "nodemon --exec ts-node src/workers/upload.wokerServices.ts",
     "start:all": "npm-run-all --parallel start:server start:like start:upload",
+    "dev": "nodemon",
     "build": "npm build"
   },
   "repository": {
@@ -61,16 +62,17 @@
   },
   "devDependencies": {
     "@types/amqplib": "^0.10.7",
+    "@types/cookie-parser": "^1.4.9",
     "@types/mongoose-delete": "^1.0.6",
-    "@types/node": "^22.15.30",
+    "@types/node": "^22.18.1",
     "@types/nodemailer": "^7.0.0",
     "@types/otp-generator": "^4.0.2",
     "@types/passport": "^1.0.17",
     "dotenv": "^16.4.7",
-    "nodemon": "^3.1.9",
+    "nodemon": "^3.1.10",
     "npm-run-all": "^4.1.5",
     "ts-node": "^10.9.2",
     "tslib": "^2.8.1",
-    "typescript": "^5.8.3"
+    "typescript": "^5.9.2"
   }
 }
