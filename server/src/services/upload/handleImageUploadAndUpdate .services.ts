@@ -1,5 +1,5 @@
 import { uploadImage } from "./uploadImage";
-import { updateLink } from "./updateLink.services";
+import { updateLink } from "../upload/updateLink.services";
 export const handleImageUploadAndUpdate = async (data: { postId: string, paths: string[] }) => {
     const { postId, paths } = data;
     const result: any = await uploadImage(paths);

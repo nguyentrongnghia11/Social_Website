@@ -1,33 +1,23 @@
 import { NextFunction, Request, Response } from 'express'
 const bcrypt = require('bcrypt');
 import _User, { IUser } from '../models/user';
-import sendOtp from '../services/sendOtp.services'
+import { generateOtpcode } from '../utils/generateOtpcode'
 import _otp from '../models/otp';
-import crypto from 'crypto'
 import redisClient from '../databases/connectRedis';
 import _Token from '../models/token';
-import { generateToken } from '../services/signToken_Services'
+import { generateToken } from '../utils/handleToken'
 import _Post from '../models/post'
 import { Types } from 'mongoose';
-import { verifyToken } from '../services/signToken_Services';
-import { generateKey, getPublicKey } from '../services/handleKey.services';
+import { verifyToken } from '../utils/handleToken';
 import { admin } from '../databases/connectFirebase';
 import _Notification from '../models/notification';
 import _Group from '../models/group';
 import { buildJwtPayload } from '../utils/buildJwtPayload';
-import message from '../models/message';
-import { generatePairKey } from '../utils/generatePairKey';
+import { generateKeyPair } from '../utils/generatePairKey';
 import { saveUserCache } from '../services/auth/authSession.services';
 import { setCookie } from '../utils/setCookie';
-
-
-
-
-
-interface Role {
-    role: string
-}
-
+import { mailProducer } from '../services/queue/otpProducer.services';
+import { ErrorApi } from '../middleware/error';
 
 class UserController {
 
@@ -42,60 +32,43 @@ class UserController {
 
     async signupWithLocal(req: Request, res: Response, next: NextFunction) {
 
-        const { email, password, name } = req.body;
+        const { email } = req.body;
         const u = await _User.findOne({ email: email });
-
-        console.log('signup ', u)
-
         if (u) {
             return res.status(409).json({
                 message: 'Account already exists'
             });
         }
 
-        const send = await sendOtp(email);
+        const otpCode = await generateOtpcode();
+        await mailProducer(otpCode, email)
 
-        send.status === 400 ? res.status(400).json({
-            message: 'Send otp failed'
-        }) : res.json({
+        res.json({
             status: 200,
-            message: 'Send otp success',
-            otp: send.otp
+            message: 'Send otp success'
         })
-
     }
+
     async verifyAccountLocal(req: Request, res: Response, next: NextFunction) {
         const { otpCode, email, username, password, role } = req.body;
+        const deviceId: string | undefined | string[] = req.headers["x-device-id"]
 
+        if (!deviceId) return next(new ErrorApi(400, 'Verify account fail'));
 
         const acc = await _User.findOne({ email: email });
-
-        if (acc) {
-            return res.status(400).json({
-                message: 'Account already exists'
-            })
-        }
+        if (acc) next(new ErrorApi(409, 'User exists'))
 
 
         const Otparr = await _otp.find({ email: email });
-        // check ngay day
-
         if (Otparr.length === 0) {
-            return res.status(204).json({
-                message: 'Otp not found',
-                status: 204
-            })
+            next(new ErrorApi(404, 'OTP not found'))
         }
+
         const lastOtp = Otparr[Otparr.length - 1];
 
+        if (lastOtp.otp !== otpCode) next(new ErrorApi(409, 'OTP not match'))
 
-        if (lastOtp.otp != otpCode) {
-            return res.status(400).json({
-                message: 'Otp not match'
-            })
-        }
-
-        const u = new _User({
+        const user = await _User.create({
             name: username,
             password: (await bcrypt.hash(password, 10)).toString(),
             email: email,
@@ -104,59 +77,42 @@ class UserController {
             role: role,
         })
 
-        const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
-            modulusLength: 4096,
-            publicKeyEncoding: {
-                type: 'spki',
-                format: 'pem'
-            },
-            privateKeyEncoding: {
-                type: 'pkcs8',
-                format: 'pem'
-            }
-        })
+        const payload = await buildJwtPayload(user, deviceId)
+        const { privateKey, publicKey } = generateKeyPair();
 
-        let newUser = await u.save()
-
-        const { password: pass, ...payload } = newUser.toObject() // lay het tru password
-
-        if (newUser) {
+        if (user) {
             const { accessToken, refreshToken } = generateToken(payload, privateKey);
-            const t = new _Token({
+            const token = await _Token.create({
                 email: email,
                 refreshToken: refreshToken,
-                publicKey: publicKey
+                publicKey: publicKey,
+                device: deviceId
             })
 
-            await t.save().then((token: unknown) => {
+            if (!token) return next (new ErrorApi(404, 'Create account failed'))
 
-                res.cookie('accessToken', accessToken, { httpOnly: true });
-                res.cookie('refreshToken', refreshToken, { httpOnly: true });
-                return res.status(200).json({
-                    message: 'Create account success',
-                    result: payload
-                })
-            }).catch((err: any) => {
 
-                return res.status(400).json({
-                    message: 'Create account failed'
-                });
-            });
+            setCookie(res, accessToken, refreshToken)
+
+            return res.status(201).json({
+                message: 'Create account success',
+                result: user
+            })
         }
     }
 
     async signin(req: Request, res: Response, next: NextFunction) {
-        const { account, password } = req.body;
+        const { email, password } = req.body;
         const deviceId: string | undefined | string[] = req.headers["x-device-id"]
+        console.log(deviceId)
 
-        if (!account || !password || !deviceId) {
+        if (!email || !password || !deviceId) {
             return res.status(400).json({
                 message: 'Missing data'
             })
         }
 
-        const u = await _User.findOne({ email: account, type: 'local' }).lean();
-
+        const u = await _User.findOne({ email: email, type: 'local' }).lean();
         if (!u) {
             return res.status(401).json({
                 message: 'Login fail'
@@ -174,16 +130,13 @@ class UserController {
         else {
             try {
                 const user = await buildJwtPayload(u, deviceId)
-
-                console.log(typeof (user))
-
-                const { privateKey, publicKey } = generatePairKey();
+                const { privateKey, publicKey } = generateKeyPair();
                 const { accessToken, refreshToken } = generateToken(user, privateKey)
 
 
                 const token = await _Token.findOneAndUpdate(
-                    { email: account, device: deviceId },
-                    { refreshToken, publicKey, deviceId },
+                    { email: email, device: deviceId },
+                    { refreshToken: refreshToken, publicKey: publicKey, device: deviceId },
                     { new: true, upsert: true }
                 ).lean()
 
@@ -192,7 +145,7 @@ class UserController {
                         message: 'Login failed - Forbiden'
                     });
                 }
-                saveUserCache(user, publicKey)
+                await saveUserCache(user, publicKey)
                 setCookie(res, accessToken, refreshToken)
 
                 return res.status(200).json({
@@ -221,7 +174,6 @@ class UserController {
         const refreshTokenOld = req.cookies.refreshToken;
 
 
-        console.log(deviceId, refreshTokenOld)
         if (!refreshTokenOld || !deviceId) {
             return res.status(400).json({
                 message: 'Refresh token not found'
@@ -230,14 +182,16 @@ class UserController {
 
         const tokenOld = await _Token.findOne({ refreshToken: refreshTokenOld, device: deviceId }).sort({ createdAt: -1 }).lean()
 
-        console.log("Token ", tokenOld?.publicKey)
+
+        if (!tokenOld?.publicKey) {
+            return res.status(400).json({
+                message: 'Public token not found'
+            });
+
+        }
         const payLoad = await verifyToken(refreshTokenOld, tokenOld?.publicKey)
-
-
-
         if (payLoad) {
-            const { privateKey, publicKey } = generatePairKey()
-
+            const { privateKey, publicKey } = generateKeyPair()
             const u = await _User.findOne({ email: payLoad.email, type: 'local' }).lean();
             if (!u) {
                 return res.status(500).json({
@@ -266,8 +220,6 @@ class UserController {
                 result: payLoad
             })
         }
-
-
     }
 
     async getRoleUser(req: Request, res: Response, next: NextFunction) {
@@ -283,7 +235,6 @@ class UserController {
 
 
     async getUser(req: Request, res: Response, next: NextFunction) {
-
         const { limit = 5, id } = req.query;
         const data = id
             ? await _User.aggregate([
@@ -334,7 +285,6 @@ class UserController {
         const deviceId = req.headers['x-device-id']
         const user = await _User.findOne({ email: email })
 
-
         if (!user) {
             return res.status(403).json({
                 message: 'User not found',
@@ -351,18 +301,15 @@ class UserController {
 
         const newUpdate = await user.updateOne({ password: newPassword }, { new: true })
 
-
-
         if (!newUpdate) {
             return res.status(403).json({
                 message: 'Update password failed',
             })
         }
 
-
         const { password: pass, ...payload } = newUpdate.toObject()
 
-        const { privateKey, publicKey } = generateKey();
+        const { privateKey, publicKey } = generateKeyPair();
 
         const { accessToken, refreshToken } = generateToken(payload, privateKey);
         const token = await _Token.create({
@@ -432,7 +379,6 @@ class UserController {
         const timeLogout = Math.floor(Date.now() / 1000)
 
         await redisClient.set(keyLogout, timeLogout)
-
 
         const isDelete = await _Token.deleteMany({ email: user.email, deviceId: deviceId })
         if (!isDelete) {

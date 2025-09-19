@@ -2,16 +2,14 @@ import { IUser } from '../models/user';
 import _Post from '../models/post'
 import _Comment from '../models/comment'
 import { NextFunction, Request, Response, } from 'express'
-import GenericServices from '../services/GenericServices';
 import redisClient from '../databases/connectRedis';
 import { Types } from 'mongoose';
-import { uploadProducer } from '../services/uploadProducer.services';
+import { uploadProducer } from '../services/queue/uploadProducer.services';
 import { title } from 'process';
-import { sendNotifiCation } from '../services/notification.services';
+import { ErrorApi } from '../middleware/error';
 
-const postServices = new GenericServices(_Post);
 
-class playlistController {
+class PostController {
     // [GET] /playlist
     async createPost(req: Request, res: Response, next: NextFunction) {
         const { title, content } = req.body;
@@ -59,12 +57,9 @@ class playlistController {
         const post = await _Post.findOneAndUpdate({ _id: postId }, { title, imgUrl, content }, { new: true })
 
 
-        if (!post) {
-            return res.json({
-                status: 404,
-                message: 'Playlist not found'
-            })
-        }
+        if (!post) return next(new ErrorApi(400, "GroupId or uid is missing"))
+
+
         return res.json({
             status: 200,
             message: 'Add song to playlist success',
@@ -117,14 +112,6 @@ class playlistController {
                 }
             }
         ]);
-
-        if (!post) {
-            return res.json({
-                status: 204,
-                message: 'Post not found',
-            })
-        }
-
         return res.json({
             status: 200,
             message: 'Get all post success',
@@ -175,58 +162,38 @@ class playlistController {
     }
 
     async reactPost(req: Request, res: Response, next: NextFunction) {
-        // const postId = req.params.id;
-        // const { accountId, type } = req.body;
-
-
         const { _id } = req.user as IUser;
         const { postID } = req.body;
 
-        console.log('day la post id ', postID)
+        const post = await _Post.findOne(postID);
+        if (!post) return next(new ErrorApi(404, "Post not found"))
 
-        const post = await postServices.findOne(postID);
-        if (!post) {
-            return res.json({
-                status: 404,
-                message: 'Post not found'
-            })
-        }
+        // //check cooldown 
 
-        //check cooldown 
-
-        const keyCooldown = `cooldown:post:like:${postID}`
+        // const keyCooldown = `cooldown:post:like:${postID}`
         const keyPostLike = `post:like:${postID}`
 
-        const isCoolDown = await redisClient.get(keyCooldown);
-        if (isCoolDown) {
-            return res.json({
-                status: 429,
-                message: 'Fast request'
-            })
-        }
+        // const isCoolDown = await redisClient.get(keyCooldown);
+        // if (isCoolDown) {
+        //     return res.json({
+        //         status: 429,
+        //         message: 'Fast request'
+        //     })
+        // }
 
 
-        await redisClient.set(keyCooldown.toString(), 1, { "EX": 2 });
-
-
+        // await redisClient.set(keyCooldown.toString(), 1, { "EX": 2 });
 
         const liked = await redisClient.SISMEMBER(`${keyPostLike}`, _id.toString());
         if (liked) {
             await redisClient.SREM(keyPostLike, _id.toString());
-
             return res.json({
                 status: 200,
                 message: 'Unliked post',
                 liked: false
             })
         }
-        else {
-            redisClient.sAdd(keyPostLike, _id.toString());
-
-            console.log('dadada')
-        }
-
-
+        else redisClient.sAdd(keyPostLike, _id.toString());
         return res.json({
             status: 200,
             message: 'Like post success',
@@ -295,33 +262,6 @@ class playlistController {
     // }
 
 
-    async uploadImgaes(req: Request, res: Response) {
-
-        // const file = req.file;
-
-        // console.log(file)
-        // const filepath = file.path;
-
-
-
-
-        // const link = await upload(filepath)
-
-
-
-        // console.log(link)
-
-        // return res.json({
-        //     message: 'Upload success',
-        //     link: link
-        // })
-
-
-
-        //res.status(200).send('File uploaded successfully');
-
-    }
-
     async getAllPost(req: Request, res: Response, next: NextFunction) {
 
         const page: number = parseInt(req.query.page as string) || 1
@@ -370,13 +310,6 @@ class playlistController {
             }
         ]);
 
-        if (!listPost) {
-            return res.json({
-                status: 204,
-                message: 'Post not found',
-            })
-        }
-
         return res.json({
             status: 200,
             message: 'Get all post success',
@@ -388,10 +321,6 @@ class playlistController {
 
     async getPostLikedOfUser(req: Request, res: Response, next: NextFunction) {
         const user = req.user as IUser
-
-        console.log(req.cookies)
-
-        console.log('day la user ', user._id)
 
         const listPost = await _Post.aggregate([
             {
@@ -430,13 +359,6 @@ class playlistController {
                 }
             }
         ]);
-
-        if (!listPost) {
-            return res.json({
-                status: 204,
-                message: 'Post not found',
-            })
-        }
 
         return res.json({
             status: 200,
@@ -534,40 +456,18 @@ class playlistController {
 
 
     async getMyPost(req: Request, res: Response, next: NextFunction) {
+        const {_id}= req.user as IUser;
 
-        // console.log(req.user.?id);
-        // const id = req.user.?id;
+        const post = await _Post.find({ artistId: _id}).populate('artistId').populate('comments').sort({ createdAt: -1 });
 
-        // const post = await _Post.find({ artistId: id || null }).populate('artistId').populate('comments').sort({ createdAt: -1 });
+        return res.json({
+            status: 200,
+            message: 'Get my post success',
+            data: post
+        })
 
-
-        // return res.json({
-        //     status: 200,
-        //     message: 'Get my post success',
-        //     data: post
-        // })
-
-    }
-
-    async sendMessage(req: Request, res: Response, next: NextFunction) {
-
-        // const { token, title, body } = req.body
-
-        // const respone = await sendNotifiCation(token, title, body)
-
-        // if (!respone) {
-        //     return res.status(403).json({
-        //         status: 403,
-        //         message: 'Failed to send notification',
-        //     })
-        // }
-
-        // return res.status(200).json({
-        //     status: 200,
-        //     message: 'Send notification success',
-        // })
     }
 
 }
 
-export default new playlistController();
+export default new PostController();

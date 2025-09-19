@@ -1,40 +1,18 @@
 
-
-const socketio = require('socket.io');
-const http = require('http');
-import jwt from 'jsonwebtoken';
 import _Conversation from '../models/conversation';
 import _Message from '../models/message';
-const { on } = require('events');
 import redisClient from '../databases/connectRedis';
-import { IUser } from '../models/user';
 import { Socket } from 'socket.io';
-import { IMessage } from '../models/message';
-import { redis } from 'googleapis/build/src/apis/redis';
 import _Notifycation from '../models/notification';
-import { sendEventDevice } from './notification.services';
 import _Group from '../models/group';
-import { ObjectId } from 'mongoose';
-import { group } from 'console';
 
 const keyUserOnline = "USER-ONLINE-SOCKET-";
 
 const checkUserOnline = async (id: string) => {
     const result = await redisClient.sMembers(`${keyUserOnline}${id}`);
+    console.log ("result ", result)
     return result || [];
 }
-
-const changeDbs = async (index: number) => {
-    console.log('17')
-    redisClient.select(index).then((err: any) => {
-        if (err) {
-            console.log('error', err);
-        }
-        console.log('select dbs', index)
-    })
-}
-
-
 
 export const socketioService = async (socket: Socket) => {
 
@@ -71,11 +49,7 @@ export const socketioService = async (socket: Socket) => {
 
 
     socket.on('chat', async (msg, receiverID) => {
-
-
-        console.log('chat ' + msg.type)
-        console.log('sender', socket.user?.id)
-        console.log('sender', receiverID)
+        console.log (msg, receiverID)
         let isOnline: string[];
         let existsConvention = await _Conversation.findOne({ _id: msg.conversationId }).lean();
         console.log("exists ", existsConvention)
@@ -86,13 +60,12 @@ export const socketioService = async (socket: Socket) => {
                 : (await (new _Conversation({ groupId: receiverID, type: "group" })).save());
 
         const message = await _Message.create({ conversationId: convention._id, senderId: socket.user?.id, content: msg.content, contentType: msg.contentType, type: msg.type })
-
-        console.log("convention ", convention)
-
         if (msg.type === 'group') {
             console.log("Dang goi")
             const groupId: string = convention.groupId.toString()
             console.log(groupId)
+
+            await _Conversation.findOneAndUpdate({ _id: convention._id }, { updatedAt: new Date() })
             socket.to(groupId).emit("chat-group", msg)
         }
         else {
@@ -101,14 +74,12 @@ export const socketioService = async (socket: Socket) => {
             }
             const receiver: string = socket.user?.id === convention?.senderId.toString() ? convention?.receiverId.toString() : convention?.senderId.toString()
             isOnline = await checkUserOnline(receiver)
-
-            console.log('day la isonline ', isOnline)
-
             if (isOnline?.length > 0) {
-                console.log('send message online')
+                await _Conversation.findOneAndUpdate({ _id: convention._id }, { updatedAt: new Date() })
                 for (const uid of isOnline) {
                     socket.to(uid).emit('chat', msg)
                 }
+                console.log('send message online')
             } else {
                 await redisClient.rPush(`unread:${receiverID}`, JSON.stringify(msg));
             }
@@ -117,11 +88,6 @@ export const socketioService = async (socket: Socket) => {
 
     })
 
-    // socket.on("listen-keyboard", (msg,receiverID )) {
-
-    // }
-
-    // { senderId: conversation.type === "group" ? conversation.groupId._id : conversation.receiverId?._id, name: user.name },
     socket.on('typing', async (content) => {
         console.log("recevier id ", content)
         let isOnline: string[] = []

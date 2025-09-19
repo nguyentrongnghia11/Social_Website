@@ -1,6 +1,6 @@
 import cron from 'node-cron';
-import { connectRabbitMQ } from '../databases/connectRabbitmq';
-import redisClient from '../databases/connectRedis';
+import { connectRabbitMQ } from '../../databases/connectRabbitmq';
+import redisClient from '../../databases/connectRedis';
 
 export async function likeSyncCron() {
     const { connection } = await connectRabbitMQ(); // Kết nối 1 lần, không tạo lại mỗi phút

@@ -3,17 +3,10 @@ import { Request, Response } from "express";
 import _Conversation from '../models/conversation'
 import _Message from "../models/message";
 import { Types } from "mongoose";
-import path from "path";
-
-
-
-
 
 const getAllConventionOfUser = async (req: Request, res: Response) => {
     const user = req.user as IUser;
-    console.log(user._id)
     const userId = new Types.ObjectId(user._id);
-
     const listConvenstation = await _Conversation.find({
         $or: [
             // Private chat
@@ -25,8 +18,8 @@ const getAllConventionOfUser = async (req: Request, res: Response) => {
     })
         .populate({
             path: 'groupId',
-            select: { members: 1, name : 1 },
-            match: { members: userId } // Chỉ lấy group có user này trong members
+            select: { members: 1, name: 1 },
+            match: { members: userId }
         })
         .populate([
             { path: 'senderId', select: 'email _id name' },
@@ -34,11 +27,8 @@ const getAllConventionOfUser = async (req: Request, res: Response) => {
         ])
 
         .select({ __v: 0 })
-        .sort({ createdAt: -1 })
+        .sort({ updatedAt: -1 })
         .lean();
-
-
-    console.log(listConvenstation)
 
     return res.status(200).json({
         message: 'List of all conversations of user',
@@ -53,9 +43,6 @@ const getMessageOfUser = async (req: Request, res: Response) => {
     console.log(convervation_id)
 
     const messages = await _Message.find({ conversationId: convervation_id }).sort({ createdAt: -1 }).lean()
-
-
-
     return res.status(200).json({
         message: 'List of all messages of user',
         result: messages

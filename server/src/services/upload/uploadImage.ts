@@ -1,5 +1,5 @@
 
-import cloudinary from '../databases/cloud'
+import cloudinary from '../../databases/cloud'
 import fs from 'fs'
 
 const uploadImage = async (paths: string[]) => {

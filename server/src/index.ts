@@ -1,14 +1,14 @@
 import express from 'express';
 import mainRouter from './routes/server';
 import connectMongo from './databases/connectMongo';
-import { uploadWoker } from './workers/wokerServices';
-import { likeSyncWoker } from './workers/likeSync.wokerServices';
-import config from './services/servicesOauth2';
+import { uploadWorker } from '../workers/upload.woker';
+import { likeSyncWorker } from '../workers/likeSync.worker';
+import config from './services/auth/servicesOauth2';
 import cors from 'cors'
 import http from 'http';
-import { likeSyncCron } from './services/likeSyncProducer.services';
+import { likeSyncCron } from './services/queue/likeSyncProducer.services';
 import { socketioService } from './services/socketIO.services'
-import stragyVerifyLocal from './middleware/verifyToken_services';
+import stragyVerifyLocal from './middleware/verifyToken';
 import cookie from 'cookie-parser';
 import { Server } from 'socket.io';
 import { authSocket } from './middleware/authSocket';
@@ -21,8 +21,8 @@ dotenv.config()
 
 
 // run worker
-likeSyncWoker()
-uploadWoker()
+likeSyncWorker()
+uploadWorker()
 
 // init
 const app = express();

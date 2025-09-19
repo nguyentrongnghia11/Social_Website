@@ -107,7 +107,7 @@
   },
   "include": [
     "src/**/*"
-  ],
+, "workers"  ],
   "exclude": [
     "node_modules",
     "dist"

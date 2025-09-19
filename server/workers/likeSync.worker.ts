@@ -1,12 +1,11 @@
 
 import amqp from 'amqplib'
-import { connectRabbitMQ } from '../databases/connectRabbitmq'
-import _Post from '../models/post';
-import connectMongo from '../databases/connectMongo';
-import 'dotenv/config'; //
-import { Types } from 'mongoose';
+import { connectRabbitMQ } from '../src/databases/connectRabbitmq'
+import _Post from '../src/models/post';
+import connectMongo from '../src/databases/connectMongo';
+import 'dotenv/config';
 
-export async function likeSyncWoker() {
+export async function likeSyncWorker() {
 
     console.log('likeSyncWoker start')
 

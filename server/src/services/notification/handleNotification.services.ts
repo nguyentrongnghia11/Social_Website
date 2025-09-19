@@ -1,7 +1,7 @@
-import redisClient from "../databases/connectRedis";
-import _Notification, { INotification } from "../models/notification";
+import redisClient from "../../databases/connectRedis";
+import _Notification, { INotification } from "../../models/notification";
 import { sendEventDevice } from "./notification.services";
-import { io } from "..";
+import { io } from "../..";
 export async function handleNotification(notice: INotification) {
     const keyUserOnline = "USER-ONLINE-SOCKET-";
     const notif = await _Notification.create(notice);

@@ -3,6 +3,7 @@ import { IUser } from "../models/user";
 import _Group from "../models/group";
 import _Conversation from "../models/conversation";
 import message from "../models/message";
+import { ErrorApi } from "../middleware/error";
 
 
 export const createGroup = async (req: Request, res: Response, next: NextFunction) => {
@@ -53,30 +54,20 @@ export const addMember = async (req: Request, res: Response, next: NextFunction)
     const { groupId } = req.params
     const { uid } = req.body
 
-    if (!groupId || !uid) {
-        return res.status(404).json({
-            message: "groupId or uid is missing"
-        })
-    }
+    if (!groupId || !uid) return next(new ErrorApi(400, "GroupId or uid is missing"))
+
+
 
     const group = await _Group.findById(groupId);
 
-    if (!group) {
-        return res.status(404).json({
-            message: "group not found"
-        })
-    }
+    if (!group) return next(new ErrorApi(404, "Group not found"))
 
     const newMember = await group.updateOne({ _id: groupId }, { $addToSet: { members: uid } }).lean()
 
-    if (!newMember) {
-        return res.status(500).json({
-            message: "add member fail"
-        })
-    }
+    if (!newMember) return next(new ErrorApi(500, "Add member fail"))
 
     return res.status(200).json({
-        message: "add member success"
+        message: "Add member success"
     })
 }
 

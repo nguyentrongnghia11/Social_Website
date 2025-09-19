@@ -1,12 +1,10 @@
 
 import { Message, MulticastMessage } from "firebase-admin/lib/messaging/messaging-api";
-import { admin } from "../databases/connectFirebase"
-import { NextFunction } from "express";
+import { admin } from "../../databases/connectFirebase"
 import { ObjectId } from "mongoose";
-import _User from '../models/user'
-import token from "../models/token";
-import { INotification } from "../models/notification";
-import _Notifycation from '../models/notification'
+import _User from '../../models/user'
+import { INotification } from "../../models/notification";
+import _Notifycation from '../../models/notification'
 const sendNotifiCation = async (deviceToken: string, notice: INotification) => {
 
 
@@ -31,9 +29,6 @@ const sendNotifiCation = async (deviceToken: string, notice: INotification) => {
     else {
         // one client
     }
-
-
-
     try {
         const res = await admin.messaging().send(message)
         return res;

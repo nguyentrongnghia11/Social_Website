@@ -1,21 +1,16 @@
-import { Types } from 'mongoose';
+import { Error, Types } from 'mongoose';
 import { NextFunction, Request, Response } from 'express'
 import { IUser } from '../models/user';
 import _Comment, { IComment } from "../models/comment";
-import GenericServices from '../services/GenericServices';
 import _Post from "../models/post";
+import { ErrorApi } from '../middleware/error';
 
-// const commentService = new GenericServices(_Comment)
 
 class commentController {
     async createComment(req: Request, res: Response) {
-        // const { params: { id: postId }, body: { content } } = req;
 
         const { id } = req.params;
         const { content, parentID } = req.body;
-
-        console.log(id, ' ', content, ' ', parentID);
-
 
         const u = req.user as IUser
         const newComment = new _Comment({
@@ -27,8 +22,6 @@ class commentController {
         })
 
         const comment = await _Comment.create(newComment)
-
-        // commentService.add(newComment)
 
         if (comment) {
             return res.json({
@@ -84,16 +77,8 @@ class commentController {
         const { id, content } = req.body;
 
         const data = await _Comment.findByIdAndUpdate(id, content)
+        if (!data) return next(new ErrorApi(400, "Update comment fail"))
 
-        console.log(data)
-
-
-        if (!data) {
-            return res.json({
-                status: 400,
-                message: "Update comment fail"
-            })
-        }
 
         return res.json({
             status: 200,
@@ -113,12 +98,12 @@ class commentController {
         }
 
         const comment = await _Comment.deleteById(id);
-        if (comment ) {
-            return res.status(500).json({
-                message: 'Comment not found'
+        if (comment) {
+            return res.status(200).json({
+                message: 'Delete comment success'
             })
         }
-        
+
     }
 }
 

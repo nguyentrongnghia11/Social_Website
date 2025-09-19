@@ -1,27 +1,21 @@
 
-import { connectRabbitMQ } from "../databases/connectRabbitmq"
+import { connectRabbitMQ } from "../src/databases/connectRabbitmq"
 import 'dotenv/config';
-import { uploadImage } from "../services/uploadImage";
-import { updateLink } from "../services/updateLink.services";
-import { Message } from "amqplib";
-import { error } from "console";
-import { handleImageUploadAndUpdate } from "../services/handleImageUploadAndUpdate .services";
-import _Notification from "../models/notification";
-import { io } from "..";
-import redisClient from "../databases/connectRedis";
+import { handleImageUploadAndUpdate } from "../src/services/upload/handleImageUploadAndUpdate .services";
+import _Notification from "../src/models/notification";
+import { io } from "../src";
+import redisClient from "../src/databases/connectRedis";
+import { handleNotification } from "../src/services/notification/handleNotification.services";
 
-import { sendEventDevice } from "../services/notification.services";
-import { handleNotification } from "../services/handleNotification.services";
-
-export const uploadWoker = async () => {
+export const uploadWorker = async () => {
 
 
     console.log("Upload service is running")
     const { connection } = await connectRabbitMQ()
     const chanel = await connection.createChannel();
 
-    const queue_name = process.env.QUEUE_NAME || "";
-    const exchange_name = process.env.EXCHANGE_NAME || ""
+    const queue_name = process.env.QUEUE_UPLOAD || "";
+    const exchange_name = process.env.EXCHANGE_UPLOAD || ""
 
     chanel.assertExchange(exchange_name, "direct", { durable: true })
 
@@ -38,9 +32,6 @@ export const uploadWoker = async () => {
             try {
                 const data = JSON.parse(msg.content.toString());
                 await handleImageUploadAndUpdate(data)
-
-                console.log('daat sen ve ', data)
-
                 const listDevice = await redisClient.sMembers(`USER-ONLINE-SOCKET-${data.uid}`);
                 for (const device of listDevice) {
                     io.to(device).emit("post:uploaded", { postId: data.postId });

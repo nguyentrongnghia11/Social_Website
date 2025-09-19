@@ -1,6 +1,6 @@
 
 import path from "path"
-import _Post from "../models/post"
+import _Post from "../../models/post"
 
 export const updateLink = async (postID: string, paths: string[]) => {
 

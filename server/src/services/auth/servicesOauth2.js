@@ -2,12 +2,12 @@ const passport = require('passport'); // Passport chính
 const OAuth2Strategy = require('passport-oauth2'); // Strategy OAuth2
 const session = require('express-session');
 import { RedisStore } from 'connect-redis'
-import store from '../databases/connectRedis'
+import store from '../../databases/connectRedis'
 const { request } = require('express');
-const user = require('../models/user');
+const user = require('../../models/user');
 import jwt from 'jsonwebtoken';
 const axios = require('axios');
-import _User from '../models/user'
+import _User from '../../models/user'
 require('dotenv').config();
 
 

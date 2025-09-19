@@ -6,7 +6,7 @@ export const buildJwtPayload = async (user: IUser, deviceId: string | string[]) 
 
     const group = await _Group.find({ members: user._id }).select({ _id: 1 }).lean()
     return {
-        _id: user._id.toString(),
+        _id: user._id,
         name: user.name,
         type: user.type,
         role: user.role,

@@ -1,5 +1,5 @@
 import crypto from 'crypto'
-export const generatePairKey = () => {
+export const generateKeyPair = () => {
     const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
         modulusLength: 4096,
         publicKeyEncoding: {
