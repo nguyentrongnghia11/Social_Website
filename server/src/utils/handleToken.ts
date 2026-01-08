@@ -1,26 +1,26 @@
-
 import jwt from 'jsonwebtoken';
 
+interface TokenPair {
+    accessToken: string;
+    refreshToken: string;
+}
 
-const generateToken = (payload: any, privateKey: string) => {
-    console.log("play ", payload)
+const generateToken = (payload: any, privateKey: string): TokenPair => {
     const accessToken = jwt.sign(payload, privateKey, { algorithm: 'RS256', expiresIn: '15m' });
     const refreshToken = jwt.sign(payload, privateKey, { algorithm: 'RS256', expiresIn: '1d' });
     return { accessToken, refreshToken };
 }
 
-const verifyToken = (token: string, publicKey: string):any => {
-    return new Promise((resovle, reject) => {
-        jwt.verify(token, publicKey, (err, decoded) => {
+const verifyToken = async (token: string, publicKey: string): Promise<any> => {
+    return new Promise((resolve, reject) => {
+        jwt.verify(token, publicKey, { algorithms: ['RS256'] }, (err, decoded) => {
             if (err) {
-                reject(err)
+                reject(err);
+            } else {
+                resolve(decoded);
             }
-            else {
-                resovle(decoded)
-            }
-        })
-    })
-
+        });
+    });
 }
 
 export {

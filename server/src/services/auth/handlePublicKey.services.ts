@@ -1,31 +1,32 @@
-import crypto from 'crypto';
-
 import jwt, { Secret } from 'jsonwebtoken';
-import _Token, { Token } from '../../models/token';
+import _Token from '../../models/token';
 import redisClient from '../../databases/connectRedis';
 
+const REDIS_KEY_PREFIX = 'USER-PUBLICKEY-';
+const CACHE_TTL = 3600; // 1 hour
 
-const getPublicKey = (email: string, deviceId: string) => {
-
-    // USER-PUBLICKEY-${user.email}-${user.deviceId}`
-    return new Promise(async (resolve, reject) => {
-        let publicKey: any = await redisClient.get(`USER-PUBLICKEY-${email}-${deviceId}`);
-
-        if (publicKey) {
-            resolve(publicKey)
-        }
-        else {
-            publicKey = await _Token.findOne({ email: email, device: deviceId }).select({ publicKey: 1 })
-            if (publicKey) {
-                resolve(publicKey.publicKey)
-            }
-            else {
-                reject('Không tìm thấy publicKey');
-            }
-        }
-    })
+const getPublicKey = async (email: string, deviceId: string): Promise<string> => {
+    const redisKey = `${REDIS_KEY_PREFIX}${email}-${deviceId}`;
+    
+    // Try Redis cache first
+    let publicKey = await redisClient.get(redisKey);
+    
+    if (publicKey) {
+        return publicKey;
+    }
+    
+    // Fallback to database
+    const tokenDoc = await _Token.findOne({ email, device: deviceId }).select('publicKey').lean();
+    
+    if (!tokenDoc?.publicKey) {
+        throw new Error('Không tìm thấy publicKey');
+    }
+    
+    // Cache the result
+    await redisClient.setEx(redisKey, CACHE_TTL, tokenDoc.publicKey);
+    
+    return tokenDoc.publicKey;
 };
-
 
 export { getPublicKey }
 

@@ -15,7 +15,7 @@ export const UsernameField = Joi.string().min(6).max(30).required();
 export const DeviceIDField = Joi.string().required()
 export const RoleField = Joi.string().default(Joi.ref("user"))
 
-export const IDField = Joi.string().length(12).required()
+export const IDField = Joi.string().length(24).required()
 export const TitleField = Joi.string()
     .pattern(/^(\S+\s+){0,19}\S+$/)
     .required()

@@ -2,18 +2,18 @@
 import { Schema, Document, model } from 'mongoose'
 import mongoose_delete from 'mongoose-delete'
 import _User from './user'
-
 import { Types } from 'mongoose';
-import { ref } from 'process';
+import { number } from 'joi';
+import { fileSchema, IFile } from './file';
 
-interface Post extends Document {
+export interface Post extends Document {
     title: string,
     artistId: Types.ObjectId;
     react: [Types.ObjectId];
-    status: number;
-    imgUrl: string[];
-    vidUrl: string[]
     content: string;
+    status: "pending" | "resovled" | "reject";
+    visibility: "published" | "hidden";
+    embedding: number[]
 }
 
 const postSchema = new Schema<Post>({
@@ -24,34 +24,34 @@ const postSchema = new Schema<Post>({
 
     artistId: {
         type: Schema.Types.ObjectId,
-        ref: 'Account',
+        ref: 'User',
         required: true
     },
 
     react: [
         {
             type: Schema.Types.ObjectId,
-            ref: 'Account'
+            ref: 'User'
         }
     ],
     status: {
-        type: Number,
-        default: 0
+        type: String,
+        default: "pending"
     },
-
-
-    imgUrl: {
-        type: [String],
-        default: []
-    },
-    vidUrl: {
-        type: [String],
-        default: []
+    visibility: {
+        type: String,
+        enum: ["published", "hidden"],
+        default: "published"
     },
 
     content: {
         type: String,
         required: true
+    },
+    embedding: {
+        type: [Number],
+        require: false,
+        default: []
     },
 }, {
 
@@ -68,17 +68,16 @@ postSchema.virtual('comments', {
     justOne: false
 });
 
-postSchema.pre('save', async function (next) {
-    if (!this.isNew) return next(); // Chỉ chạy khi tạo mới
-
+// Dùng post('save') thay vì pre('save')
+postSchema.post('save', async function (doc, next) {
     try {
         const result = await _User.findByIdAndUpdate(
-            this.artistId,
-            { $addToSet: { posts: this._id } }
+            doc.artistId,
+            { $addToSet: { posts: doc._id } }
         );
 
         if (!result) {
-            return next(new Error('User not found'));
+            console.error(`User not found for artistId: ${doc.artistId}. Post _id: ${doc._id}`);
         }
 
         next();
@@ -91,5 +90,11 @@ postSchema.pre('save', async function (next) {
 
 
 postSchema.plugin(mongoose_delete, { overrideMethods: 'all' });
+
+// Indexes for performance
+postSchema.index({ artistId: 1, createdAt: -1 });
+postSchema.index({ react: 1 });
+postSchema.index({ status: 1 });
+postSchema.index({ embedding: 1 });
 
 export default model<Post>('posts', postSchema);

@@ -19,3 +19,5 @@ const checkPermisson = (requiredPermission: Permission) => {
         next()
     }
 }
+
+export { checkPermisson };

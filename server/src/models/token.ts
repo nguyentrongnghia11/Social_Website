@@ -33,4 +33,7 @@ const tokenSchema = new Schema<Token>({
     collection: 'tokens'
 })
 
+// Compound unique index to ensure one token per email-device pair
+tokenSchema.index({ email: 1, device: 1 }, { unique: true });
+
 export default model<Token>('Token', tokenSchema);

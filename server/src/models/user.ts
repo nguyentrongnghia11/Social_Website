@@ -1,5 +1,6 @@
 
 import { Schema, Document, model, Types } from 'mongoose'
+import { type } from 'os';
 
 export enum Role {
     Admin = 'admin',
@@ -15,7 +16,18 @@ export interface IUser extends Document {
     imgUrl?: string;
     type: 'local' | 'google';
     postId: Array<any>;
-    tokenFcms: Array<any>
+    tokenFcms: Array<any>,
+    avt_url?: string;
+    status: 'active' | 'banned' | 'suspended';
+    followers: Array<Types.ObjectId>;
+    following: Array<Types.ObjectId>;
+    loginHistory: Array<{
+        action: string;
+        ip: string;
+        userAgent?: string;
+        timestamp: Date;
+    }>;
+    lastLoginAt?: Date;
 }
 
 const userSchema = new Schema<IUser>({
@@ -64,13 +76,48 @@ const userSchema = new Schema<IUser>({
             default: []
         }
     ],
+    avt_url: { type: String, require: false },
     tokenFcms: [
         {
             type: String,
             default: []
         }
-    ]
-})
+    ],
+    status: {
+        type: String,
+        enum: ['active', 'banned', 'suspended'],
+        default: 'active'
+    },
+    followers: [
+        {
+            type: Schema.Types.ObjectId,
+            ref: 'User',
+            default: []
+        }
+    ],
+    following: [
+        {
+            type: Schema.Types.ObjectId,
+            ref: 'User',
+            default: []
+        }
+    ],
+    loginHistory: [
+        {
+            action: { type: String },
+            ip: { type: String },
+            userAgent: { type: String },
+            timestamp: { type: Date, default: Date.now }
+        }
+    ],
+    lastLoginAt: {
+        type: Date
+    }
+}, { timestamps: true });
 
+// Indexes for performance
+userSchema.index({ email: 1 });
+userSchema.index({ name: 1 });
+userSchema.index({ email: 1, type: 1 });
 
 export default model<IUser>('User', userSchema);

@@ -18,6 +18,7 @@ const uploadImage = async (paths: string[]) => {
         const result = await Promise.all(
             paths.map(async (path) => {
                 console.log('path', path)
+            
                 const data = await cloudinary.uploader.upload(path, options)
 
                 console.log(data)

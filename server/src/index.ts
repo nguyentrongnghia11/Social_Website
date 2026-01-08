@@ -2,11 +2,10 @@ import express from 'express';
 import mainRouter from './routes/server';
 import connectMongo from './databases/connectMongo';
 import { uploadWorker } from '../workers/upload.woker';
-import { likeSyncWorker } from '../workers/likeSync.worker';
+import { sendOtpWorker } from '../workers/sendOtp.worker';
 import config from './services/auth/servicesOauth2';
 import cors from 'cors'
 import http from 'http';
-import { likeSyncCron } from './services/queue/likeSyncProducer.services';
 import { socketioService } from './services/socketIO.services'
 import stragyVerifyLocal from './middleware/verifyToken';
 import cookie from 'cookie-parser';
@@ -16,13 +15,14 @@ import { createAdapter } from '@socket.io/redis-adapter';
 import { createClient } from 'redis';
 import dotenv from 'dotenv'
 import { cors_conf } from './utils/cors-config';
+import { errorHandling } from './middleware/handleError';
 
 dotenv.config()
 
 
-// run worker
-likeSyncWorker()
+// run workers
 uploadWorker()
+sendOtpWorker()
 
 // init
 const app = express();
@@ -40,12 +40,19 @@ connectMongo();
 
 // connect pub/sub
 const pubClient = createClient({ url: process.env.REDIS_URI });
-const subClient = pubClient.duplicate()
+const subClient = pubClient.duplicate();
+
 const connect = async () => {
-  await Promise.all([
-    pubClient.connect(),
-    subClient.connect(),
-  ])
+  try {
+    await Promise.all([
+      pubClient.connect(),
+      subClient.connect(),
+    ]);
+    console.log('Redis Pub/Sub connected successfully');
+  } catch (error) {
+    console.error('Redis Pub/Sub connection failed:', error);
+    process.exit(1);
+  }
 }
 connect();
 
@@ -57,7 +64,6 @@ export const io = new Server(server, {
 // config passport
 stragyVerifyLocal();
 config(app);
-likeSyncCron();
 
 // route socket
 io.use(authSocket);
@@ -65,9 +71,20 @@ io.on('connection', socketioService)
 
 mainRouter(app);
 
-server.listen(process.env.PORT || 8000, () => {
-  console.log('Server is running on port ' + process.env.PORT || 8000);
-})
+app.use(errorHandling)
+
+const PORT = process.env.PORT || 8000;
+
+server.listen(PORT, () => {
+  console.log(`🚀 Server is running on port ${PORT}`);
+}).on('error', (error: any) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} is already in use`);
+  } else {
+    console.error('❌ Server error:', error);
+  }
+  process.exit(1);
+});
 
 
 

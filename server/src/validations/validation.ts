@@ -12,10 +12,14 @@ import { ErrorApi } from "../middleware/error";
 
 
 const validateSignup = (req: Request, res: Response, next: NextFunction) => {
+    console.log("2124")
 
     const { error } = SignupSchema.validate(req.body)
 
-    if (error) next(new ErrorApi(400, error.message))
+    console.log("Passed validation signup ", error)
+    if (error) {
+        return next(new ErrorApi(400, error.message))
+    }
     next()
 }
 
@@ -23,11 +27,15 @@ const validateSignin = (req: Request, res: Response, next: NextFunction) => {
 
 
     const deviceId: string | undefined | string[] = req.headers["x-device-id"]
-    const { error } = SigninSchema.validate({ ...req.body, deviceId }, {abortEarly: false})
+    const { error } = SigninSchema.validate({ ...req.body, deviceId }, { abortEarly: false })
 
-    console.log ( {...req.body, deviceId })
+    console.log({ ...req.body, deviceId })
+    console.log(error)
 
-    if (error) next(new ErrorApi(400, error.message))
+    if (error) {
+        return next(new ErrorApi(400, error.message))
+    }
+
     next()
 
 }
@@ -36,7 +44,9 @@ const verifyAccountLocal = (req: Request, res: Response, next: NextFunction) => 
     const deviceId: string | undefined | string[] = req.headers["x-device-id"]
     const { error } = SigninSchema.validate({ ...req.body, deviceId })
 
-    if (error) next(new ErrorApi(400, "Missing data"))
+    if (error) {
+        return next(new ErrorApi(400, "Missing data"))
+    }
     next()
 
 
@@ -46,7 +56,9 @@ const validateChangePassword = (req: Request, res: Response, next: NextFunction)
     const deviceId: string | undefined | string[] = req.headers["x-device-id"]
     const { error } = ChangePasswordSchema.validate({ ...req.body, deviceId })
 
-    if (error) next(new ErrorApi(400, "Missing data"))
+    if (error) {
+        return next(new ErrorApi(400, "Missing data"))
+    }
     next()
 }
 
@@ -54,33 +66,45 @@ const validateCreatePost = (req: Request, res: Response, next: NextFunction) => 
 
     const { error } = CreatePostSchema.validate(req.body)
 
-    if (error) next(new ErrorApi(400, "Missing data"))
+    if (error) {
+        return next(new ErrorApi(400, "Missing data"))
+    }
     next()
 
 }
 const validateUpdatePost = (req: Request, res: Response, next: NextFunction) => {
+    console.log("Validating update post ", req.body)
     const { error } = UpdatePostSchema.validate(req.body)
+    console.log("Validation error ", error) 
 
-    if (error) next(new ErrorApi(400, "Missing data"))
+    if (error) {
+        return next(new ErrorApi(400, "Missing data"))
+    }
     next()
 }
 
 const validateUpdateComment = (req: Request, res: Response, next: NextFunction) => {
     const postId = req.params.id
     const { error } = UpdatePostSchema.validate({ ...req.body, postId })
-    if (error) next(new ErrorApi(400, "Missing data"))
+    if (error) {
+        return next(new ErrorApi(400, "Missing data"))
+    }
     next()
 }
 const validateCreateGroup = (req: Request, res: Response, next: NextFunction) => {
 
     const { error } = GroupSchema.validate(req.body)
-    if (error) next(new ErrorApi(400, "Missing data"))
+    if (error) {
+        return next(new ErrorApi(400, "Missing data"))
+    }
     next()
 }
 
 const validateMarkedReadNotification = (req: Request, res: Response, next: NextFunction) => {
     const { error } = NotificationSchema.validate(req.body)
-    if (error) next(new ErrorApi(400, "Missing data"))
+    if (error) {
+        return next(new ErrorApi(400, "Missing data"))
+    }
     next()
 }
 
@@ -89,15 +113,24 @@ const validateToken = (req: Request, res: Response, next: NextFunction) => {
     const refreshTokenOld = req.cookies.refreshToken;
 
     const { error } = NotificationSchema.validate({ deviceId, refreshTokenOld })
-    if (error) next(new ErrorApi(400, "Missing data"))
+    if (error) {
+        return next(new ErrorApi(400, "Missing data"))
+    }
     next()
 
 }
 
 const validateCreateComment = (req: Request, res: Response, next: NextFunction) => {
     const { id } = req.params
-    const { error } = CreateCommentSchema.validate({ ...req.body, id })
-    if (error) next(new ErrorApi(400, "Missing data"))
+    const { content, parentID } = req.body
+
+
+    console.log("Day la id post ", id)
+    console.log("Day la id post ", content)
+    const { error } = CreateCommentSchema.validate({ content, parentID, id })
+    if (error) {
+        return next(new ErrorApi(400, "Missing data"))
+    }
     next()
 
 }

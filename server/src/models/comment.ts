@@ -1,4 +1,5 @@
 import { NextFunction } from "express";
+import { boolean } from "joi";
 import { Types, Document, Schema, model, Model } from "mongoose";
 
 // import mongoose_delete from 'mongoose-delete'
@@ -13,7 +14,8 @@ export interface IComment {
     parentID: Types.ObjectId | null;
     path: string;
     isDelete: boolean;
-
+    isToxic: string;
+    visibility: 'published' | 'hidden';
 }
 
 export type ICommentDocument = IComment & Document & SoftDeleteDocument;
@@ -43,6 +45,15 @@ const commentSchema = new Schema<ICommentDocument, ICommentModel>({
     path: {
         type: String,
         required: true
+    },
+    isToxic: {
+        type: String,
+        default: ""
+    },
+    visibility: {
+        type: String,
+        enum: ['published', 'hidden'],
+        default: 'published'
     }
 
 }, {

@@ -1,63 +1,83 @@
 import { Socket, ExtendedError } from 'socket.io';
-import { NextFunction } from "express";
 import * as cookies from 'cookie'
-import jwt, { GetPublicKeyOrSecret, JwtPayload, PublicKey, Secret } from 'jsonwebtoken'
+import jwt, { JwtPayload, Secret } from 'jsonwebtoken'
 import redisClient from '../databases/connectRedis';
 import { getPublicKey } from '../services/auth/handlePublicKey.services';
+import { MessageService } from '../services/message/message.services';
 
+
+const KEY_USER_ONLINE_SOCKET = "USER-ONLINE-SOCKET-";
+const KEY_GROUP_PREFIX = "GROUP:";
+const UNAUTHORIZED_ERROR = "Unauthorized";
 
 export const authSocket = async (socket: Socket, next: (err?: ExtendedError) => void) => {
     try {
-        const keyUserOnline = "USER-ONLINE-";
-        const keyUserOnlineSocket = "USER-ONLINE-SOCKET-";
-
-        const cookieHeader: string | string[] | undefined = socket.handshake.headers.cookie;
-
+        const cookieHeader = socket.handshake.headers.cookie;
 
         if (!cookieHeader) {
-            return next(new Error("Unauthorizeddd"));
+            console.log("No cookie header found");
+            return next(new Error(UNAUTHORIZED_ERROR));
         }
 
-        const token: any = cookies.parse(cookieHeader);
-
-        const infor: null | JwtPayload = jwt.decode(token.accessToken, { json: true });
-        if (!infor) {
-            return next(new Error("Unauthorizeddd"));
-
+        const { accessToken } = cookies.parse(cookieHeader);
+        console.log("Access Token:", accessToken);
+        if (!accessToken) {
+            console.log("No access token found in cookies");
+            return next(new Error(UNAUTHORIZED_ERROR));
         }
-        const key: Secret = await getPublicKey(infor.email, infor.deviceId) as Secret;
-        console.log("key ", key)
+
+        const infor = jwt.decode(accessToken, { json: true }) as JwtPayload | null;
+
+        console.log(infor)
+
+        if (!infor?.email || !infor?.deviceId) {
+            console.log("Invalid token payload");
+            return next(new Error(UNAUTHORIZED_ERROR));
+        }
+
+        const key = await getPublicKey(infor.email, infor.deviceId) as Secret;
 
         if (!key) {
-            return next(new Error("Unauthorizeddd"));
+            console.log("Public key not found");
+            return next(new Error(UNAUTHORIZED_ERROR));
         }
 
-        jwt.verify(token.accessToken, key, async (err: any, user: any) => {
-            if (err || !user) {
-                return next(new Error("Unauthorizeddd"));
+        jwt.verify(accessToken, key, { algorithms: ['RS256'] }, async (err, user) => {
+            if (err || !user || typeof user === 'string') {
+                return next(new Error(UNAUTHORIZED_ERROR));
             }
 
-            const uid: string = user?._id;
-            const user_online = await redisClient.get(`${keyUserOnline}${uid}`)
-            console.log("user online ", user_online, "  uid ", uid)
-            if (!user_online) {
-                return;
+            const u = user as JwtPayload;
+            const uid = u._id;
+
+
+            if (!uid) {
+                return next(new Error(UNAUTHORIZED_ERROR));
             }
-            const { groups, ...payload } = JSON.parse(user_online)
 
-            console.log(payload)
-            await redisClient.sAdd(`${keyUserOnlineSocket}${uid}`, socket.id)
-            socket.user = { id: payload._id, groups }
-
-            socket.join(groups.map((gid: any) => gid._id))
-
-            for (const groupId of groups) {
-                await redisClient.sAdd(`GROUP:${groupId._id}`, socket.id)
+            const messageService = new MessageService();
+            let conversationIds: string[] = [];
+            try {
+                const { conversations } = await messageService.getAllConversationsOfUser(uid);
+                conversationIds = conversations.map((conv: any) => conv._id?.toString()).filter(Boolean);
+            } catch (err) {
+                console.error('Error fetching conversations:', err);
+                return next(new Error(UNAUTHORIZED_ERROR));
             }
+
+            // Đăng ký socket.id vào Redis cho từng conversationId (nếu cần)
+            await Promise.all([
+                redisClient.sAdd(`${KEY_USER_ONLINE_SOCKET}${uid}`, socket.id),
+                ...conversationIds.map((convId: string) =>
+                    redisClient.sAdd(`${KEY_GROUP_PREFIX}${convId}`, socket.id)
+                )
+            ]);
+            socket.user = { id: uid, name: u.name || '', groups: [] };
+            socket.join(conversationIds);
             return next();
         });
 
     } catch (error) {
-        return next(new Error("Unauthorizeddd"));
+        return next(new Error(UNAUTHORIZED_ERROR));
     }
 }

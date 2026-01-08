@@ -1,443 +1,457 @@
-import { NextFunction, Request, Response } from 'express'
-const bcrypt = require('bcrypt');
-import _User, { IUser } from '../models/user';
-import { generateOtpcode } from '../utils/generateOtpcode'
-import _otp from '../models/otp';
-import redisClient from '../databases/connectRedis';
-import _Token from '../models/token';
-import { generateToken } from '../utils/handleToken'
-import _Post from '../models/post'
-import { Types } from 'mongoose';
-import { verifyToken } from '../utils/handleToken';
-import { admin } from '../databases/connectFirebase';
-import _Notification from '../models/notification';
-import _Group from '../models/group';
-import { buildJwtPayload } from '../utils/buildJwtPayload';
-import { generateKeyPair } from '../utils/generatePairKey';
-import { saveUserCache } from '../services/auth/authSession.services';
+import { NextFunction, Request, Response } from 'express';
+import { IUser } from '../models/user';
+import userService from '../services/user/user.services';
 import { setCookie } from '../utils/setCookie';
-import { mailProducer } from '../services/queue/otpProducer.services';
-import { ErrorApi } from '../middleware/error';
+
+import redisClient from '../databases/connectRedis';
 
 class UserController {
-
-    // async signinWithGoogle(req: Request, res : Response, next: NextFunction) {
-
-    //     passport.authenticate('oauth2', { scope: ['profile', 'email'] })(req: Request, res : Response, next: NextFunction);
-
-
-
-    // }
-
-
     async signupWithLocal(req: Request, res: Response, next: NextFunction) {
+        console.log ("req.body", req.body);
+        try {
+            const { email } = req.body;
 
-        const { email } = req.body;
-        const u = await _User.findOne({ email: email });
-        if (u) {
-            return res.status(409).json({
-                message: 'Account already exists'
+            console.log ("email", email);
+
+            await userService.signupWithLocal(email);
+
+            res.json({
+                status: 200,
+                message: 'Send otp success'
             });
+        } catch (error) {
+            next(error);
         }
-
-        const otpCode = await generateOtpcode();
-        await mailProducer(otpCode, email)
-
-        res.json({
-            status: 200,
-            message: 'Send otp success'
-        })
     }
 
     async verifyAccountLocal(req: Request, res: Response, next: NextFunction) {
-        const { otpCode, email, username, password, role } = req.body;
-        const deviceId: string | undefined | string[] = req.headers["x-device-id"]
-
-        if (!deviceId) return next(new ErrorApi(400, 'Verify account fail'));
-
-        const acc = await _User.findOne({ email: email });
-        if (acc) next(new ErrorApi(409, 'User exists'))
+        try {
+            const { otpCode, email, username, password, role } = req.body;
+            const deviceId: string | undefined | string[] = req.headers["x-device-id"];
 
 
-        const Otparr = await _otp.find({ email: email });
-        if (Otparr.length === 0) {
-            next(new ErrorApi(404, 'OTP not found'))
-        }
 
-        const lastOtp = Otparr[Otparr.length - 1];
+            if (!deviceId || Array.isArray(deviceId)) {
+                return res.status(400).json({ message: 'Invalid device ID' });
+            }
 
-        if (lastOtp.otp !== otpCode) next(new ErrorApi(409, 'OTP not match'))
+            console.log("otpCode", otpCode);
 
-        const user = await _User.create({
-            name: username,
-            password: (await bcrypt.hash(password, 10)).toString(),
-            email: email,
-            imgUrl: '',
-            type: 'local',
-            role: role,
-        })
+            const result = await userService.verifyAccountLocal(otpCode, email, username, password, role, deviceId);
 
-        const payload = await buildJwtPayload(user, deviceId)
-        const { privateKey, publicKey } = generateKeyPair();
-
-        if (user) {
-            const { accessToken, refreshToken } = generateToken(payload, privateKey);
-            const token = await _Token.create({
-                email: email,
-                refreshToken: refreshToken,
-                publicKey: publicKey,
-                device: deviceId
-            })
-
-            if (!token) return next (new ErrorApi(404, 'Create account failed'))
-
-
-            setCookie(res, accessToken, refreshToken)
+            setCookie(res, result.accessToken, result.refreshToken);
 
             return res.status(201).json({
                 message: 'Create account success',
-                result: user
-            })
+                result: result.user
+            });
+        } catch (error) {
+            next(error);
         }
     }
 
     async signin(req: Request, res: Response, next: NextFunction) {
-        const { email, password } = req.body;
-        const deviceId: string | undefined | string[] = req.headers["x-device-id"]
-        console.log(deviceId)
+        try {
+            const { email, password } = req.body;
+            const deviceId: string | undefined | string[] = req.headers["x-device-id"];
 
-        if (!email || !password || !deviceId) {
-            return res.status(400).json({
-                message: 'Missing data'
-            })
-        }
-
-        const u = await _User.findOne({ email: email, type: 'local' }).lean();
-        if (!u) {
-            return res.status(401).json({
-                message: 'Login fail'
-            })
-        }
-        const rs = await bcrypt.compare(password, u.password)
-
-        if (!rs) {
-            return res.status(401).json({
-                message: 'Login fail',
-                login: false
-            })
-        }
-
-        else {
-            try {
-                const user = await buildJwtPayload(u, deviceId)
-                const { privateKey, publicKey } = generateKeyPair();
-                const { accessToken, refreshToken } = generateToken(user, privateKey)
-
-
-                const token = await _Token.findOneAndUpdate(
-                    { email: email, device: deviceId },
-                    { refreshToken: refreshToken, publicKey: publicKey, device: deviceId },
-                    { new: true, upsert: true }
-                ).lean()
-
-                if (!token) {
-                    return res.status(403).json({
-                        message: 'Login failed - Forbiden'
-                    });
-                }
-                await saveUserCache(user, publicKey)
-                setCookie(res, accessToken, refreshToken)
-
-                return res.status(200).json({
-                    message: "login success",
-                    result: user,
-                    refreshToken: refreshToken
-                })
-            } catch (error) {
-                console.log("Loi o login ", error)
+            if (!email || !password || !deviceId || Array.isArray(deviceId)) {
+                return res.status(400).json({
+                    message: 'Missing data'
+                });
             }
+            const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || 
+                       req.socket.remoteAddress || 
+                       'unknown';
+            const userAgent = req.headers['user-agent'] || 'unknown';
+
+            const result = await userService.signin(email, password, deviceId, ip, userAgent);
+
+            // Lấy unreadCount từ Redis
+            const unreadCount = await redisClient.get(`unread-count:${result.user._id}`);
+
+            setCookie(res, result.accessToken, result.refreshToken);
+            return res.status(200).json({
+                message: "login success",
+                result: {
+                    user: {...result.user, unreadCount: parseInt(unreadCount || '0')},
+                },
+                refreshToken: result.refreshToken
+            });
+        } catch (error) {
+            next(error);
         }
     }
 
-
     async home(req: Request, res: Response, next: NextFunction) {
-
-
         return res.status(200).json({
             message: 'Welcome to the home page',
             result: req.user
         });
     }
 
+    async googleCallback(req: Request, res: Response, next: NextFunction) {
+        try {
+            // Lấy device ID từ nhiều nguồn: query param > state > cookie > header
+            let deviceId: string | undefined = 
+                (req.query.deviceId as string) || 
+                (req.query.state as string) ||
+                req.cookies.deviceId ||
+                (Array.isArray(req.headers["x-device-id"]) ? undefined : req.headers["x-device-id"]);
+
+            if (!deviceId) {
+                return res.status(400).json({ 
+                    message: 'Invalid device ID',
+                    error: 'Device ID is required for authentication. Please include it as query parameter: ?deviceId=xxx' 
+                });
+            }
+
+            if (!req.user) {
+                return res.status(401).json({ 
+                    message: 'Authentication failed',
+                    error: 'No user data received from Google' 
+                });
+            }
+
+            const googleUser = req.user as IUser;
+
+            const result = await userService.signInWithGoogle(googleUser, deviceId);
+
+            setCookie(res, result.accessToken, result.refreshToken);
+
+            // Redirect về frontend với user data
+            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+            const userData = {
+                _id: result.user._id,
+                name: result.user.name,
+                email: result.user.email,
+                role: result.user.role,
+                type: result.user.type,
+                status: result.user.status,
+                deviceId: deviceId
+            };
+            
+            console.log('📤 Redirecting to frontend with userData:', userData);
+            
+            return res.redirect(`${frontendUrl}/auth/callback?success=true&user=${encodeURIComponent(JSON.stringify(userData))}`);
+        } catch (error) {
+            console.error('Google callback error:', error);
+            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+            return res.redirect(`${frontendUrl}/auth/callback?success=false&error=${encodeURIComponent((error as Error).message)}`);
+        }
+    }
+
     async refreshToken(req: Request, res: Response, next: NextFunction) {
-        const deviceId: string | undefined | string[] = req.headers["x-device-id"]
-        const refreshTokenOld = req.cookies.refreshToken;
+        try {
+            const deviceId: string | undefined | string[] = req.headers["x-device-id"];
+            const refreshTokenOld = req.cookies.refreshToken;
 
-
-        if (!refreshTokenOld || !deviceId) {
-            return res.status(400).json({
-                message: 'Refresh token not found'
-            });
-        }
-
-        const tokenOld = await _Token.findOne({ refreshToken: refreshTokenOld, device: deviceId }).sort({ createdAt: -1 }).lean()
-
-
-        if (!tokenOld?.publicKey) {
-            return res.status(400).json({
-                message: 'Public token not found'
-            });
-
-        }
-        const payLoad = await verifyToken(refreshTokenOld, tokenOld?.publicKey)
-        if (payLoad) {
-            const { privateKey, publicKey } = generateKeyPair()
-            const u = await _User.findOne({ email: payLoad.email, type: 'local' }).lean();
-            if (!u) {
-                return res.status(500).json({
-                    message: "Not found user"
-                })
-            }
-
-            const user = await buildJwtPayload(u, deviceId)
-            const { accessToken, refreshToken } = generateToken(user, privateKey)
-            const token = await _Token.findOneAndUpdate(
-                { email: payLoad.email, device: deviceId },
-                { refreshToken, publicKey, deviceId },
-                { new: true, upsert: true }
-            ).lean()
-
-            if (!token) {
+            if (!refreshTokenOld || !deviceId || Array.isArray(deviceId)) {
                 return res.status(400).json({
-                    message: "Refresh token failed"
-                })
+                    message: 'Refresh token not found'
+                });
             }
 
-            saveUserCache(user, publicKey)
-            setCookie(res, accessToken, refreshToken)
+            const result = await userService.refreshToken(refreshTokenOld, deviceId);
+
+            setCookie(res, result.accessToken, result.refreshToken);
+
             return res.status(200).json({
                 message: 'Refresh token generated successfully',
-                result: payLoad
-            })
+                result: result.payload
+            });
+        } catch (error) {
+            next(error);
         }
     }
 
     async getRoleUser(req: Request, res: Response, next: NextFunction) {
-        const name = req.query.name
+        try {
+            const name = req.query.name as string;
+            const limit = parseInt(req.query.limit as string) || 10;
 
-        console.log("day la name ", name)
-        const user = await _User.find({ name: { $regex: `^${name}`, $options: "i" } }).lean()
-        return res.status(200).json({
-            message: "search user success",
-            result: user
-        })
+            const user = await userService.getRoleUser(name, limit);
+
+            return res.status(200).json({
+                message: "search user success",
+                result: user
+            });
+        } catch (error) {
+            next(error);
+        }
     }
 
-
     async getUser(req: Request, res: Response, next: NextFunction) {
-        const { limit = 5, id } = req.query;
-        const data = id
-            ? await _User.aggregate([
-                {
-                    $lookup: {
-                        from: 'posts',              // tên collection post
-                        localField: '_id',          // _User._id
-                        foreignField: 'artistId',   // _Post.artistId
-                        as: 'posts'                 // kết quả sẽ gộp vào field này
-                    }
-                },
-                {
-                    $addFields: {
-                        postCount: { $size: '$posts' },
-                        totalLike: {
-                            $sum: {
-                                $map: {
-                                    input: '$posts',
-                                    as: 'post',
-                                    in: { $size: { $ifNull: ['$$post.react', []] } }
-                                }
-                            }
-                        }
-                    }
-                },
-                {
-                    $match: { _id: new Types.ObjectId(id as string) }
-                },
-                {
-                    $project: {
-                        name: 1,
-                        email: 1,
-                        postCount: 1,
-                        totalLike: 1
-                    }
-                }
-            ])
-            : await _User.find().limit(Number(limit));
+        try {
+            const { limit = 5, id } = req.query;
 
-        res.status(200).json({
-            message: 'Get user success',
-            result: data,
-        });
+            const data = await userService.getUser(Number(limit), id as string);
+
+            res.status(200).json({
+                message: 'Get user success',
+                result: data,
+            });
+        } catch (error) {
+            next(error);
+        }
     }
 
     async changePassword(req: Request, res: Response, next: NextFunction) {
-        const { email, oldPassword, newPassword, confirmPassword } = req.body;
-        const deviceId = req.headers['x-device-id']
-        const user = await _User.findOne({ email: email })
+        try {
+            const { email, oldPassword, newPassword, confirmPassword } = req.body;
+            const deviceId = req.headers['x-device-id'];
 
-        if (!user) {
-            return res.status(403).json({
-                message: 'User not found',
-            })
+            if (Array.isArray(deviceId) || !deviceId) {
+                return res.status(400).json({
+                    message: 'Invalid device ID',
+                });
+            }
+
+            const result = await userService.changePassword(email, oldPassword, newPassword, confirmPassword, deviceId);
+
+            res.cookie('accessToken', result.accessToken, { httpOnly: true });
+            res.cookie('refreshToken', result.refreshToken, { httpOnly: true });
+
+            return res.status(200).json({
+                message: 'Change password success',
+            });
+        } catch (error) {
+            next(error);
         }
-
-        const isPassword = await bcrypt.compare(oldPassword, user.password)
-
-        if (!isPassword) {
-            return res.status(403).json({
-                message: 'Password is incorrect',
-            })
-        }
-
-        const newUpdate = await user.updateOne({ password: newPassword }, { new: true })
-
-        if (!newUpdate) {
-            return res.status(403).json({
-                message: 'Update password failed',
-            })
-        }
-
-        const { password: pass, ...payload } = newUpdate.toObject()
-
-        const { privateKey, publicKey } = generateKeyPair();
-
-        const { accessToken, refreshToken } = generateToken(payload, privateKey);
-        const token = await _Token.create({
-            email: email,
-            refreshToken: refreshToken,
-            publicKey: publicKey,
-            deviceId: deviceId
-        })
-
-
-        if (!token) {
-            return res.status(403).json({
-                message: 'Create token failed',
-            })
-        }
-
-        res.cookie('accessToken', accessToken, { httpOnly: true });
-        res.cookie('refreshToken', refreshToken, { httpOnly: true });
-
-        // revoke token 
-
-        redisClient.set(`TOKEN-AVAILABLE:${newUpdate._id}`, Math.floor(Date.now() / 1000))
-
-        return res.status(200).json({
-            message: 'Change password success',
-        })
     }
 
     async logout(req: Request, res: Response, next: NextFunction) {
-        // revoke all token on currently device
+        try {
+            const deviceId = req.headers['x-device-id'];
+            const user = req.user as IUser;
 
-        const deviceId = req.headers['x-device-id']
-        const user = req.user as IUser
-        const keyLogout = `TOKEN-AVAILABLE-${user.email}-${deviceId}`
-        const timeLogout = Math.floor(Date.now() / 1000)
+            if (Array.isArray(deviceId) || !deviceId) {
+                return res.status(400).json({
+                    message: 'Invalid device ID',
+                });
+            }
 
-        await redisClient.set(keyLogout, timeLogout)
+            await userService.logout(user.email, deviceId);
 
-
-        const isDelete = await _Token.deleteMany({ email: user.email, deviceId: deviceId })
-        if (!isDelete) {
-            return res.status(403).json({
-                message: 'Logout failed'
-            })
+            return res.status(200).json({
+                message: 'Logout success'
+            });
+        } catch (error) {
+            next(error);
         }
-
-        await redisClient.DEL(`USER-PUBLICKEY-${user.email}-${deviceId}`)
-
-        // await sendEventDevice("Tài khoản của đang được đăng nhập ở 1 thiêt bị khác", user.tokenFcms)
-
-        return res.status(200).json({
-            message: 'Logout success'
-        })
-
     }
-
-
 
     async logoutAllDevice(req: Request, res: Response, next: NextFunction) {
-        // revoke all token on currently device
+        try {
+            const deviceId = req.headers['x-device-id'];
+            const user = req.user as IUser;
 
-        const deviceId = req.headers['x-device-id']
-        const user = req.user as IUser
+            if (Array.isArray(deviceId) || !deviceId) {
+                return res.status(400).json({
+                    message: 'Invalid device ID',
+                });
+            }
 
+            await userService.logoutAllDevice(user.email, deviceId);
 
-        const keyLogout = `TOKEN-AVAILABLE-${user.email}-${deviceId}`
-        const timeLogout = Math.floor(Date.now() / 1000)
-
-        await redisClient.set(keyLogout, timeLogout)
-
-        const isDelete = await _Token.deleteMany({ email: user.email, deviceId: deviceId })
-        if (!isDelete) {
-            return res.status(403).json({
-                message: 'Logout failed'
-            })
+            return res.status(200).json({
+                message: 'Logout success'
+            });
+        } catch (error) {
+            next(error);
         }
-
-        await redisClient.DEL(`USER-PUBLICKEY-${user.email}*`)
-
-        return res.status(200).json({
-            message: 'Logout success'
-        })
-
     }
 
-
     async regisGroup(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { token, topic } = req.body;
 
-        const { token, topic } = req.body;
-        const response = Promise.all([
-            await admin.messaging().subscribeToTopic(token, `all`),
-            await admin.messaging().subscribeToTopic(token, topic)
-        ])
+            await userService.regisGroup(token, topic);
 
-        if (!response) {
-            return res.status(500).json({
-                message: 'Subscribe to topic failed'
-
-            })
+            return res.status(200).json({
+                message: 'Subscribe to topic success'
+            });
+        } catch (error) {
+            next(error);
         }
-        return res.status(200).json({
-            message: 'Subscribe to topic success'
-        })
     }
 
     async updateTokenDevice(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { _id } = req.user as IUser;
+            const { tokenFcm } = req.body;
 
-        const { _id } = req.user as IUser
-        const { tokenFcm } = req.body
-        const user = await _User.findById(_id);
-        if (!user) {
-            return res.status(404).json({
-                message: "Not found user"
-            })
+            await userService.updateTokenDevice(_id.toString(), tokenFcm);
+
+            return res.status(200).json({
+                message: 'Update token success'
+            });
+        } catch (error) {
+            next(error);
         }
-
-        const isUpdateFcm = await _User.updateOne({ _id: _id }, { $addToSet: { tokenFcms: tokenFcm } })
-
-        if (!isUpdateFcm) {
-            return res.status(500).json({
-                message: 'Update token failed'
-            })
-        }
-        return res.status(200).json({
-            message: 'Update token success'
-        })
     }
 
+    async getUserDetail(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+
+            if (!id) {
+                return res.status(400).json({
+                    message: 'User ID is required'
+                });
+            }
+
+            const result = await userService.getUserDetailById(id);
+
+            return res.status(200).json({
+                message: 'Get user detail success',
+                result
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async getCurrentUser(req: Request, res: Response, next: NextFunction) {
+        try {
+            const user = req.user as IUser;
+
+            if (!user) {
+                return res.status(401).json({
+                    message: 'Unauthorized'
+                });
+            }
+
+            const deviceId = Array.isArray(req.headers["x-device-id"]) 
+                ? req.headers["x-device-id"][0] 
+                : req.headers["x-device-id"];
+
+            return res.status(200).json({
+                message: 'Get current user success',
+                result: {
+                    _id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    role: user.role,
+                    type: user.type,
+                    status: user.status,
+                    imgUrl: user.imgUrl,
+                    deviceId: deviceId || undefined
+                }
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async followUser(req: Request, res: Response, next: NextFunction) {
+        try {
+            const user = req.user as IUser;
+            const { id: targetUserId } = req.params;
+
+            if (!user) {
+                return res.status(401).json({ message: 'Unauthorized' });
+            }
+
+            const result = await userService.followUser(user._id.toString(), targetUserId);
+
+            return res.status(200).json({
+                message: result.message,
+                result: {
+                    following: result.following
+                }
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async unfollowUser(req: Request, res: Response, next: NextFunction) {
+        try {
+            const user = req.user as IUser;
+            const { id: targetUserId } = req.params;
+
+            if (!user) {
+                return res.status(401).json({ message: 'Unauthorized' });
+            }
+
+            const result = await userService.unfollowUser(user._id.toString(), targetUserId);
+
+            return res.status(200).json({
+                message: result.message,
+                result: {
+                    following: result.following
+                }
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async getFollowers(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id: userId } = req.params;
+            const page = parseInt(req.query.page as string) || 1;
+            const limit = parseInt(req.query.limit as string) || 20;
+
+            const result = await userService.getFollowers(userId, page, limit);
+
+            return res.status(200).json({
+                message: 'Get followers success',
+                result
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async getFollowing(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id: userId } = req.params;
+            const page = parseInt(req.query.page as string) || 1;
+            const limit = parseInt(req.query.limit as string) || 20;
+
+            const result = await userService.getFollowing(userId, page, limit);
+
+            return res.status(200).json({
+                message: 'Get following success',
+                result
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async checkFollowStatus(req: Request, res: Response, next: NextFunction) {
+        try {
+            const user = req.user as IUser;
+            const { id: targetUserId } = req.params;
+
+            if (!user) {
+                return res.status(401).json({ message: 'Unauthorized' });
+            }
+
+            const result = await userService.checkFollowStatus(user._id.toString(), targetUserId);
+
+            return res.status(200).json({
+                message: 'Check follow status success',
+                result
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async getUnreadCount(req: Request, res: Response, next: NextFunction) {
+        try {
+            const user = req.user as IUser;
+            const redisClient = (await import('../databases/connectRedis')).default;
+            const count = await redisClient.get(`unread-count:${user._id}`);
+            res.json({ unreadCount: parseInt(count || '0') });
+        } catch (error) {
+            next(error);
+        }
+    }
 }
 
 export default new UserController();

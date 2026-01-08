@@ -5,16 +5,10 @@ import { EmailField, PasswordField, UsernameField, DeviceIDField, RoleField, IDF
 import { JSONCookies } from "cookie-parser";
 
 const SignupSchema = Joi.object({
-    otpCode: Joi.number().required(),
-    email: Joi.string().required,
+    otpCode: Joi.number(),
+    email: Joi.string().required(),
     username: Joi.string().default(Joi.ref("email")),
-    password: Joi.string()
-        .pattern(new RegExp('^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[!@#$%^&*])[A-Za-z\\d!@#$%^&*]{8,}$'))
-        .required()
-        .messages({
-            'string.pattern.base': 'Password phải ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường, số và ký tự đặc biệt',
-            'any.required': 'Password là bắt buộc',
-        }),
+    password: PasswordField,
     role: RoleField
 })
 
@@ -46,9 +40,8 @@ const CreatePostSchema = Joi.object({
     content: Joi.string().required()
 })
 const UpdatePostSchema = Joi.object({
-    postId: IDField,
     title: TitleField,
-    imgUrl: Joi.string().required(),
+    files: Joi.array().items(Joi.object()),
     content: Joi.string().required()
 })
 
@@ -79,7 +72,7 @@ const TokenSchema = Joi.object({
 const CreateCommentSchema = Joi.object({
     id: IDField,
     content: Joi.string().required(),
-    parentID: IDField
+     parentID: Joi.string().allow(null, "").default(null)
 })
 
 export {

@@ -9,6 +9,9 @@ export interface IMessage extends Document {
     },
     type: "user" | "group",
     contentType: "text" | "image" | "video" | "audio",
+    isRead: boolean,
+    createdAt: Date;
+    updatedAt: Date;
 }
 
 
@@ -17,7 +20,7 @@ const messageSchema = new Schema<IMessage>({
         type: Schema.Types.ObjectId,
         required: true,
     },
-    
+
     type: {
         type: String,
         enum: ["user", "group"],
@@ -26,24 +29,28 @@ const messageSchema = new Schema<IMessage>({
 
     senderId: {
         type: Schema.Types.ObjectId,
+        ref: 'User',
         required: true
     },
 
     content: {
-        type: String ,
+        type: String,
         required: true
     },
-    contentType : {
-        type: String ,
+    contentType: {
+        type: String,
         enum: ["text", "image", "video", "audio"],
         default: "text"
+    },
+    isRead: {
+        type: Boolean,
+        default: false
     }
 
 }, {
 
     timestamps: true,
     collection: 'messages'
-
 })
 
 export default model<IMessage>('message', messageSchema);

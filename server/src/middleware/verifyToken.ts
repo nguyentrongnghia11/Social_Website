@@ -10,53 +10,52 @@ import { ErrorApi } from './error';
 
 export const authenticateMiddleware = (req: Request, res: Response, next: NextFunction) => {
     //return ve middleware
+    console.log ("authenticateMiddleware")
     return passport.authenticate('jwt', { session: true }, (err: any, user: unknown, info: unknown) => {
         if (err) return next(new ErrorApi(401, err.message))
 
         else if (!user) return next(new ErrorApi(401, { message: 'Unauthorized', code: 'Token expired' }))
 
+        req.user = user
         next();
 
     })(req, res, next);
 }
 
 const stragyVerifyLocal = () => {
-    var opts: any = {}
-    var cookieExtractor = function (req: Request, res: Response) {
-
-        var token = null;
-        if (req && req.cookies) {
-            token = req.cookies['accessToken'];
-        }
-        console.log("token ", token)
-        return token;
+    const opts: any = {}
+    const cookieExtractor = function (req: Request, res: Response) {
+        return req?.cookies?.['accessToken'] || null;
     };
+    
     opts.jwtFromRequest = cookieExtractor;
-    // nhận token 
+    
     opts.secretOrKeyProvider = async (req: Request, token: string, done: any) => {
         try {
-            const decoded: JwtPayload | null = jwt.decode(token, { json: true });
-            if (!decoded) {
+            const decoded = jwt.decode(token, { json: true }) as JwtPayload | null;
+            if (!decoded?.email || !decoded?.deviceId) {
                 return done(null, false, { message: 'Invalid token' });
             }
-            const { email, deviceId } = decoded as JwtPayload
+            
+            const { email, deviceId, iat: timeCreateToken } = decoded;
 
-            if (!email || !deviceId) {
-
-                return done(null, false, { message: 'Invalid token' });
-            }
-
-            const timeCreateToken = decoded?.iat
-            const timeLogout: string | null = await redisClient.get(`TOKEN-AVAILABLE-${email}-${deviceId}`);
-            const timeLogutAllDevice: string | null = await redisClient.get(`TOKEN-AVAILABLE-${email}-${deviceId}`)
             if (timeCreateToken) {
-                if ((timeLogout && timeCreateToken < parseInt(timeLogout)) || timeLogutAllDevice && timeCreateToken < parseInt(timeLogutAllDevice)) {
+                // Parallel Redis calls
+                const [timeLogout, timeLogoutAllDevice] = await Promise.all([
+                    redisClient.get(`TOKEN-AVAILABLE-${email}-${deviceId}`),
+                    redisClient.get(`TOKEN-AVAILABLE-ALL-${email}`)
+                ]);
+                
+                const logoutTime = timeLogout ? parseInt(timeLogout) : null;
+                const logoutAllTime = timeLogoutAllDevice ? parseInt(timeLogoutAllDevice) : null;
+                
+                if ((logoutTime && timeCreateToken < logoutTime) || 
+                    (logoutAllTime && timeCreateToken < logoutAllTime)) {
                     return done(null, false, { message: 'Token đã bị thu hồi' });
                 }
             }
 
-            const publicKey = await getPublicKey(email as string, deviceId as string);
-
+            const publicKey = await getPublicKey(email, deviceId);
             return done(null, publicKey);
         } catch (error: any) {
             return done(error, null);
@@ -65,14 +64,12 @@ const stragyVerifyLocal = () => {
 
     passport.use(new JwtStrategy(opts, async function (jwt_payload: JwtPayload, done: any) {
         try {
-            console.log(jwt_payload)
-            const { _id, deviceId } = jwt_payload;
-            const user = await User.findOne({ _id: _id }).lean()
-            user ? done(null, user) : done(null, false)
+            const { _id } = jwt_payload;
+            const user = await User.findOne({ _id }).lean();
+            return user ? done(null, user) : done(null, false);
         } catch (error) {
-            throw error
+            return done(error, null);
         }
-
     }));
 }
 

@@ -1,117 +1,71 @@
-import { Error, Types } from 'mongoose';
-import { NextFunction, Request, Response } from 'express'
+import { NextFunction, Request, Response } from 'express';
 import { IUser } from '../models/user';
-import _Comment, { IComment } from "../models/comment";
-import _Post from "../models/post";
-import { ErrorApi } from '../middleware/error';
+import commentService from '../services/comment/comment.services';
 
+class CommentController {
+    async createComment(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+            const { content, parentID } = req.body;
+            const u = req.user as IUser;
 
-class commentController {
-    async createComment(req: Request, res: Response) {
+            const newComment = await commentService.createComment(id, content, u._id.toString(), parentID);
 
-        const { id } = req.params;
-        const { content, parentID } = req.body;
-
-        const u = req.user as IUser
-        const newComment = new _Comment({
-            postId: id,
-            content,
-            userId: u._id,
-            parentID,
-            path: "abc"
-        })
-
-        const comment = await _Comment.create(newComment)
-
-        if (comment) {
             return res.json({
                 status: 200,
                 message: 'Create comment success',
                 result: newComment
-            })
+            });
+        } catch (error) {
+            next(error);
         }
-
-        return res.json({
-            status: 500,
-            message: 'Create comment faild',
-            data: ""
-        })
-    }
-
-    buildTree(comments: any[]) {
-        const map = new Map<string, any>();
-        const tree: any[] = [];
-        comments.forEach((comment) => {
-
-            console.log('commet ', typeof (comment._id))
-            map.set(comment._id.toString(), { ...comment.toObject(), children: [] })
-        })
-
-        comments.forEach((comment) => {
-            if (comment.parentID !== null) {
-                console.log('parent', typeof (comment.parentID))
-                map.get(comment.parentID.toString()).children.push(map.get(comment._id.toString()))
-            }
-            else {
-                tree.push(map.get(comment._id.toString()))
-            }
-        })
-        return tree;
     }
 
     async getComment(req: Request, res: Response, next: NextFunction) {
-        const { id } = req.params;
+        try {
+            const { id } = req.params;
 
-        const comments = await _Comment.findWithDeleted({ postId: id })
-        console.log(this)
+            const tree = await commentService.getComment(id);
 
-        const tree = this.buildTree(comments)
-
-        return res.json({
-            message: 'Get comment success',
-            result: tree
-        })
+            return res.json({
+                message: 'Get comment success',
+                result: tree
+            });
+        } catch (error) {
+            next(error);
+        }
     }
 
     async updateComment(req: Request, res: Response, next: NextFunction) {
-        const { id, content } = req.body;
+        try {
+            const { id, content } = req.body;
 
-        const data = await _Comment.findByIdAndUpdate(id, content)
-        if (!data) return next(new ErrorApi(400, "Update comment fail"))
+            const data = await commentService.updateComment(id, content);
 
-
-        return res.json({
-            status: 200,
-            message: "Update comment success",
-            result: data
-        })
+            return res.json({
+                status: 200,
+                message: "Update comment success",
+                result: data
+            });
+        } catch (error) {
+            next(error);
+        }
     }
 
     async removeComment(req: Request, res: Response, next: NextFunction) {
-        const { id } = req.body;
-        const findComment = await _Comment.findOne(id);
+        try {
+            const { id } = req.body;
 
-        if (!findComment) {
-            return res.status(404).json({
-                message: 'Comment not found'
-            })
-        }
+            await commentService.removeComment(id);
 
-        const comment = await _Comment.deleteById(id);
-        if (comment) {
             return res.status(200).json({
                 message: 'Delete comment success'
-            })
+            });
+        } catch (error) {
+            next(error);
         }
-
     }
 }
 
-
-export default new commentController();
-
-
-
-//Request<Params = {}, ResBody = any, ReqBody = any, ReqQuery = qs.ParsedQs>
-//Response<ResBody = any, Locals = Record<string, any>>
+export default new CommentController();
 

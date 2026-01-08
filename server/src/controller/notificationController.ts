@@ -1,55 +1,66 @@
-import { json } from 'stream/consumers';
 import { NextFunction, Response, Request } from "express";
-import _Notification from "../models/notification";
-import { equal } from "assert";
-import { read } from "fs";
-import message from '../models/message';
-import { ErrorApi } from '../middleware/error';
+import notificationControllerService from "../services/notification/notificationController.services";
 
-class notificationController {
+class NotificationController {
     async getNotification(req: Request, res: Response, next: NextFunction) {
+        try {
+            const listNotice = await notificationControllerService.getNotifications();
 
-        const listNotice = await _Notification.aggregate([
-            {
-                $facet: {
-                    list: [
-                        { $sort: { createdAt: -1 } },
-                        { $limit: 5 }
-                    ],
-                    totalUnread: [
-                        { $match: { read: false } },
-                        { $count: "count" }
-                    ]
-                }
-            }
-        ])
-
-        if (!listNotice) {
-            return res.status(404).json({
-                message: "Not found notification"
-            })
+            return res.status(200).json({
+                message: "List success",
+                result: listNotice
+            });
+        } catch (error) {
+            next(error);
         }
-
-        return res.status(200).json({
-            message: "List success",
-            result: listNotice
-        })
     }
 
     async markedReadNotification(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { notificationId, reciveId } = req.body;
 
-        const { notificationId, reciveId } = req.body
+            await notificationControllerService.markReadNotification(notificationId, reciveId);
 
-        const rs = notificationId ? await _Notification.updateMany({ _id: notificationId }, { read: true }) : await _Notification.updateMany({ receiver: reciveId }, { read: true })
+            return res.status(200).json({
+                message: "Update status success"
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
 
-        if (!rs) return next(new ErrorApi(404, "Update status read faild"))
-            
-        
+    async getNotificationById(req: Request, res: Response, next: NextFunction) {
+        try {
+            const id = req.params.id;
 
-        return res.status(200).json({
-            message: "Update status success"
-        })
+            console.log (id)
+
+            const notice = await notificationControllerService.getNotificationById(id);
+
+            return res.status(200).json({
+                message: 'Get notification success',
+                data: notice
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async getNotificationsForUser(req: Request, res: Response, next: NextFunction) {
+        try {
+            const id = req.params.id;
+
+            const result = await notificationControllerService.getNotificationsByReceiver(id);
+
+            console.log (result)
+            return res.status(200).json({
+                message: 'Get notifications for user success',
+                data: result
+            });
+        } catch (error) {
+            next(error);
+        }
     }
 }
 
-export default new notificationController()
+export default new NotificationController();

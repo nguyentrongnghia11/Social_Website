@@ -31,4 +31,8 @@ groupSchema.pre<IGroup>('save', function (next) {
 
 })
 
+// Index for performance
+groupSchema.index({ members: 1 });
+groupSchema.index({ userCreate: 1 });
+
 export default model<IGroup>('Group', groupSchema);

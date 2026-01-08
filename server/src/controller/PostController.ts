@@ -1,473 +1,268 @@
 import { IUser } from '../models/user';
-import _Post from '../models/post'
-import _Comment from '../models/comment'
-import { NextFunction, Request, Response, } from 'express'
-import redisClient from '../databases/connectRedis';
-import { Types } from 'mongoose';
-import { uploadProducer } from '../services/queue/uploadProducer.services';
-import { title } from 'process';
-import { ErrorApi } from '../middleware/error';
-
+import { NextFunction, Request, Response } from 'express';
+import postService from '../services/post/post.services';
 
 class PostController {
-    // [GET] /playlist
     async createPost(req: Request, res: Response, next: NextFunction) {
-        const { title, content } = req.body;
-        const user = req.user as IUser;
+        try {
+            const { title, content } = req.body;
+            const user = req.user as IUser;
 
-        const newPost = await _Post.create({
-            title,
-            artistId: user._id,
-            content,
-        })
+            const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+            const imageFiles = files["image"] || [];
+            const videoFiles = files["video"] || [];
+            const allFiles = [...imageFiles, ...videoFiles];
 
-        const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+            const newPost = await postService.createPost(title, content, user._id.toString(), allFiles);
 
-        const imageFiles = files["image"] || [];
-        const videoFiles = files["video"] || [];
-
-
-
-        const path = [...imageFiles, ...videoFiles].map(file => file.path);
-
-        if (path.length > 0) {
-            const listPath = {
-                uid: user._id,
-                postId: newPost._id,
-                paths: path
-            }
-            try {
-                await uploadProducer(JSON.stringify(listPath));
-            } catch (error) {
-                console.error('Lỗi khi gửi message lên queue:', error);
-            }
+            return res.status(200).json({
+                message: 'create post success',
+                result: newPost
+            });
+        } catch (error) {
+            next(error);
         }
+    }
 
-        return res.status(200).json({
-            message: 'create post success',
-            result: newPost
-        })
+    async grantPermissionUploadFile(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { typeImg, title, content } = req.body;
+            const { _id } = req.user as IUser;
+
+            const information = await postService.grantPermissionUploadFile(typeImg, title, content, _id.toString());
+
+            return res.status(200).json({
+                message: "Grant permission success",
+                data: information
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async updateFile(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { listFile, postId } = req.body;
+
+            const result = await postService.updateFile(listFile, postId);
+
+            return res.status(200).json({
+                message: "Upload success",
+                count: result.count
+            });
+        } catch (error) {
+            next(error);
+        }
     }
 
     async updatePost(req: Request, res: Response, next: NextFunction) {
-        const postId = req.params.id;
-        const { title, imgUrl, content } = req.body;
+        try {
+            const postId = req.params.id;
+            const { title, content, files } = req.body;
 
+            console.log("Updating post with files: ", files);
 
-        const post = await _Post.findOneAndUpdate({ _id: postId }, { title, imgUrl, content }, { new: true })
+            const post = await postService.updatePost(postId, title, content, files);
 
-
-        if (!post) return next(new ErrorApi(400, "GroupId or uid is missing"))
-
-
-        return res.json({
-            status: 200,
-            message: 'Add song to playlist success',
-            data: post
-        })
-
+            return res.json({
+                status: 200,
+                message: 'Update post success',
+                data: post
+            });
+        } catch (error) {
+            next(error);
+        }
     }
 
+    async getPost(req: Request, res: Response, next: NextFunction) {
+        try {
+            const postId = req.params.id;
+            const user = req.user as IUser;
+            const userId = user?._id?.toString();
 
-    async getPost(req: Request, res: Response) {
+            console.log ("Getting post with ID: ", postId, " for user ID: ", user);
 
-        const postId = req.params.id;
+            const post = await postService.getPost(postId, userId);
 
-        const post = await _Post.aggregate([
-            {
-                $match: { _id: new Types.ObjectId(postId) }
-
-            }
-            ,
-            {
-                $addFields: {
-                    likeCount: { $size: { $ifNull: ['$react', []] } }
-                }
-            },
-
-
-            {
-                $lookup: {
-                    from: 'comments',
-                    localField: '_id',         // post._id
-                    foreignField: 'postId',    // comments.postId
-                    as: 'comments'
-                }
-            },
-            {
-
-                $addFields: {
-                    commentCount: { $size: { $ifNull: ['$comments', []] } }
-                }
-            },
-            {
-                $project: {
-                    title: 1,
-                    content: 1,
-                    likeCount: 1,
-                    imgUrl: 1,
-                    vidUrl: 1,
-                    commentCount: 1,
-                    createdAt: 1
-                }
-            }
-        ]);
-        return res.json({
-            status: 200,
-            message: 'Get all post success',
-            result: post
-        })
-
+            return res.json({
+                status: 200,
+                message: 'Get post success',
+                result: post
+            });
+        } catch (error) {
+            next(error);
+        }
     }
 
     async hiddenPost(req: Request, res: Response, next: NextFunction) {
-        const postId = req.params.id;
-        const accountId = req.user; // .id 
+        try {
+            const postId = req.params.id;
+            const accountId = (req.user as IUser)._id.toString();
 
-        console.log(postId)
+            await postService.hiddenPost(postId, accountId);
 
-        const post = await _Post.deleteOne({ _id: postId }, accountId);
-
-        if (!post) {
             return res.json({
-                status: 404,
-                message: 'Delete post faild'
-            })
+                status: 200,
+                message: 'Post deleted successfully'
+            });
+        } catch (error) {
+            next(error);
         }
-        return res.json({
-            status: 400,
-            message: 'success 84'
-        })
     }
 
     async removePost(req: Request, res: Response, next: NextFunction) {
-
-        // const postId = req.params.id;
-        // const accountId = req.user.id;
-
-        // console.log(postId)
-
-        // const post = await _Post.deleteOne({ _id: postId }, accountId);
-
-        // if (!post) {
-        //     return res.json({
-        //         status: 404,
-        //         message: 'Delete post faild'
-        //     })
-        // }
-        // return res.json({
-        //     status: 400,
-        //     message: 'success 84'
-        // })
+        return res.status(501).json({
+            message: 'Not implemented'
+        });
     }
 
     async reactPost(req: Request, res: Response, next: NextFunction) {
-        const { _id } = req.user as IUser;
-        const { postID } = req.body;
+        try {
+            const { _id } = req.user as IUser;
+            const { postID } = req.body;
 
-        const post = await _Post.findOne(postID);
-        if (!post) return next(new ErrorApi(404, "Post not found"))
+            const result = await postService.reactPost(_id.toString(), postID);
 
-        // //check cooldown 
-
-        // const keyCooldown = `cooldown:post:like:${postID}`
-        const keyPostLike = `post:like:${postID}`
-
-        // const isCoolDown = await redisClient.get(keyCooldown);
-        // if (isCoolDown) {
-        //     return res.json({
-        //         status: 429,
-        //         message: 'Fast request'
-        //     })
-        // }
-
-
-        // await redisClient.set(keyCooldown.toString(), 1, { "EX": 2 });
-
-        const liked = await redisClient.SISMEMBER(`${keyPostLike}`, _id.toString());
-        if (liked) {
-            await redisClient.SREM(keyPostLike, _id.toString());
             return res.json({
                 status: 200,
-                message: 'Unliked post',
-                liked: false
-            })
+                message: result.liked ? 'Like post success' : 'Unliked post',
+                liked: result.liked
+            });
+        } catch (error) {
+            next(error);
         }
-        else redisClient.sAdd(keyPostLike, _id.toString());
-        return res.json({
-            status: 200,
-            message: 'Like post success',
-            liked: true
-        })
     }
 
     async moderationPost(req: Request, res: Response, next: NextFunction) {
-        // const postId = req.params.id;
-        // const admin = req.user.role;
-
-
-
-        // if (admin !== 'admin') {
-        //     return res.json({
-        //         status: 403,
-        //         message: 'Permission denied'
-        //     })
-        // }
-
-
-        // const post = await _Post.findByIdAndUpdate({ _id: postId }, { status: 1 });
-
-        // if (!post) {
-        //     return res.json({
-        //         status: 400,
-        //         message: 'Moderation faild'
-        //     })
-        // }
-
-        // return res.json({
-        //     status: 200,
-        //     message: 'Moderation success'
-        // })
-
+        return res.status(501).json({
+            message: 'Not implemented'
+        });
     }
-
-    // async restorePost() {
-    //     const postId = req.params.id;
-    //     const admin = req.user.id;
-
-    //     const author = _Post.findById({ _id: postId }).select('artistId');
-
-    //     if (admin !== author) {
-    //         return res.json({
-    //             status: 403,
-    //             message: 'Permission denied'
-    //         })
-    //     }
-
-    //     const post = await _Post.restore({ _id: postId });
-
-    //     if (!post) {
-    //         return res.json({
-    //             status: 400,
-    //             message: 'Restore faild'
-    //         })
-    //     }
-
-    //     return res.json({
-    //         status: 200,
-    //         message: 'Restore success'
-    //     })
-
-
-    // }
-
 
     async getAllPost(req: Request, res: Response, next: NextFunction) {
+        try {
+            const page: number = parseInt(req.query.page as string) || 1;
+            const limit: number = parseInt(req.query.limit as string) || 10;
+            const sortBy: string = req.query.sortBy as string || '-createdAt';
+            const user = req.user as IUser;
+            const userId = user?._id?.toString();
 
-        const page: number = parseInt(req.query.page as string) || 1
-        const limit: number = parseInt(req.query.limit as string) || 10;
-        const skip: number = (page - 1) * limit;
-        const sortt: string = req.query.sortBy as string || '-createdAt'
+            const listPost = await postService.getAllPost(page, limit, sortBy, userId);
 
-        const listPost = await _Post.aggregate([
-            {
-                $addFields: {
-                    likeCount: { $size: { $ifNull: ['$react', []] } }
-                }
-            },
-            {
-                $lookup: {
-                    from: 'comments',
-                    localField: '_id',         // post._id
-                    foreignField: 'postId',    // comments.postId
-                    as: 'comments'
-                }
-            },
-            {
-                $addFields: {
-                    commentCount: { $size: { $ifNull: ['$comments', []] } }
-                }
-            },
-            {
-                $project: {
-
-                    title: 1,
-                    content: 1,
-                    likeCount: 1,
-                    commentCount: 1,
-                    imgUrl: 1,
-                    createdAt: 1
-                }
-            }, {
-                $sort: {
-                    createdAt: -1
-                }
-            }, {
-                $skip: skip
-            }
-            , {
-                $limit: limit
-            }
-        ]);
-
-        return res.json({
-            status: 200,
-            message: 'Get all post success',
-            data: listPost
-        })
-
+            return res.json({
+                status: 200,
+                message: 'Get all post success',
+                data: listPost
+            });
+        } catch (error) {
+            next(error);
+        }
     }
 
-
     async getPostLikedOfUser(req: Request, res: Response, next: NextFunction) {
-        const user = req.user as IUser
+        try {
+            const user = req.user as IUser;
 
-        const listPost = await _Post.aggregate([
-            {
-                $match: { react: { $in: [user._id] } }
+            const listPost = await postService.getPostLikedOfUser(user._id.toString());
 
-            }
-            ,
-            {
-                $addFields: {
-                    likeCount: { $size: { $ifNull: ['$react', []] } }
-                }
-            },
-
-
-            {
-                $lookup: {
-                    from: 'comments',
-                    localField: '_id',         // post._id
-                    foreignField: 'postId',    // comments.postId
-                    as: 'comments'
-                }
-            },
-            {
-
-                $addFields: {
-                    commentCount: { $size: { $ifNull: ['$comments', []] } }
-                }
-            },
-            {
-                $project: {
-                    title: 1,
-                    content: 1,
-                    likeCount: 1,
-                    commentCount: 1,
-                    createdAt: 1
-                }
-            }
-        ]);
-
-        return res.json({
-            status: 200,
-            message: 'Get all post success',
-            data: listPost
-        })
-
+            return res.json({
+                status: 200,
+                message: 'Get all post success',
+                data: listPost
+            });
+        } catch (error) {
+            next(error);
+        }
     }
 
     async getPostUserCommented(req: Request, res: Response, next: NextFunction) {
-        console.log('getpostcommented')
-        const user = req.user as IUser
-        const listPost = await _Comment.aggregate([{
-            $match: {
-                userId: user._id
-            }
-        }, { $group: { _id: '$postId', comments: { $push: '$_id' }, userIds: { $addToSet: '$userId' } } },
-        { $addFields: { commentCount: { $size: '$comments' } } },
-        { $lookup: { from: 'posts', localField: '_id', foreignField: '_id', as: 'post' } },
-        { $addFields: { 'likeCount': { $size: '$post.react' } } },
-        { $unwind: '$post' }, { $project: { _id: 0, comments: 0 } }])
+        try {
+            const user = req.user as IUser;
 
-        if (!listPost) {
+            const listPost = await postService.getPostUserCommented(user._id.toString());
+
             return res.json({
-                status: 204,
-                message: 'Post not found',
-            })
+                status: 200,
+                message: 'Get all post success',
+                data: listPost
+            });
+        } catch (error) {
+            next(error);
         }
-
-        return res.json({
-            status: 200,
-            message: 'Get all post success',
-            data: listPost
-        })
-
     }
 
     async getPostOfUser(req: Request, res: Response, next: NextFunction) {
-        const user = req.user as IUser
+        try {
+            const user = req.user as IUser;
 
+            const listPost = await postService.getPostOfUser(user._id.toString());
 
-        console.log(user._id)
-
-        const listPost = await _Post.aggregate([
-            {
-                $match: { artistId: user._id }
-            }
-            ,
-            {
-                $addFields: {
-                    likeCount: { $size: { $ifNull: ['$react', []] } }
-                }
-            },
-
-
-            {
-                $lookup: {
-                    from: 'comments',
-                    localField: '_id',         // post._id
-                    foreignField: 'postId',    // comments.postId
-                    as: 'comments'
-                }
-            },
-            {
-
-                $addFields: {
-                    commentCount: { $size: { $ifNull: ['$comments', []] } }
-                }
-            },
-            {
-                $project: {
-                    title: 1,
-                    content: 1,
-                    likeCount: 1,
-                    commentCount: 1,
-                    createdAt: 1
-                }
-            }
-        ]);
-
-        if (!listPost) {
             return res.json({
-                status: 204,
-                message: 'Post not found',
-            })
+                status: 200,
+                message: 'Get all post success',
+                data: listPost
+            });
+        } catch (error) {
+            next(error);
         }
-
-        return res.json({
-            status: 200,
-            message: 'Get all post success',
-            data: listPost
-        })
-
     }
-
 
     async getMyPost(req: Request, res: Response, next: NextFunction) {
-        const {_id}= req.user as IUser;
+        try {
+            const { _id } = req.user as IUser;
 
-        const post = await _Post.find({ artistId: _id}).populate('artistId').populate('comments').sort({ createdAt: -1 });
+            const post = await postService.getMyPost(_id.toString());
 
-        return res.json({
-            status: 200,
-            message: 'Get my post success',
-            data: post
-        })
-
+            return res.json({
+                status: 200,
+                message: 'Get my post success',
+                data: post
+            });
+        } catch (error) {
+            next(error);
+        }
     }
 
+    async getTopPost(req: Request, res: Response, next: NextFunction) {
+        try {
+            const limit = parseInt(req.query.limit as string) || 10;
+            const period = (req.query.period as string) || 'week';
+
+            const result = await postService.getTopPost(limit, period);
+
+            return res.status(200).json({
+                message: 'Get top post success',
+                result
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async searchPost(req: Request, res: Response, next: NextFunction) {
+        try {
+            const keyword = req.query.q as string;
+            const page: number = parseInt(req.query.page as string) || 1;
+            const limit: number = parseInt(req.query.limit as string) || 10;
+
+            if (!keyword || keyword.trim() === '') {
+                return res.status(400).json({
+                    status: 400,
+                    message: 'Keyword is required'
+                });
+            }
+
+            const result = await postService.searchPost(keyword, page, limit);
+
+            return res.json({
+                status: 200,
+                message: 'Search post success',
+                data: result
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
 }
 
 export default new PostController();

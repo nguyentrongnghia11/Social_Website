@@ -31,19 +31,21 @@ const upload = multer({ storage });
 
 
 router.get("/all", post.getAllPost)
+router.get("/search", post.searchPost)
 router.get("/mypost", authenticateMiddleware, post.getMyPost)
 router.get("/liked", authenticateMiddleware, post.getPostLikedOfUser)
 router.get("/commented", authenticateMiddleware, post.getPostUserCommented)
 router.get("/user/all",authenticateMiddleware, post.getPostOfUser)
+router.get("/top", post.getTopPost)
 router.post("/create", authenticateMiddleware, validateCreatePost,upload.fields([{ name: 'image', maxCount: 5 },
 { name: 'video', maxCount: 2 }]) , post.createPost)
-router.patch("/react", authenticateMiddleware,post.reactPost)
+router.patch("/react", authenticateMiddleware, limiter, post.reactPost)
+router.post("/grant-permission", authenticateMiddleware,post.grantPermissionUploadFile)
+router.post("/save/media", authenticateMiddleware,post.updateFile)
 router.delete("/:id/hidden", passport.authenticate(['jwt', 'oauth2'], { failureRedirect: '/' }), post.hiddenPost)
-router.get("/:id", post.getPost)
+router.get("/:id",authenticateMiddleware ,post.getPost)
 router.delete("/:id", passport.authenticate(['jwt', 'oauth2'], { failureRedirect: '/' }), post.removePost)
-router.patch("/:id", passport.authenticate(['jwt', 'oauth2'], { failureRedirect: '/' }), post.moderationPost)
-router.put("/:id", passport.authenticate(['jwt', 'oauth2'], { failureRedirect: '/' }), validateUpdatePost,post.updatePost)
+// router.patch("/:id", passport.authenticate(['jwt', 'oauth2'], { failureRedirect: '/' }), post.moderationPost)
+router.patch("/:id", validateUpdatePost,post.updatePost)
 
-
-// passport.authenticate('jwt', { session: false }),
-export default router;
+export default router;  

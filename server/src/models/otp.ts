@@ -19,7 +19,7 @@ const otpSchema = new Schema<IOtp>({
 }, {
     timestamps: true,
     collection: 'otp',
-    // expires: '2m'
+    expires: '1m'
 })
 
 export default model<IOtp>('Otp', otpSchema);

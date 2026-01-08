@@ -1,54 +1,60 @@
 import { IUser } from "../models/user";
-import { Request, Response } from "express";
-import _Conversation from '../models/conversation'
-import _Message from "../models/message";
-import { Types } from "mongoose";
+import { Request, Response, NextFunction } from "express";
+import messageService from '../services/message/message.services';
 
-const getAllConventionOfUser = async (req: Request, res: Response) => {
-    const user = req.user as IUser;
-    const userId = new Types.ObjectId(user._id);
-    const listConvenstation = await _Conversation.find({
-        $or: [
-            // Private chat
-            { senderId: userId },
-            { receiverId: userId },
-            // Group chat
-            { groupId: { $exists: true, $ne: null } }
-        ]
-    })
-        .populate({
-            path: 'groupId',
-            select: { members: 1, name: 1 },
-            match: { members: userId }
-        })
-        .populate([
-            { path: 'senderId', select: 'email _id name' },
-            { path: 'receiverId', select: 'email _id name' }
-        ])
+const getAllConventionOfUser = async (req: Request, res: Response, next: NextFunction) => {
+    console.log ("123")
+    try {
+        const user = req.user as IUser;
+        const listConversation = await messageService.getAllConversationsOfUser(user._id.toString());
 
-        .select({ __v: 0 })
-        .sort({ updatedAt: -1 })
-        .lean();
-
-    return res.status(200).json({
-        message: 'List of all conversations of user',
-        result: listConvenstation
-    })
+        console.log("listConversation ", listConversation);
+        return res.status(200).json({
+            message: 'List of all conversations of user',
+            result: listConversation
+        });
+    } catch (error) {
+        next(error);
+    }
 }
 
-const getMessageOfUser = async (req: Request, res: Response) => {
-    const user = req.user as IUser;
-    const convervation_id = req.params.id;
+const getMessageOfUser = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const conversationId = req.params.id;
+        const page: number = parseInt(req.query.page as string) || 1;
+        const limit: number = parseInt(req.query.limit as string) || 50;
 
-    console.log(convervation_id)
+        const result = await messageService.getMessagesOfConversation(conversationId, page, limit);
 
-    const messages = await _Message.find({ conversationId: convervation_id }).sort({ createdAt: -1 }).lean()
-    return res.status(200).json({
-        message: 'List of all messages of user',
-        result: messages
-
-    })
-
+        return res.status(200).json({
+            message: 'List of all messages of user',
+            data: result.messages,
+            pagination: {
+                page,
+                limit,
+                total: result.total,
+                totalPages: Math.ceil(result.total / limit)
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
 }
 
-export { getAllConventionOfUser, getMessageOfUser }
+const markMessagesAsRead = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const user = req.user as IUser;
+        const conversationId = req.params.id;
+
+        const result = await messageService.markMessagesAsRead(conversationId, user._id.toString());
+
+        return res.status(200).json({
+            message: 'Messages marked as read',
+            data: result
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export { getAllConventionOfUser, getMessageOfUser, markMessagesAsRead };
