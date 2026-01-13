@@ -36,8 +36,6 @@ const PostCard = (props) => {
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const user = isLoggedIn()
-
-  // Check if current user is the author of the post
   const isAuthor = user && (
     user.user._id === postData.author?._id
   );
@@ -54,10 +52,6 @@ const PostCard = (props) => {
   const [selectedImage, setSelectedImage] = useState(null)
   const [imageDialogOpen, setImageDialogOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
-
-
-
-  // ✅ Xác định preview modes
   const isPreviewMode = preview === "primary" || preview === "secondary"
   const isCompactPreview = preview === "secondary"
   const isDetailPage = !preview || !isPreviewMode
@@ -94,8 +88,6 @@ const PostCard = (props) => {
     e.preventDefault()
     const content = e.target.content.value
     const title = e.target.title.value || post.title
-
-    // Use updatedFiles if provided, otherwise keep existing files
     const files = updatedFiles || post.files || [];
 
     const updateData = {
@@ -109,15 +101,11 @@ const PostCard = (props) => {
     try {
       const response = await updatePost(post._id, isLoggedIn(), updateData);
       console.log('Update response:', response);
-
-      // Update local state with response data
       if (response?.data) {
-        // Make sure to preserve all fields and update properly
         setPost(response.data);
         setLikeCount(response.data.likeCount || post.likeCount);
         setLiked(response.data.liked || post.liked);
       } else {
-        // Fallback to local update if no response data
         setPost({ ...post, ...updateData, edited: true });
       }
       setEditing(false);
@@ -144,7 +132,6 @@ const PostCard = (props) => {
     setSelectedImage(null)
   }, [])
 
-  // ✅ Toggle expand/collapse
   const handleToggleExpand = useCallback((e) => {
     e.stopPropagation()
     setExpanded(!expanded)
@@ -244,7 +231,6 @@ const PostCard = (props) => {
   }
 
   const renderVideos = () => {
-    // Support both videoUrl and vidUrl
     const videos = post.videoUrl || post.vidUrl || [];
     if (videos.length === 0 || !isDetailPage) return null;
 
@@ -283,7 +269,6 @@ const PostCard = (props) => {
     )
   }
 
-  // ✅ NEW: Render media indicators for preview mode
   const renderMediaIndicators = () => {
     const imageCount = post.imageCount ?? post.imgUrl?.length ?? 0
     const videoCount = post.videoCount ?? post.videoUrl?.length ?? post.vidUrl?.length ?? 0
@@ -343,8 +328,6 @@ const PostCard = (props) => {
             {videoCount} {videoCount === 1 ? "video" : "video"}
           </Box>
         )}
-
-        {/* ✅ Total media count for compact preview */}
         {isCompactPreview && (imageCount > 0 || videoCount > 0) && (
           <Box
             sx={{
@@ -513,7 +496,6 @@ const PostCard = (props) => {
                 {post.title}
               </Typography>
 
-              {/* ✅ Content for detail page */}
               {!isPreviewMode &&
                 (editing ? (
                   <ContentUpdateEditor
@@ -544,14 +526,7 @@ const PostCard = (props) => {
                     )}
                   </Box>
                 ))}
-
-              {/* ✅ Content preview for preview modes */}
-              {/* {renderContentPreview()} */}
-
-              {/* ✅ Media indicators for preview modes */}
               {renderMediaIndicators()}
-
-              {/* ✅ Full media display for detail page */}
               {isDetailPage && (
                 <>
                   {renderImages()}
