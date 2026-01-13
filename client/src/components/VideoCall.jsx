@@ -58,6 +58,8 @@ const VideoCall = ({ onCallEnd }) => {
     // Cleanup
     return () => {
       if (localVideoRef.current) {
+        console.log('🧹 Cleaning up local video element');
+        localVideoRef.current.pause();
         localVideoRef.current.srcObject = null;
       }
     };
@@ -118,9 +120,13 @@ const VideoCall = ({ onCallEnd }) => {
     // Cleanup
     return () => {
       if (remoteVideoRef.current) {
+        console.log('🧹 Cleaning up remote video element');
+        remoteVideoRef.current.pause();
         remoteVideoRef.current.srcObject = null;
       }
       if (remoteAudioRef.current) {
+        console.log('🧹 Cleaning up remote audio element');
+        remoteAudioRef.current.pause();
         remoteAudioRef.current.srcObject = null;
       }
     };

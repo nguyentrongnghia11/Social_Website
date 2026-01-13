@@ -44,6 +44,8 @@ export const VideoCallProvider = ({ children }) => {
   const ringtoneIntervalRef = useRef(null);
   const audioContextRef = useRef(null);
   const peerConnectionRef = useRef(null);
+  const localStreamRef = useRef(null);
+  const remoteStreamRef = useRef(null);
   const iceCandidatesQueue = useRef([]);
   const processedAnswerRef = useRef(false);
   const currentCallIdRef = useRef(null);
@@ -59,6 +61,8 @@ export const VideoCallProvider = ({ children }) => {
 
   useEffect(() => {
     stateRef.current = { activeCall, incomingCall, callStatus, localStream, remoteStream };
+    localStreamRef.current = localStream;
+    remoteStreamRef.current = remoteStream;
   }, [activeCall, incomingCall, callStatus, localStream, remoteStream]);
 
   // Monitor network status
@@ -80,8 +84,31 @@ export const VideoCallProvider = ({ children }) => {
       setCallStatus('Mất kết nối mạng');
     };
 
+    const handleBeforeUnload = (e) => {
+      // Cleanup media when page unloads
+      console.log('⚠️ Page unloading, cleaning up media...');
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(track => {
+          console.log('🛑 Stopping track on unload:', track.kind);
+          track.stop();
+        });
+      }
+      if (remoteStreamRef.current) {
+        remoteStreamRef.current.getTracks().forEach(track => track.stop());
+      }
+      
+      // End call if active
+      if (activeCall?.callId) {
+        emitEvent('call-end', {
+          callId: activeCall.callId,
+          otherUserId: activeCall.receiverId
+        });
+      }
+    };
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    window.addEventListener('beforeunload', handleBeforeUnload);
 
     // Check initial state
     setNetworkStatus(navigator.onLine ? 'online' : 'offline');
@@ -89,6 +116,7 @@ export const VideoCallProvider = ({ children }) => {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [activeCall]);
 
@@ -213,8 +241,8 @@ export const VideoCallProvider = ({ children }) => {
 
   const cleanupMediaAndPeerConnection = () => {
     console.log('🧹 [Cleanup] Starting cleanup...', {
-      hasLocalStream: !!localStream,
-      hasRemoteStream: !!remoteStream,
+      hasLocalStream: !!localStreamRef.current,
+      hasRemoteStream: !!remoteStreamRef.current,
       hasPeerConnection: !!peerConnectionRef.current,
       currentCallId: currentCallIdRef.current,
       processedAnswer: processedAnswerRef.current
@@ -223,24 +251,30 @@ export const VideoCallProvider = ({ children }) => {
     // Stop ringtone first
     stopRingtone();
 
-    // Cleanup local stream
-    if (localStream) {
-      console.log('🎥 Stopping local stream tracks');
-      localStream.getTracks().forEach(track => {
+    // Cleanup local stream - use ref to get latest value
+    if (localStreamRef.current) {
+      console.log('🎥 Stopping local stream tracks:', localStreamRef.current.getTracks().map(t => `${t.kind}:${t.id}`));
+      localStreamRef.current.getTracks().forEach(track => {
+        console.log('🛑 Stopping track:', track.kind, track.id, 'readyState:', track.readyState);
         track.stop();
         track.enabled = false;
       });
+      localStreamRef.current = null;
       setLocalStream(null);
+      console.log('✅ Local stream cleaned up');
     }
 
-    // Cleanup remote stream
-    if (remoteStream) {
-      console.log('📺 Stopping remote stream tracks');
-      remoteStream.getTracks().forEach(track => {
+    // Cleanup remote stream - use ref to get latest value
+    if (remoteStreamRef.current) {
+      console.log('📺 Stopping remote stream tracks:', remoteStreamRef.current.getTracks().map(t => `${t.kind}:${t.id}`));
+      remoteStreamRef.current.getTracks().forEach(track => {
+        console.log('🛑 Stopping track:', track.kind, track.id, 'readyState:', track.readyState);
         track.stop();
         track.enabled = false;
       });
+      remoteStreamRef.current = null;
       setRemoteStream(null);
+      console.log('✅ Remote stream cleaned up');
     }
 
     // Cleanup peer connection
@@ -404,6 +438,29 @@ export const VideoCallProvider = ({ children }) => {
     alert(`Lỗi: ${message}`);
   };
 
+  // Cleanup when activeCall becomes null
+  useEffect(() => {
+    if (!activeCall) {
+      console.log('🧹 [Effect] activeCall is null, cleaning up media...');
+      // Force cleanup when call ends
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(track => {
+          console.log('🛑 Force stopping track:', track.kind, track.id);
+          track.stop();
+        });
+        localStreamRef.current = null;
+        setLocalStream(null);
+      }
+      if (remoteStreamRef.current) {
+        remoteStreamRef.current.getTracks().forEach(track => {
+          track.stop();
+        });
+        remoteStreamRef.current = null;
+        setRemoteStream(null);
+      }
+    }
+  }, [activeCall]);
+
   // 1. Initialize local media stream
   useEffect(() => {
     if (!activeCall?.callId) return;
@@ -435,6 +492,7 @@ export const VideoCallProvider = ({ children }) => {
           return;
         }
         
+        localStreamRef.current = stream;
         setLocalStream(stream);
         setIsVideoOff(activeCall.callType === 'audio');
         console.log('✅ Got local stream:', stream.getTracks().map(t => `${t.kind}:${t.id}`));
@@ -525,6 +583,8 @@ export const VideoCallProvider = ({ children }) => {
     pc.ontrack = (event) => {
       const [stream] = event.streams;
       if (stream) {
+        console.log('📡 Received remote stream:', stream.getTracks().map(t => `${t.kind}:${t.id}`));
+        remoteStreamRef.current = stream;
         setRemoteStream(stream);
       }
     };
