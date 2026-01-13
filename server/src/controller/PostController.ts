@@ -40,6 +40,23 @@ class PostController {
         }
     }
 
+    async grantPermissionForUpdatePost(req: Request, res: Response, next: NextFunction) {
+        try {
+            const postId = req.params.id;
+            const { typeImg } = req.body;
+            const { _id } = req.user as IUser;
+
+            const information = await postService.grantPermissionForUpdatePost(postId, typeImg, _id.toString());
+
+            return res.status(200).json({
+                message: "Grant permission for update success",
+                data: information
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
     async updateFile(req: Request, res: Response, next: NextFunction) {
         try {
             const { listFile, postId } = req.body;
@@ -59,15 +76,18 @@ class PostController {
         try {
             const postId = req.params.id;
             const { title, content, files } = req.body;
+            const user = req.user as IUser;
+            const userId = user?._id?.toString();
 
             console.log("Updating post with files: ", files);
 
-            const post = await postService.updatePost(postId, title, content, files);
+            await postService.updatePost(postId, title, content, userId, files);
+            const postDetail = await postService.getPost(postId, userId);
 
             return res.json({
                 status: 200,
                 message: 'Update post success',
-                data: post
+                data: postDetail
             });
         } catch (error) {
             next(error);
@@ -80,7 +100,7 @@ class PostController {
             const user = req.user as IUser;
             const userId = user?._id?.toString();
 
-            console.log ("Getting post with ID: ", postId, " for user ID: ", user);
+            console.log("Getting post with ID: ", postId, " for user ID: ", user);
 
             const post = await postService.getPost(postId, userId);
 
@@ -111,8 +131,17 @@ class PostController {
     }
 
     async removePost(req: Request, res: Response, next: NextFunction) {
-        return res.status(501).json({
-            message: 'Not implemented'
+
+        const isDelete = postService.removePost(req.params.id);
+
+        if (!isDelete) {
+            return res.status(404).json({
+                message: 'Post not found'
+            });
+        }
+
+        return res.status(200).json({
+            message: 'Post removed successfully'
         });
     }
 

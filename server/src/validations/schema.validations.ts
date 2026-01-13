@@ -37,16 +37,18 @@ const ChangePasswordSchema = Joi.object({
 
 const CreatePostSchema = Joi.object({
     title: TitleField,
-    content: Joi.string().required()
+    content: Joi.string().required(),
+    files: Joi.array().items(Joi.string()).optional()
 })
 const UpdatePostSchema = Joi.object({
     title: TitleField,
-    files: Joi.array().items(Joi.object()),
-    content: Joi.string().required()
+    content: Joi.string().required(),
+    files: Joi.array().items(Joi.object()).optional()
 })
 
 const UpdateCommentSchema = Joi.object({
     id: IDField,
+    files: Joi.array().items(Joi.object()).optional(),
     content: Joi.string().required()
 })
 

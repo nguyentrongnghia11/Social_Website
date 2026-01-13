@@ -5,21 +5,27 @@ services:
     build: .
     ports: 
       - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
     develop: 
       watch:
         - action: sync
-          path: .
-          target: /app
+          path: ./src
+          target: /app/src
+        - action: rebuild
+          path: package.json 
     working_dir: /app
     depends_on:
       redis:
         condition: service_healthy
-      mongo:
-        condition: service_healthy
+      # mongo:
+      #   condition: service_healthy
       rabbitmq:
         condition: service_healthy
     env_file:
       - .env.docker
+
 
   redis: 
     image: redis/redis-stack-server:latest
@@ -32,23 +38,30 @@ services:
       retries: 5
     
 
-  mongo: 
-    image: mongo:latest
-    ports: 
-      - "27017:27017"
-    healthcheck:
-      test: ["CMD","mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+  # mongo: 
+  #   image: mongo:latest
+  #   ports: 
+  #     - "27017:27017"
+  #   volumes: 
+  #     - mongo-data:/data/db
+  #   healthcheck:
+  #     test: ["CMD","mongosh", "--eval", "db.adminCommand('ping')"]
+  #     interval: 5s
+  #     timeout: 3s
+  #     retries: 5
 
   rabbitmq:
     image: rabbitmq:3-management
     ports:
       - "5672:5672"    
       - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
     healthcheck:
       test: ["CMD", "rabbitmqctl", "status"]
       interval: 5s
       timeout: 5s
       retries: 5      
+
+volumes:
+  rabbitmq-data:

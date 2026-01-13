@@ -19,7 +19,7 @@ import _Comment from '../../models/comment';
 
 export class UserService {
     async signupWithLocal(email: string) {
-        const u = await _User.findOne({ email: email });
+        const u = await _User.findOne({ email: email, type: 'local' });
         console.log ("check u", u);
         if (u) {
             throw new ErrorApi(409, 'Account already exists');
@@ -39,7 +39,7 @@ export class UserService {
         role: string,
         deviceId: string
     ) {
-        const acc = await _User.findOne({ email: email });
+        const acc = await _User.findOne({ email: email, type : 'local' });
         console.log ("check acc", acc);
         if (acc) {
             throw new ErrorApi(409, 'User exists');

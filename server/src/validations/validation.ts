@@ -63,22 +63,29 @@ const validateChangePassword = (req: Request, res: Response, next: NextFunction)
 }
 
 const validateCreatePost = (req: Request, res: Response, next: NextFunction) => {
+    // Trim title và content để tránh lỗi khoảng trắng thừa
+    if (req.body.title) req.body.title = req.body.title.trim();
+    if (req.body.content) req.body.content = req.body.content.trim();
 
     const { error } = CreatePostSchema.validate(req.body)
 
     if (error) {
-        return next(new ErrorApi(400, "Missing data"))
+        return next(new ErrorApi(400, error.message))
     }
     next()
 
 }
 const validateUpdatePost = (req: Request, res: Response, next: NextFunction) => {
+    // Trim title và content để tránh lỗi khoảng trắng thừa
+    if (req.body.title) req.body.title = req.body.title.trim();
+    if (req.body.content) req.body.content = req.body.content.trim();
+    
     console.log("Validating update post ", req.body)
     const { error } = UpdatePostSchema.validate(req.body)
     console.log("Validation error ", error) 
 
     if (error) {
-        return next(new ErrorApi(400, "Missing data"))
+        return next(new ErrorApi(400, error.message))
     }
     next()
 }

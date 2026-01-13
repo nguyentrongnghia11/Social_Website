@@ -1,13 +1,15 @@
 FROM node:22.19.0-alpine
 
-
-
 WORKDIR /app
+
+# Copy package files and install dependencies
 COPY package*.json ./
 RUN npm install 
 
+# Copy source code
 COPY . ./ 
 
 EXPOSE 3000
 
-CMD ["npm", "run", "start"]
+# Use dev script for hot reload
+CMD ["npm", "run", "dev"]

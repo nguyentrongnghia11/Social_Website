@@ -14,7 +14,7 @@ export const sendOtpWorker = async () => {
         await channel.assertQueue(queueName, { messageTtl: 60000 })
         await channel.bindQueue(queueName, exchangeName, "SEND-OTP")
 
-        console.log('✅ OTP Worker started and listening for messages...');
+        console.log('OTP Worker started and listening for messages...');
 
         channel.consume(queueName, async (msg) => {
             if (msg?.content) {

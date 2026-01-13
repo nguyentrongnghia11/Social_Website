@@ -57,4 +57,70 @@ const markMessagesAsRead = async (req: Request, res: Response, next: NextFunctio
     }
 }
 
-export { getAllConventionOfUser, getMessageOfUser, markMessagesAsRead };
+const sendMessageWithMedia = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const user = req.user as IUser;
+        const { conversationId, content, type } = req.body;
+        const files = req.files as Express.Multer.File[];
+
+        const result = await messageService.sendMessageWithMedia(
+            conversationId,
+            user._id.toString(),
+            content || '',
+            files,
+            type || 'user'
+        );
+
+        return res.status(200).json({
+            message: 'Message sent successfully',
+            data: result
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+const grantPermissionUploadMedia = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const user = req.user as IUser;
+        const { conversationId, fileCount, fileType } = req.body;
+
+        const result = await messageService.grantPermissionUploadMedia(
+            conversationId,
+            user._id.toString(),
+            fileCount,
+            fileType
+        );
+
+        return res.status(200).json({
+            message: 'Permission granted',
+            data: result
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+const saveMessageMedia = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { messageId, mediaFiles } = req.body;
+
+        const result = await messageService.saveMessageMedia(messageId, mediaFiles);
+
+        return res.status(200).json({
+            message: 'Media saved successfully',
+            data: result
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export { 
+    getAllConventionOfUser, 
+    getMessageOfUser, 
+    markMessagesAsRead, 
+    sendMessageWithMedia,
+    grantPermissionUploadMedia,
+    saveMessageMedia
+};

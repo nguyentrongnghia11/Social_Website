@@ -15,11 +15,11 @@ import _User from '../../models/user';
  */
 const addStandardPostFields = (posts: any[], userId?: string): any[] => {
     const userObjectId = userId ? new Types.ObjectId(userId) : null;
-    
+
     return posts.map(post => {
         // Check if user liked this post
         let liked = false;
-        
+
         if (userObjectId && post.react && Array.isArray(post.react)) {
             liked = post.react.some((reactUserId: any) => {
 
@@ -35,7 +35,7 @@ const addStandardPostFields = (posts: any[], userId?: string): any[] => {
         })) || [];
 
         // Check if post was edited
-        const edited = post.updatedAt && post.createdAt 
+        const edited = post.updatedAt && post.createdAt
             ? new Date(post.updatedAt).getTime() - new Date(post.createdAt).getTime() > 1000
             : false;
 
@@ -124,6 +124,60 @@ export class PostService {
         return information;
     }
 
+    async grantPermissionForUpdatePost(postId: string, typeImg: string, userId: string) {
+        if (!postId) {
+            throw new ErrorApi(400, "Post ID missing");
+        }
+
+        if (!typeImg) {
+            throw new ErrorApi(400, "Type image missing");
+        }
+
+        // Kiểm tra post có tồn tại và user có quyền update không
+        const post = await _Post.findOne({ _id: postId, artistId: userId });
+
+        if (!post) {
+            throw new ErrorApi(404, "Post not found or you don't have permission");
+        }
+
+        const timestamp = Math.floor(Date.now() / 1000);
+        const folder = typeImg === "avatar" ? "avatar" : "upload";
+
+        const signature = await cloudinary.utils.api_sign_request(
+            { timestamp, folder },
+            cloudinary.config().api_secret
+        );
+
+        if (!signature) {
+            throw new ErrorApi(500, "Grant permission fail");
+        }
+
+        const information: {
+            api_key: string;
+            timestamp: number;
+            signature: string;
+            folder: string;
+            tags: string;
+            eager?: Array<{ width: number; height: number; crop: string }>;
+            cloud_name: string;
+            postId: string;
+        } = {
+            api_key: cloudinary.config().api_key,
+            timestamp,
+            signature,
+            folder,
+            tags: postId,
+            cloud_name: cloudinary.config().cloud_name,
+            postId: postId
+        };
+
+        if (typeImg === "avatar") {
+            information.eager = [{ width: 150, height: 150, crop: "thumb" }];
+        }
+
+        return information;
+    }
+
     async updateFile(listFile: any[], postId: string) {
         if (!Array.isArray(listFile) || listFile.length === 0) {
             throw new ErrorApi(400, "Danh sách file trống hoặc không hợp lệ");
@@ -148,8 +202,19 @@ export class PostService {
         return { count: fileDocs.length };
     }
 
-    async updatePost(postId: string, title: string, content: string, files?: any[]) {
+    async updatePost(postId: string, title: string, content: string, userId: string, files?: any[]) {
         console.log("checked 1");
+
+        // Kiểm tra post có tồn tại và user có phải tác giả không
+        const existingPost = await _Post.findOne({ _id: postId });
+
+        if (!existingPost) {
+            throw new ErrorApi(404, "Post not found");
+        }
+
+        if (existingPost.artistId.toString() !== userId) {
+            throw new ErrorApi(403, "You don't have permission to update this post");
+        }
 
         const post = await _Post.findOneAndUpdate(
             { _id: postId },
@@ -162,27 +227,31 @@ export class PostService {
         }
 
         if (files && Array.isArray(files) && files.length > 0) {
-
-            console.log("checked 2");
+            console.log("checked 2 ", files);
             await _File.deleteMany({ postId: postId });
 
+            // Handle cả string URLs và full Cloudinary objects
+            const fileDocs = files
+                .filter(f => typeof f === 'object' && f.secure_url) // Chỉ lấy objects hợp lệ
+                .map(f => ({
+                    public_id: f.public_id,
+                    width: f.width,
+                    height: f.height,
+                    format: f.format,
+                    created_at: f.created_at,
+                    resource_type: f.resource_type,
+                    tags: f.tags || [],
+                    bytes: f.bytes,
+                    secure_url: f.secure_url,
+                    folder: f.asset_folder || f.folder,
+                    postId: postId,
+                }));
+            
+            console.log("checked 3 ", fileDocs);
 
-            const fileDocs = files.map(f => ({
-                public_id: f.public_id,
-                width: f.width,
-                height: f.height,
-                format: f.format,
-                created_at: f.created_at,
-                resource_type: f.resource_type,
-                tags: f.tags || [],
-                bytes: f.bytes,
-                secure_url: f.secure_url,
-                folder: f.asset_folder || f.folder,
-                postId: postId,
-            }));
-            console.log("checked 3");
-
-            await _File.insertMany(fileDocs);
+            if (fileDocs.length > 0) {
+                await _File.insertMany(fileDocs);
+            }
         }
         else {
             await _File.deleteMany({ postId: postId });
@@ -327,7 +396,7 @@ export class PostService {
         // Send notification to post owner
         if (post.artistId.toString() !== userId) {
             const user = await _User.findById(userId).select('name');
-            
+
             await handleNotification({
                 message: `${user?.name || 'Someone'} đã thích bài viết của bạn`,
                 title: 'Lượt thích mới',
@@ -460,6 +529,12 @@ export class PostService {
         return addStandardPostFields(listPost, userId);
     }
 
+
+    async removePost(postId: string) {
+        console.log ("Removing post with ID:", postId);
+        return await _Post.findByIdAndDelete(postId);
+    }
+
     async getPostLikedOfUser(userId: string) {
         const listPost = await _Post.aggregate([
             { $match: { react: { $in: [new Types.ObjectId(userId)] } } },
@@ -480,8 +555,8 @@ export class PostService {
                     as: 'files'
                 }
             },
-            { 
-                $addFields: { 
+            {
+                $addFields: {
                     commentCount: { $size: { $ifNull: ['$comments', []] } },
                     imageCount: {
                         $size: {
@@ -501,7 +576,7 @@ export class PostService {
                             }
                         }
                     }
-                } 
+                }
             },
             {
                 $project: {
@@ -547,8 +622,8 @@ export class PostService {
                     as: 'files'
                 }
             },
-            { 
-                $addFields: { 
+            {
+                $addFields: {
                     likeCount: { $size: { $ifNull: ['$post.react', []] } },
                     imageCount: {
                         $size: {
@@ -568,7 +643,7 @@ export class PostService {
                             }
                         }
                     }
-                } 
+                }
             },
             { $project: { _id: 0, comments: 0, files: 0 } }
         ]);
@@ -596,8 +671,8 @@ export class PostService {
                     as: 'files'
                 }
             },
-            { 
-                $addFields: { 
+            {
+                $addFields: {
                     commentCount: { $size: { $ifNull: ['$comments', []] } },
                     imageCount: {
                         $size: {
@@ -617,7 +692,7 @@ export class PostService {
                             }
                         }
                     }
-                } 
+                }
             },
             {
                 $project: {

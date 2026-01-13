@@ -1,9 +1,12 @@
 import _Conversation from '../../models/conversation';
-import _Message from '../../models/message';
+import _Message, { IMediaFile } from '../../models/message';
 import _Call from '../../models/call';
+import _Media from '../../models/media';
 import { Types } from 'mongoose';
 import { ErrorApi } from '../../middleware/error';
 import redisClient from '../../databases/connectRedis';
+import cloudinary from '../../databases/cloud';
+import { uploadProducer } from '../queue/uploadProducer.services';
 
 export class MessageService {
     async getAllConversationsOfUser(userId: string) {
@@ -318,6 +321,159 @@ export class MessageService {
             messages: paginatedItems,
             total: allItems.length
         };
+    }
+
+    async sendMessageWithMedia(
+        conversationId: string, 
+        senderId: string, 
+        content: string, 
+        files: Express.Multer.File[],
+        type: 'user' | 'group'
+    ) {
+        if (!conversationId || !Types.ObjectId.isValid(conversationId)) {
+            throw new ErrorApi(400, "Invalid conversation ID");
+        }
+
+        if (!senderId || !Types.ObjectId.isValid(senderId)) {
+            throw new ErrorApi(400, "Invalid sender ID");
+        }
+
+        const conversation = await _Conversation.findById(conversationId);
+        if (!conversation) {
+            throw new ErrorApi(404, "Conversation not found");
+        }
+
+        // Upload files to cloudinary
+        const mediaFiles: IMediaFile[] = [];
+        
+        if (files && files.length > 0) {
+            for (const file of files) {
+                const uploadResult = await cloudinary.uploader.upload(file.path, {
+                    folder: `messages/${conversationId}`,
+                    resource_type: 'auto'
+                });
+
+                const fileType = file.mimetype.startsWith('image/') ? 'image' : 'video';
+                
+                mediaFiles.push({
+                    url: uploadResult.secure_url,
+                    type: fileType,
+                    size: file.size,
+                    filename: file.originalname,
+                    cloudinaryId: uploadResult.public_id
+                });
+
+                // Save to Media model
+                await _Media.create({
+                    url: uploadResult.secure_url,
+                    type: fileType,
+                    size: file.size,
+                    uploadedBy: new Types.ObjectId(senderId),
+                    cloudinaryId: uploadResult.public_id
+                });
+            }
+        }
+
+        // Determine content type
+        let contentType: 'text' | 'image' | 'video' | 'file' = 'text';
+        if (mediaFiles.length > 0) {
+            const hasVideo = mediaFiles.some(f => f.type === 'video');
+            contentType = hasVideo ? 'video' : 'image';
+        }
+
+        const message = await _Message.create({
+            conversationId: new Types.ObjectId(conversationId),
+            senderId: new Types.ObjectId(senderId),
+            content: content || (mediaFiles.length > 0 ? 'Đã gửi tệp đính kèm' : ''),
+            contentType,
+            mediaFiles,
+            type,
+            isRead: false
+        });
+
+        await _Conversation.findByIdAndUpdate(conversationId, {
+            lastMessage: message._id,
+            updatedAt: new Date()
+        });
+
+        const populatedMessage = await _Message.findById(message._id)
+            .populate('senderId', '_id name avatar email')
+            .lean();
+
+        return populatedMessage;
+    }
+
+    async grantPermissionUploadMedia(
+        conversationId: string,
+        userId: string,
+        fileCount: number,
+        fileType: 'image' | 'video'
+    ) {
+        if (!conversationId || !Types.ObjectId.isValid(conversationId)) {
+            throw new ErrorApi(400, "Invalid conversation ID");
+        }
+
+        const conversation = await _Conversation.findById(conversationId);
+        if (!conversation) {
+            throw new ErrorApi(404, "Conversation not found");
+        }
+
+        const timestamp = Math.floor(Date.now() / 1000);
+        const folder = 'messages';
+
+        const signature = await cloudinary.utils.api_sign_request(
+            { timestamp, folder },
+            cloudinary.config().api_secret
+        );
+
+        if (!signature) {
+            throw new ErrorApi(500, "Failed to generate signature");
+        }
+
+        return {
+            signature,
+            timestamp,
+            folder,
+            cloudName: cloudinary.config().cloud_name,
+            apiKey: cloudinary.config().api_key,
+            fileCount,
+            fileType
+        };
+    }
+
+    async saveMessageMedia(messageId: string, mediaFiles: IMediaFile[]) {
+        if (!messageId || !Types.ObjectId.isValid(messageId)) {
+            throw new ErrorApi(400, "Invalid message ID");
+        }
+
+        const message = await _Message.findById(messageId);
+        if (!message) {
+            throw new ErrorApi(404, "Message not found");
+        }
+
+        // Update message with media files
+        message.mediaFiles = mediaFiles;
+        
+        // Update content type based on media
+        if (mediaFiles.length > 0) {
+            const hasVideo = mediaFiles.some(f => f.type === 'video');
+            message.contentType = hasVideo ? 'video' : 'image';
+        }
+
+        await message.save();
+
+        // Save to Media model
+        for (const file of mediaFiles) {
+            await _Media.create({
+                url: file.url,
+                type: file.type,
+                size: file.size,
+                uploadedBy: message.senderId,
+                cloudinaryId: file.cloudinaryId
+            });
+        }
+
+        return message;
     }
 }
 

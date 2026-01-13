@@ -1,0 +1,351 @@
+/* Admin Panel Custom Styles */
+
+/* AdminLTE adjustments for React */
+.wrapper {
+  min-height: 100vh;
+  position: relative;
+}
+
+/* Navbar */
+.main-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1030;
+  border-bottom: 1px solid #dee2e6;
+  background-color: #fff;
+  transition: margin-left 0.3s ease-in-out;
+  margin-left: 250px;
+  height: 57px;
+  min-height: 57px;
+}
+
+.main-header .navbar {
+  height: 57px;
+  min-height: 57px;
+  padding: 0;
+}
+
+.sidebar-collapse .main-header {
+  margin-left: 0;
+}
+
+/* Sidebar */
+.main-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  z-index: 1020;
+  width: 250px;
+  transition: margin-left 0.3s ease-in-out;
+}
+
+.sidebar-collapse .main-sidebar {
+  margin-left: -250px;
+}
+
+/* Content */
+.content-wrapper {
+  margin-left: 250px;
+  margin-top: 57px;
+  min-height: calc(100vh - 57px);
+  transition: margin-left 0.3s ease-in-out;
+  background-color: #f4f6f9;
+  padding: 20px;
+}
+
+.sidebar-collapse .content-wrapper {
+  margin-left: 0;
+}
+
+/* Footer */
+.main-footer {
+  margin-left: 250px;
+  transition: margin-left 0.3s ease-in-out;
+  background-color: #fff;
+  border-top: 1px solid #dee2e6;
+  padding: 1rem;
+}
+
+.sidebar-collapse .main-footer {
+  margin-left: 0;
+}
+
+/* Custom card styles */
+.small-box {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 120px;
+}
+
+.small-box.bg-info {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.small-box.bg-success {
+  background: linear-gradient(135deg, #5ee7df 0%, #b490ca 100%);
+  color: white;
+}
+
+.small-box.bg-warning {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+}
+
+.small-box.bg-danger {
+  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+  color: white;
+}
+
+/* Sidebar adjustments */
+.nav-sidebar .nav-link {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  color: #495057;
+  transition: all 0.3s;
+}
+
+.nav-sidebar .nav-link:hover {
+  background-color: #f8f9fa;
+  color: #1976d2;
+}
+
+.nav-sidebar .nav-link.active {
+  background-color: #e3f2fd;
+  color: #1976d2;
+  font-weight: 500;
+}
+
+.nav-sidebar .nav-icon {
+  margin-right: 10px;
+  display: flex;
+  align-items: center;
+}
+
+/* Brand link */
+.brand-link {
+  display: flex;
+  align-items: center;
+  padding: 0 0.5rem;
+  font-size: 1.25rem;
+  background-color: #fff !important;
+  color: #1976d2 !important;
+  text-decoration: none;
+  border-bottom: 1px solid #dee2e6;
+  line-height: 1.5;
+  white-space: nowrap;
+  transition: width 0.3s ease-in-out;
+  height: 57px;
+  min-height: 57px;
+}
+
+.brand-link:hover {
+  color: #1976d2 !important;
+  text-decoration: none;
+  background-color: #f8f9fa !important;
+}
+
+/* Navbar nav items */
+.navbar-nav .nav-link {
+  display: flex;
+  align-items: center;
+  padding: 0 1rem;
+  height: 57px;
+}
+
+.navbar-nav .nav-item.dropdown {
+  display: flex;
+  align-items: center;
+}
+
+/* Content header */
+.content-header {
+  padding: 15px 0;
+}
+
+/* Table improvements */
+.MuiTableContainer-root {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+}
+
+.MuiTableHead-root {
+  background-color: #f8f9fa;
+}
+
+.MuiTableRow-root:hover {
+  background-color: #f8f9fa;
+}
+
+/* Card improvements */
+.MuiCard-root {
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.3s;
+}
+
+.MuiCard-root:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Chip improvements */
+.MuiChip-root {
+  font-weight: 500;
+}
+
+/* Button improvements */
+.MuiButton-root {
+  text-transform: none;
+  font-weight: 500;
+}
+
+/* Dialog improvements */
+.MuiDialog-paper {
+  border-radius: 12px;
+}
+
+/* Loading state */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .main-sidebar {
+    margin-left: -250px;
+  }
+  
+  .content-wrapper,
+  .main-footer {
+    margin-left: 0;
+  }
+  
+  .sidebar-open .main-sidebar {
+    margin-left: 0;
+  }
+  
+  .sidebar-open::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+  }
+}
+
+/* Stats card animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.stat-card {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+/* Chart container */
+.recharts-wrapper {
+  margin: 0 auto;
+}
+
+/* Custom scrollbar for sidebar */
+.sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Print styles */
+@media print {
+  .main-sidebar,
+  .main-header,
+  .main-footer {
+    display: none;
+  }
+  
+  .content-wrapper {
+    margin-left: 0;
+  }
+}
+
+/* Utility classes */
+.text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shadow-sm {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.shadow-md {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.shadow-lg {
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+}
+
+/* Status indicators */
+.status-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.status-badge.success {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.status-badge.warning {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.status-badge.danger {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.status-badge.info {
+  background-color: #d1ecf1;
+  color: #0c5460;
+}

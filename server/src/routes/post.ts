@@ -41,11 +41,12 @@ router.post("/create", authenticateMiddleware, validateCreatePost,upload.fields(
 { name: 'video', maxCount: 2 }]) , post.createPost)
 router.patch("/react", authenticateMiddleware, limiter, post.reactPost)
 router.post("/grant-permission", authenticateMiddleware,post.grantPermissionUploadFile)
+router.post("/:id/grant-permission", authenticateMiddleware, post.grantPermissionForUpdatePost)
 router.post("/save/media", authenticateMiddleware,post.updateFile)
 router.delete("/:id/hidden", passport.authenticate(['jwt', 'oauth2'], { failureRedirect: '/' }), post.hiddenPost)
 router.get("/:id",authenticateMiddleware ,post.getPost)
 router.delete("/:id", passport.authenticate(['jwt', 'oauth2'], { failureRedirect: '/' }), post.removePost)
 // router.patch("/:id", passport.authenticate(['jwt', 'oauth2'], { failureRedirect: '/' }), post.moderationPost)
-router.patch("/:id", validateUpdatePost,post.updatePost)
+router.patch("/:id", authenticateMiddleware, validateUpdatePost, post.updatePost)
 
 export default router;  

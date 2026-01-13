@@ -21,7 +21,7 @@ export const fileSchema = new Schema<IFile>({
     height: { type: Number, required: true },
     public_id: { type: String, required: true },
     postId: { type: Schema.Types.ObjectId, required: true, ref: 'posts' },
-    folder: { type: String, required: true },
+    folder: { type: String, required: false },
     resource_type: { type: String, required: true },
     app_tags: { type: [], required: false },
     cloud_tags: { type: [], required: false },

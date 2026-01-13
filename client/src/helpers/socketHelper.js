@@ -1,0 +1,142 @@
+import { io } from "socket.io-client";
+import { isLoggedIn } from "./authHelper";
+
+const URL = process.env.REACT_APP_SERVER_URL || "http://localhost:3000";
+
+export let socket = null;
+let serverDownCallback = null;
+let reconnectAttempts = 0;
+const MAX_ATTEMPTS_BEFORE_DOWN = 5;
+
+// Callbacks để notify components khi socket state thay đổi
+const connectionCallbacks = new Set();
+
+export const onSocketConnectionChange = (callback) => {
+  connectionCallbacks.add(callback);
+  return () => connectionCallbacks.delete(callback);
+};
+
+const notifyConnectionChange = (connected) => {
+  connectionCallbacks.forEach(callback => callback(connected));
+};
+
+export const initiateSocketConnection = () => {
+  const userAuth = isLoggedIn();
+  const user = userAuth?.user || userAuth;
+
+  if (!user) {
+    console.log('No user, skipping socket');
+    return null;
+  }
+
+  if (socket?.connected) {
+    console.log('✅ Socket already connected');
+    return socket;
+  }
+
+  if (socket) {
+    socket.removeAllListeners();
+    socket.disconnect();
+  }
+
+  const deviceId = localStorage.getItem('deviceId');
+
+  socket = io(URL, {
+    withCredentials: true,
+    extraHeaders: { 'x-device-id': deviceId },
+    reconnection: true,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 10000,
+    reconnectionAttempts: Infinity,
+    timeout: 20000,
+  });
+
+  // Connection success
+  socket.on('connect', () => {
+    console.log('✅ Socket connected:', socket.id);
+    reconnectAttempts = 0;
+    notifyConnectionChange(true);
+  });
+
+  // Connection error
+  socket.on('connect_error', (error) => {
+    console.error('❌ Socket connection error:', error.message);
+  });
+
+  // Disconnected
+  socket.on('disconnect', (reason) => {
+    console.log('⚠️ Socket disconnected:', reason);
+    notifyConnectionChange(false);
+  });
+
+  // Disconnected
+  socket.on('disconnect', (reason) => {
+    console.log('⚠️ Socket disconnected:', reason);
+  });
+
+  // Track reconnection attempts
+  socket.on('reconnect_attempt', (attempt) => {
+    reconnectAttempts = attempt;
+    console.log('Reconnect attempt:', attempt);
+
+    // After MAX_ATTEMPTS, consider server down
+    if (attempt >= MAX_ATTEMPTS_BEFORE_DOWN && serverDownCallback) {
+      console.log('Server appears to be down');
+      serverDownCallback();
+    }
+  });
+
+  return socket;
+};
+
+// Simple event listener
+export const onEvent = (event, callback) => {
+  if (!socket) {
+    console.warn('❌ Socket not initialized for event:', event, '- Call initiateSocketConnection() first');
+    return false;
+  }
+  socket.on(event, callback);
+  console.log('📋 Registered event:', event);
+  return true;
+};
+
+// Simple event emitter
+export const emitEvent = (event, data) => {
+  if (!socket?.connected) {
+    console.warn('❌ Cannot emit - socket not connected');
+    return false;
+  }
+  socket.emit(event, data);
+  console.log('📤 Emitted:', event);
+  return true;
+};
+
+// Remove event listener
+export const offEvent = (event, callback) => {
+  if (!socket) return;
+  socket.off(event, callback);
+};
+
+// Disconnect
+export const disconnectSocket = () => {
+  if (socket) {
+    socket.removeAllListeners();
+    socket.disconnect();
+    socket = null;
+  }
+  reconnectAttempts = 0;
+  serverDownCallback = null;
+};
+
+// Check connection
+export const isSocketConnected = () => {
+  return socket?.connected || false;
+};
+
+// Set server down callback (only one needed)
+export const onServerDown = (callback) => {
+  serverDownCallback = callback;
+};
+
+// Get socket instance
+export const getSocket = () => socket;

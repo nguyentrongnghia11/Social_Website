@@ -9,7 +9,7 @@
     "start:like": "nodemon --exec ts-node src/workers/likeSync.wokerServices.ts",
     "start:upload": "nodemon --exec ts-node src/workers/upload.wokerServices.ts",
     "start:all": "npm-run-all --parallel start:server start:like start:upload",
-    "dev": "nodemon",
+    "dev": "nodemon --exec ts-node --files src/index.ts",
     "build": "npm build"
   },
   "repository": {

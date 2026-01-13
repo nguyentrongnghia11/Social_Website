@@ -62,6 +62,7 @@ const handleExistingConversation = async (socket: Socket, msg: any, conversation
             senderId: msg.senderId,
             content: msg.content,
             contentType: msg.contentType || 'text',
+            mediaFiles: msg.mediaFiles || [],
             type: conversation.type
         });
 
@@ -79,7 +80,8 @@ const handleExistingConversation = async (socket: Socket, msg: any, conversation
                 ...msg,
                 name: msg.nameSender || 'Unknown',
                 conversationId: conversation._id.toString(),
-                senderName: msg.nameSender
+                senderName: msg.nameSender,
+                mediaFiles: msg.mediaFiles || []
             }
         };
 
@@ -144,6 +146,7 @@ const handleNewUserConversation = async (socket: Socket, msg: any) => {
             senderId: msg.senderId,
             content: msg.content,
             contentType: msg.contentType || 'text',
+            mediaFiles: msg.mediaFiles || [],
             type: 'user'
         });
 
@@ -168,7 +171,8 @@ const handleNewUserConversation = async (socket: Socket, msg: any) => {
                     ...msg,
                     name: msg.nameSender || 'Unknown',
                     conversationId: (nConversation._id as any).toString(),
-                    senderName: msg.nameSender
+                    senderName: msg.nameSender,
+                    mediaFiles: msg.mediaFiles || []
                 }
             };
             receiverSocketIds.forEach(socketId => {
@@ -222,6 +226,7 @@ const handleNewGroupConversation = async (socket: Socket, msg: any) => {
             senderId: msg.senderId,
             content: msg.content || `Đã tạo nhóm "${msg.groupName}"`,
             contentType: 'text',
+            mediaFiles: msg.mediaFiles || [],
             type: 'group'
         });
 
@@ -248,7 +253,8 @@ const handleNewGroupConversation = async (socket: Socket, msg: any) => {
                 senderName: msg.nameSender || 'Unknown',
                 content: msg.content || `Đã tạo nhóm "${msg.groupName}"`,
                 conversationId: newConversation._id.toString(),
-                groupId: (newGroup._id as any).toString()
+                groupId: (newGroup._id as any).toString(),
+                mediaFiles: msg.mediaFiles || []
             }
         };
 
