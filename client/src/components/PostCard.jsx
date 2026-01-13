@@ -29,25 +29,6 @@ import UserLikePreview from "./UserLikePreview"
 import { ZoomIn, Close, ExpandMore } from "@mui/icons-material"
 import HTMLContent from "./HTMLContent"
 
-/**
- * PostCard Component
- * 
- * Expected Post Object Structure (see /src/types/post.types.js):
- * - _id: string
- * - title: string
- * - content: string (HTML)
- * - author: { _id, name, avatar? }
- * - likeCount: number
- * - liked: boolean (requires authentication)
- * - commentCount: number
- * - imgUrl: string[] (array of image URLs)
- * - videoUrl: string[] (array of video URLs)
- * - imageCount, videoCount: number (for preview mode)
- * - createdAt: Date|string
- * - edited: boolean
- * - userLikePreview: Array<{_id, username}> (users who liked - max 3 for preview)
- * - status: string
- */
 const PostCard = (props) => {
   const { preview, removePost } = props
   const postData = props.post
@@ -81,7 +62,6 @@ const PostCard = (props) => {
   const isCompactPreview = preview === "secondary"
   const isDetailPage = !preview || !isPreviewMode
 
-  // ✅ Dynamic sizing - Memoized
   const cardSizing = useMemo(() => ({
     padding: isCompactPreview ? 0.5 : isPreviewMode ? 1 : 2,
     likeBoxWidth: isCompactPreview ? 35 : isPreviewMode ? 40 : 50,

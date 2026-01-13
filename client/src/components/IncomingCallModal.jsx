@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -15,6 +15,51 @@ import { useVideoCall } from './util/VideoCallContext';
 
 const IncomingCallModal = () => {
   const { incomingCall, acceptCall, rejectCall } = useVideoCall();
+  const audioRef = useRef(null);
+
+  // Play ringtone when call comes in
+  useEffect(() => {
+    if (incomingCall) {
+      // Try to play system notification sound
+      try {
+        if (audioRef.current) {
+          audioRef.current.play().catch(err => {
+            console.warn('⚠️ Cannot play ringtone:', err);
+          });
+        }
+      } catch (error) {
+        console.error('❌ Error playing ringtone:', error);
+      }
+
+      // Show browser notification if permitted
+      if ('Notification' in window && Notification.permission === 'granted') {
+        const notification = new Notification('Cuộc gọi đến', {
+          body: `${incomingCall.callerName} đang gọi ${incomingCall.callType === 'video' ? 'video' : 'thoại'}`,
+          icon: incomingCall.callerAvatar || '/default-avatar.png',
+          tag: 'incoming-call',
+          requireInteraction: true,
+        });
+
+        notification.onclick = () => {
+          window.focus();
+          notification.close();
+        };
+      }
+    } else {
+      // Stop ringtone when call is dismissed
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+    }
+
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+    };
+  }, [incomingCall]);
 
   if (!incomingCall) return null;
 
@@ -153,6 +198,19 @@ const IncomingCallModal = () => {
           )}
         </IconButton>
       </DialogActions>
+
+      {/* Hidden audio element for ringtone */}
+      <audio
+        ref={audioRef}
+        loop
+        preload="auto"
+      >
+        {/* Use a data URL for a simple beep sound */}
+        <source 
+          src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZUQ0PVKzn7bNiHAg7k9n0z4AuBSZ7y/DbkUELF2G56+yhVhQNSqLi8b9vJAU0iNL0zYI2Bh9ywO/cnVEOEFat5+2yYhwIO5PZ9M+ALgUnfMzw25FAChVhu+rsoVYUDUql4vG+byQFNonS9M2CNgYfccDu3J1RDhBWrefts2IcCDuU2fTQgC4FJ3zM8NuRQAoVYbvq7KFWEw1KpeHxvm8kBTaK0vTNgjYGH3HA7tydUQ4QVq3n7bNiHAg7lNn0z4AuBSd8zPDbkUAKFWG76uyhVhMNSqXh8b5vJAU2itL0zYI2Bh9xwO7cnVEOEFat5+2zYhwIO5TZ9M+ALgUnfMzw25FAChVhu+rsoVYTDUql4fG+byQFNorS9M2CNgYfccDu3J1RDhBWrefts2IcCDuU2fTQgC4FJ3zM8NuRQAoVYbvq7KFWEw1KpeHxvm8kBTaK0vTNgjYGH3HA7tydUQ4QVq3n7bNiHAg7lNn0z4AuBSd8zPDbkUAKFWG76uyhVhMNSqXh8b5vJAU2itL0zYI2Bh9xwO7cnVEOEFat5+2zYhwIO5TZ9M+ALgUnfMzw25FAChVhu+rsoVYTDUql4fG+byQFNorS9M2CNgYfccDu3J1RDhBWrefts2IcCDuU2fTQgC4FJ3zM8NuRQAoVYbvq7KFWEw1KpeHxvm8kBTaK0vTNgjYGH3HA7tydUQ4QVq3n7bNiHAg7lNn0z4AuBSd8zPDbkUAKFWG76uyhVhMNSqXh8b5vJAU2itL0zYI2Bh9xwO7cnVEOEFat5+2zYhwIO5TZ9M+ALgUnfMzw25FAChVhu+rsoVYTDUql4fG+byQFNorS9M2CNgYfccDu3J1RDhBWrefts2IcCDuU2fTPgC4FJ3zM8NuRQAoVYbvq7KFWEw1KpeHxvm8kBTaK0vTNgjYGH3HA7tydUQ4="
+          type="audio/wav"
+        />
+      </audio>
     </Dialog>
   );
 };

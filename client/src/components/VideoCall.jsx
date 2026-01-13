@@ -41,10 +41,26 @@ const VideoCall = ({ onCallEnd }) => {
       callType: activeCall?.callType, 
       isVideoOff 
     });
+    
     if (localStream && localVideoRef.current && activeCall?.callType === 'video' && !isVideoOff) {
       console.log('✅ Setting local video srcObject');
-      localVideoRef.current.srcObject = localStream;
+      try {
+        localVideoRef.current.srcObject = localStream;
+        // Force play
+        localVideoRef.current.play().catch(err => {
+          console.warn('⚠️ Local video autoplay blocked:', err);
+        });
+      } catch (error) {
+        console.error('❌ Error setting local video:', error);
+      }
     }
+
+    // Cleanup
+    return () => {
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = null;
+      }
+    };
   }, [localStream, activeCall?.callType, isVideoOff]);
 
   // Set remote stream
@@ -59,15 +75,55 @@ const VideoCall = ({ onCallEnd }) => {
     
     if (!remoteStream) return;
 
-    if (activeCall?.callType === 'video' && remoteVideoRef.current) {
-      console.log('✅ Setting remote video srcObject');
-      remoteVideoRef.current.srcObject = remoteStream;
-      remoteVideoRef.current.play().catch(err => console.error('❌ Play error:', err));
-    } else if (activeCall?.callType === 'audio' && remoteAudioRef.current) {
-      console.log('✅ Setting remote audio srcObject');
-      remoteAudioRef.current.srcObject = remoteStream;
-      remoteAudioRef.current.play().catch(err => console.error('❌ Play error:', err));
-    }
+    const setupRemoteMedia = async () => {
+      try {
+        if (activeCall?.callType === 'video' && remoteVideoRef.current) {
+          console.log('✅ Setting remote video srcObject');
+          remoteVideoRef.current.srcObject = remoteStream;
+          
+          // Try to play with retry
+          try {
+            await remoteVideoRef.current.play();
+            console.log('✅ Remote video playing');
+          } catch (err) {
+            console.warn('⚠️ Remote video play failed, retrying...', err);
+            // Retry after a short delay
+            setTimeout(async () => {
+              try {
+                await remoteVideoRef.current.play();
+                console.log('✅ Remote video playing (retry)');
+              } catch (retryErr) {
+                console.error('❌ Remote video play retry failed:', retryErr);
+              }
+            }, 500);
+          }
+        } else if (activeCall?.callType === 'audio' && remoteAudioRef.current) {
+          console.log('✅ Setting remote audio srcObject');
+          remoteAudioRef.current.srcObject = remoteStream;
+          
+          try {
+            await remoteAudioRef.current.play();
+            console.log('✅ Remote audio playing');
+          } catch (err) {
+            console.error('❌ Remote audio play error:', err);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error setting remote media:', error);
+      }
+    };
+
+    setupRemoteMedia();
+
+    // Cleanup
+    return () => {
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = null;
+      }
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = null;
+      }
+    };
   }, [remoteStream, activeCall?.callType]);
 
   const handleEndCall = () => {
@@ -137,10 +193,12 @@ const VideoCall = ({ onCallEnd }) => {
               ref={remoteVideoRef}
               autoPlay
               playsInline
+              webkit-playsinline="true"
               style={{
                 width: '100%',
                 height: '100%',
                 objectFit: 'cover',
+                backgroundColor: '#000',
               }}
             />
           ) : (
@@ -183,6 +241,7 @@ const VideoCall = ({ onCallEnd }) => {
               ref={localVideoRef}
               autoPlay
               playsInline
+              webkit-playsinline="true"
               muted
               style={{
                 width: '100%',

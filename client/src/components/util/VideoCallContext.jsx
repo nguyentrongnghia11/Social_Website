@@ -38,6 +38,7 @@ export const VideoCallProvider = ({ children }) => {
 
   // Socket state - reactive!
   const [socketConnected, setSocketConnected] = useState(false);
+  const [networkStatus, setNetworkStatus] = useState('online');
 
   // Refs
   const ringtoneIntervalRef = useRef(null);
@@ -46,6 +47,8 @@ export const VideoCallProvider = ({ children }) => {
   const iceCandidatesQueue = useRef([]);
   const processedAnswerRef = useRef(false);
   const currentCallIdRef = useRef(null);
+  const reconnectionAttemptRef = useRef(0);
+  const networkCheckIntervalRef = useRef(null);
 
   const user = isLoggedIn();
 
@@ -57,6 +60,37 @@ export const VideoCallProvider = ({ children }) => {
   useEffect(() => {
     stateRef.current = { activeCall, incomingCall, callStatus, localStream, remoteStream };
   }, [activeCall, incomingCall, callStatus, localStream, remoteStream]);
+
+  // Monitor network status
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log('🟢 Network online');
+      setNetworkStatus('online');
+      
+      // If we have an active call, try to reconnect peer connection
+      if (activeCall && peerConnectionRef.current?.iceConnectionState === 'disconnected') {
+        console.log('🔄 Attempting to restart ICE...');
+        peerConnectionRef.current.restartIce();
+      }
+    };
+
+    const handleOffline = () => {
+      console.log('🔴 Network offline');
+      setNetworkStatus('offline');
+      setCallStatus('Mất kết nối mạng');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Check initial state
+    setNetworkStatus(navigator.onLine ? 'online' : 'offline');
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [activeCall]);
 
   // Register socket listeners function
   const registerListeners = () => {
@@ -97,6 +131,18 @@ export const VideoCallProvider = ({ children }) => {
       stopRingtone();
       cleanupMediaAndPeerConnection();
       unsubscribe();
+      
+      // Remove all listeners
+      offEvent('call-incoming', handleIncomingCall);
+      offEvent('call-initiated', handleCallInitiated);
+      offEvent('call-offer', handleCallOffer);
+      offEvent('call-answer', handleCallAnswer);
+      offEvent('call-ice-candidate', handleIceCandidate);
+      offEvent('call-rejected', handleCallRejected);
+      offEvent('call-ended', handleCallEnded);
+      offEvent('call-missed', handleCallMissed);
+      offEvent('call-user-offline', handleUserOffline);
+      offEvent('call-error', handleCallError);
     };
   }, []);
 
@@ -177,24 +223,49 @@ export const VideoCallProvider = ({ children }) => {
     // Stop ringtone first
     stopRingtone();
 
+    // Cleanup local stream
     if (localStream) {
-      localStream.getTracks().forEach(track => track.stop());
+      console.log('🎥 Stopping local stream tracks');
+      localStream.getTracks().forEach(track => {
+        track.stop();
+        track.enabled = false;
+      });
       setLocalStream(null);
     }
 
+    // Cleanup remote stream
     if (remoteStream) {
-      remoteStream.getTracks().forEach(track => track.stop());
+      console.log('📺 Stopping remote stream tracks');
+      remoteStream.getTracks().forEach(track => {
+        track.stop();
+        track.enabled = false;
+      });
       setRemoteStream(null);
     }
 
+    // Cleanup peer connection
     if (peerConnectionRef.current) {
-      peerConnectionRef.current.close();
+      console.log('🔌 Closing peer connection');
+      try {
+        // Remove all event handlers
+        peerConnectionRef.current.onicecandidate = null;
+        peerConnectionRef.current.ontrack = null;
+        peerConnectionRef.current.oniceconnectionstatechange = null;
+        peerConnectionRef.current.onsignalingstatechange = null;
+        peerConnectionRef.current.onicegatheringstatechange = null;
+        
+        // Close connection
+        peerConnectionRef.current.close();
+      } catch (error) {
+        console.error('❌ Error closing peer connection:', error);
+      }
       peerConnectionRef.current = null;
     }
 
     iceCandidatesQueue.current = [];
     processedAnswerRef.current = false;
     currentCallIdRef.current = null;
+    reconnectionAttemptRef.current = 0;
     setPeerConnectionReady(false);
     setIsMuted(false);
     setIsVideoOff(false);
@@ -335,32 +406,57 @@ export const VideoCallProvider = ({ children }) => {
 
   // 1. Initialize local media stream
   useEffect(() => {
-    if (!activeCall) return;
+    if (!activeCall?.callId) return;
+
+    let mounted = true;
 
     const initLocalStream = async () => {
       try {
         const constraints = {
-          audio: true,
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
           video: activeCall.callType === 'video' ? {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'user'
+            width: { ideal: 1280, max: 1920 },
+            height: { ideal: 720, max: 1080 },
+            facingMode: 'user',
+            frameRate: { ideal: 30, max: 30 }
           } : false,
         };
 
-        console.log('🎥 Getting local media stream...');
+        console.log('🎥 Getting local media stream with constraints:', constraints);
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        if (!mounted) {
+          // Component unmounted, cleanup immediately
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+        
         setLocalStream(stream);
         setIsVideoOff(activeCall.callType === 'audio');
-        console.log('✅ Got local stream:', stream.getTracks().map(t => t.kind));
+        console.log('✅ Got local stream:', stream.getTracks().map(t => `${t.kind}:${t.id}`));
       } catch (error) {
         console.error('❌ Cannot access camera/mic:', error);
-        setCallStatus('Không thể truy cập camera/mic');
-        alert('Không thể truy cập camera/microphone. Vui lòng kiểm tra quyền truy cập.');
+        const errorMessage = error.name === 'NotAllowedError' 
+          ? 'Bạn đã từ chối quyền truy cập camera/microphone'
+          : error.name === 'NotFoundError'
+          ? 'Không tìm thấy camera/microphone'
+          : 'Không thể truy cập camera/microphone';
+        
+        setCallStatus(errorMessage);
+        alert(errorMessage + '. Vui lòng kiểm tra cài đặt.');
+        endCall();
       }
     };
 
     initLocalStream();
+
+    return () => {
+      mounted = false;
+    };
   }, [activeCall?.callId]);
 
   // 2. Create peer connection when we have local stream and active call
@@ -380,15 +476,28 @@ export const VideoCallProvider = ({ children }) => {
 
     // Prevent creating multiple peer connections for the same call
     if (peerConnectionRef.current && currentCallIdRef.current === activeCall.callId) {
-      console.log('Peer da ton tai cho cuoc goi nay khong can tao');
+      console.log('⏭️ Peer connection đã tồn tại cho cuộc gọi này');
       return;
     }
 
     // Cleanup old peer connection if switching calls
-    if (peerConnectionRef.current && currentCallIdRef.current !== activeCall.callId) {
-      console.log('Xoa bo peer cu khi chuyen cuoc goi moi');
-      peerConnectionRef.current.close();
-      peerConnectionRef.current = null;
+    if (peerConnectionRef.current) {
+      if (currentCallIdRef.current !== activeCall.callId) {
+        console.log('🔄 Đóng peer connection cũ và tạo mới');
+        try {
+          peerConnectionRef.current.onicecandidate = null;
+          peerConnectionRef.current.ontrack = null;
+          peerConnectionRef.current.oniceconnectionstatechange = null;
+          peerConnectionRef.current.close();
+        } catch (error) {
+          console.error('❌ Error closing old peer:', error);
+        }
+        peerConnectionRef.current = null;
+        iceCandidatesQueue.current = [];
+        processedAnswerRef.current = false;
+      } else {
+        return;
+      }
     }
 
     console.log('🔨 Tao peer connection moi cho callId:', activeCall.callId);
@@ -421,22 +530,71 @@ export const VideoCallProvider = ({ children }) => {
     };
 
     pc.oniceconnectionstatechange = () => {
+      console.log('🔌 ICE connection state:', pc.iceConnectionState);
       switch (pc.iceConnectionState) {
         case 'connected':
           setCallStatus('Đã kết nối');
+          reconnectionAttemptRef.current = 0;
+          break;
+        case 'completed':
+          setCallStatus('Đã kết nối');
+          reconnectionAttemptRef.current = 0;
           break;
         case 'disconnected':
           setCallStatus('Mất kết nối');
+          console.log('⚠️ Connection disconnected, waiting for reconnection...');
+          
+          // Wait 5 seconds before attempting reconnection
+          setTimeout(() => {
+            if (pc.iceConnectionState === 'disconnected' && reconnectionAttemptRef.current < 3) {
+              console.log('🔄 Attempting to restart ICE (attempt', reconnectionAttemptRef.current + 1, ')');
+              reconnectionAttemptRef.current++;
+              try {
+                pc.restartIce();
+              } catch (error) {
+                console.error('❌ Error restarting ICE:', error);
+              }
+            }
+          }, 5000);
           break;
         case 'failed':
           setCallStatus('Kết nối thất bại');
+          console.error('❌ ICE connection failed');
+          
+          // Try to restart ICE one more time
+          if (reconnectionAttemptRef.current < 2) {
+            console.log('🔄 Final attempt to restart ICE');
+            reconnectionAttemptRef.current++;
+            try {
+              pc.restartIce();
+            } catch (error) {
+              console.error('❌ Error restarting ICE:', error);
+            }
+          } else {
+            // Give up after 2 attempts
+            setTimeout(() => {
+              if (pc.iceConnectionState === 'failed') {
+                alert('Không thể kết nối. Vui lòng thử lại.');
+                endCall();
+              }
+            }, 3000);
+          }
           break;
         case 'closed':
           setCallStatus('Đã đóng');
+          reconnectionAttemptRef.current = 0;
           break;
         default:
           break;
       }
+    };
+
+    pc.onsignalingstatechange = () => {
+      console.log('📡 Signaling state:', pc.signalingState);
+    };
+
+    pc.onicegatheringstatechange = () => {
+      console.log('🧊 ICE gathering state:', pc.iceGatheringState);
     };
 
     if (activeCall.isInitiator) {
