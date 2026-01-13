@@ -9,6 +9,13 @@ const ContentUpdateEditor = (props) => {
   const [files, setFiles] = useState(props.originalFiles || []);
   const [error, setError] = useState("");
 
+  // Helper to get URL from file object or string
+  const getFileUrl = (file) => {
+    if (typeof file === 'string') return file;
+    if (file?.secure_url) return file.secure_url;
+    return file;
+  };
+
   const handleContentChange = (value) => {
     setContent(value);
   };
@@ -22,8 +29,9 @@ const ContentUpdateEditor = (props) => {
     setFiles(newFiles);
   };
 
-  const isVideoFile = (url) => {
-    return url?.match(/\.(mp4|webm|ogg|mov)$/i);
+  const isVideoFile = (file) => {
+    const url = getFileUrl(file);
+    return url?.match(/\.(mp4|webm|ogg|mov)$/i) || file?.resource_type === 'video';
   };
 
   const handleSubmit = (e) => {
@@ -89,13 +97,13 @@ const ContentUpdateEditor = (props) => {
                 <ImageListItem key={index}>
                   {isVideoFile(file) ? (
                     <video
-                      src={file}
+                      src={getFileUrl(file)}
                       style={{ objectFit: 'cover', height: '150px', width: '100%' }}
                       controls={false}
                     />
                   ) : (
                     <img
-                      src={file}
+                      src={getFileUrl(file)}
                       alt={`File ${index + 1}`}
                       loading="lazy"
                       style={{ objectFit: 'cover', height: '150px' }}

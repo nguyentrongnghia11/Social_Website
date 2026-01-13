@@ -130,9 +130,15 @@ const deletePost = async (postId, user) => {
 };
 
 const updatePost = async (postId, user, data) => {
-    console.log  ('Updating post:', postId, data);
-    const res = await instance.patch(`/post/${postId}`, data);
-    return res.data;
+    console.log('Updating post:', postId, data);
+    try {
+        const res = await instance.patch(`/post/${postId}`, data);
+        console.log('Update post response:', res.data);
+        return res.data; // Returns {status, message, data: postDetail}
+    } catch (error) {
+        console.error('Error in updatePost API:', error.response?.data || error);
+        throw error;
+    }
 };
 
 

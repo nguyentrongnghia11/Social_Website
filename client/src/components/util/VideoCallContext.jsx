@@ -91,11 +91,21 @@ export const VideoCallProvider = ({ children }) => {
       }
     });
 
+    // Cleanup when component unmounts
     return () => {
-      console.log('🧹 [VideoCall] Cleanup connection tracking');
+      console.log('🧹 [VideoCall] Component unmounting - cleanup');
+      stopRingtone();
+      cleanupMediaAndPeerConnection();
       unsubscribe();
     };
   }, []);
+
+  // Stop ringtone when callStatus is idle or no incoming call
+  useEffect(() => {
+    if (callStatus === 'idle' || !incomingCall) {
+      stopRingtone();
+    }
+  }, [callStatus, incomingCall]);
 
   const playRingtone = () => {
     try {
@@ -133,14 +143,21 @@ export const VideoCallProvider = ({ children }) => {
   };
 
   const stopRingtone = () => {
+    console.log('🔇 [stopRingtone] Stopping ringtone...', {
+      hasInterval: !!ringtoneIntervalRef.current,
+      hasAudioContext: !!audioContextRef.current
+    });
+
     if (ringtoneIntervalRef.current) {
       clearInterval(ringtoneIntervalRef.current);
       ringtoneIntervalRef.current = null;
+      console.log('✅ Cleared ringtone interval');
     }
 
     if (audioContextRef.current) {
       try {
         audioContextRef.current.close();
+        console.log('✅ Closed audio context');
       } catch (e) {
         console.error('Error closing audio context:', e);
       }
@@ -156,6 +173,9 @@ export const VideoCallProvider = ({ children }) => {
       currentCallId: currentCallIdRef.current,
       processedAnswer: processedAnswerRef.current
     });
+
+    // Stop ringtone first
+    stopRingtone();
 
     if (localStream) {
       localStream.getTracks().forEach(track => track.stop());
@@ -272,11 +292,11 @@ export const VideoCallProvider = ({ children }) => {
   };
 
   const handleCallRejected = ({ reason }) => {
+    console.log('🚫 [Socket Event] Call rejected');
     setCallStatus('idle');
     setActiveCall(null);
     setIncomingCall(null);
-    stopRingtone();
-    cleanupMediaAndPeerConnection();
+    cleanupMediaAndPeerConnection(); // This already calls stopRingtone
     alert(reason || 'Cuộc gọi bị từ chối');
   };
 
@@ -285,8 +305,7 @@ export const VideoCallProvider = ({ children }) => {
     setCallStatus('idle');
     setActiveCall(null);
     setIncomingCall(null);
-    stopRingtone();
-    cleanupMediaAndPeerConnection();
+    cleanupMediaAndPeerConnection(); // This already calls stopRingtone
   };
 
   const handleCallMissed = () => {
@@ -294,27 +313,24 @@ export const VideoCallProvider = ({ children }) => {
     setCallStatus('idle');
     setActiveCall(null);
     setIncomingCall(null);
-    stopRingtone();
-    cleanupMediaAndPeerConnection();
+    cleanupMediaAndPeerConnection(); // This already calls stopRingtone
   };
 
   const handleUserOffline = () => {
     console.log('🔌 [Socket Event] User offline');
     setCallStatus('idle');
     setActiveCall(null);
+    cleanupMediaAndPeerConnection(); // This already calls stopRingtone
     alert('Người dùng không trực tuyến');
-    stopRingtone();
-    cleanupMediaAndPeerConnection();
   };
 
   const handleCallError = ({ message }) => {
     console.error('⚠️ [Socket Event] Call error:', message);
-    alert(`Lỗi: ${message}`);
     setCallStatus('idle');
     setActiveCall(null);
     setIncomingCall(null);
-    stopRingtone();
-    cleanupMediaAndPeerConnection();
+    cleanupMediaAndPeerConnection(); // This already calls stopRingtone
+    alert(`Lỗi: ${message}`);
   };
 
   // 1. Initialize local media stream
@@ -701,8 +717,7 @@ export const VideoCallProvider = ({ children }) => {
     setActiveCall(null);
     setIncomingCall(null);
     setCallStatus('idle');
-    stopRingtone();
-    cleanupMediaAndPeerConnection();
+    cleanupMediaAndPeerConnection(); // This already calls stopRingtone
 
     console.log('✅ [endCall] Call ended, state reset');
   };

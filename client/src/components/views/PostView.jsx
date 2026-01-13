@@ -22,14 +22,21 @@ const PostView = () => {
   const user = isLoggedIn();
 
   const fetchPost = async () => {
-    console.log(params.id);
+    console.log('Fetching post with ID:', params.id);
     setLoading(true);
-    const { result, message, status } = await getPost(params.id);
-    console.log(result[0])
-    if (status != 200) {
-      setError(message);
-    } else {
-      setPost(result[0]);
+    try {
+      const response = await getPost(params.id);
+      console.log('Get post response:', response);
+      
+      if (response.status !== 200) {
+        setError(response.message || 'Không thể tải bài viết');
+      } else {
+        // result is now a single object, not array
+        setPost(response.result);
+      }
+    } catch (error) {
+      console.error('Error fetching post:', error);
+      setError('Không thể tải bài viết. Vui lòng thử lại!');
     }
     setLoading(false);
   };

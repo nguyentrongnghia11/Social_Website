@@ -79,7 +79,8 @@ class PostController {
             const user = req.user as IUser;
             const userId = user?._id?.toString();
 
-            console.log("Updating post with files: ", files);
+            console.log("Updating post - postId:", postId);
+            console.log("Updating post - files count:", files?.length || 0);
 
             await postService.updatePost(postId, title, content, userId, files);
             const postDetail = await postService.getPost(postId, userId);
@@ -90,6 +91,7 @@ class PostController {
                 data: postDetail
             });
         } catch (error) {
+            console.error('Error updating post:', error);
             next(error);
         }
     }
@@ -99,9 +101,6 @@ class PostController {
             const postId = req.params.id;
             const user = req.user as IUser;
             const userId = user?._id?.toString();
-
-            console.log("Getting post with ID: ", postId, " for user ID: ", user);
-
             const post = await postService.getPost(postId, userId);
 
             return res.json({

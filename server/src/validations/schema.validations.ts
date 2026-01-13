@@ -43,7 +43,12 @@ const CreatePostSchema = Joi.object({
 const UpdatePostSchema = Joi.object({
     title: TitleField,
     content: Joi.string().required(),
-    files: Joi.array().items(Joi.object()).optional()
+    files: Joi.array().items(
+        Joi.alternatives().try(
+            Joi.string(), // Allow string URLs
+            Joi.object().unknown(true) // Allow Cloudinary objects with any properties
+        )
+    ).optional()
 })
 
 const UpdateCommentSchema = Joi.object({

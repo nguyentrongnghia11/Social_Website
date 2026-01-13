@@ -56,7 +56,13 @@ const PostCard = (props) => {
   const navigate = useNavigate()
   const user = isLoggedIn()
 
-  const isAuthor = user && (user._id === postData.author?._id || user._id === postData.user?._id)
+  // Check if current user is the author of the post
+  const isAuthor = user && (
+    user.user._id === postData.author?._id
+  );
+
+  const isAdmin = user && (user.isAdmin || user.user?.isAdmin);
+
   const theme = useTheme()
   const iconColor = theme.palette.primary.main
   const [editing, setEditing] = useState(false)
@@ -108,14 +114,37 @@ const PostCard = (props) => {
     e.preventDefault()
     const content = e.target.content.value
     const title = e.target.title.value || post.title
-    const updateData = { 
-      content, 
+
+    // Use updatedFiles if provided, otherwise keep existing files
+    const files = updatedFiles || post.files || [];
+
+    const updateData = {
+      content,
       title,
-      files: updatedFiles || post.files || post.imgUrl || []
+      files: files
     }
-    await updatePost(post._id, isLoggedIn(), updateData)
-    setPost({ ...post, ...updateData, edited: true })
-    setEditing(false)
+
+    console.log('Submitting update with files:', files);
+
+    try {
+      const response = await updatePost(post._id, isLoggedIn(), updateData);
+      console.log('Update response:', response);
+
+      // Update local state with response data
+      if (response?.data) {
+        // Make sure to preserve all fields and update properly
+        setPost(response.data);
+        setLikeCount(response.data.likeCount || post.likeCount);
+        setLiked(response.data.liked || post.liked);
+      } else {
+        // Fallback to local update if no response data
+        setPost({ ...post, ...updateData, edited: true });
+      }
+      setEditing(false);
+    } catch (error) {
+      console.error('Error updating post:', error);
+      alert('Không thể cập nhật bài viết. Vui lòng thử lại!');
+    }
   }, [post])
 
   const handleLikee = useCallback(async (isLiked) => {
@@ -278,7 +307,7 @@ const PostCard = (props) => {
   const renderMediaIndicators = () => {
     const imageCount = post.imageCount ?? post.imgUrl?.length ?? 0
     const videoCount = post.videoCount ?? post.videoUrl?.length ?? post.vidUrl?.length ?? 0
-    
+
     if (!isPreviewMode || (imageCount === 0 && videoCount === 0)) return null
 
     return (
@@ -447,25 +476,41 @@ const PostCard = (props) => {
             >
               <HorizontalStack justifyContent="space-between" sx={{ mb: cardSizing.spacing }}>
                 <ContentDetails
-                  username={ post?.author?.name || post?.name || user?.user?.name || "Anonymous"}
+                  username={post?.author?.name || post?.name || user?.user?.name || "Anonymous"}
                   userId={post.author?._id}
                   createdAt={post.createdAt}
                   edited={post.edited}
                   preview={isPreviewMode}
                   compact={isCompactPreview}
                 />
-                {user && (isAuthor || user.isAdmin) && !isCompactPreview && (
+                {user && (isAuthor || isAdmin) && !isCompactPreview && (
                   <HorizontalStack spacing={0.5}>
-                    <IconButton disabled={loading} size={isPreviewMode ? "small" : "medium"} onClick={handleEditPost}>
-                      {editing ? <MdCancel color={iconColor} /> : <AiFillEdit color={iconColor} />}
-                    </IconButton>
-                    <IconButton disabled={loading} size={isPreviewMode ? "small" : "medium"} onClick={handleDeletePost}>
-                      {confirm ? (
-                        <AiFillCheckCircle color={theme.palette.error.main} />
-                      ) : (
-                        <BiTrash color={theme.palette.error.main} />
-                      )}
-                    </IconButton>
+                    {/* Chỉ tác giả mới có thể chỉnh sửa */}
+                    {isAuthor && (
+                      <IconButton
+                        disabled={loading}
+                        size={isPreviewMode ? "small" : "medium"}
+                        onClick={handleEditPost}
+                        title="Chỉnh sửa bài viết"
+                      >
+                        {editing ? <MdCancel color={iconColor} /> : <AiFillEdit color={iconColor} />}
+                      </IconButton>
+                    )}
+                    {/* Tác giả và admin đều có thể xóa */}
+                    {(isAuthor || isAdmin) && (
+                      <IconButton
+                        disabled={loading}
+                        size={isPreviewMode ? "small" : "medium"}
+                        onClick={handleDeletePost}
+                        title={confirm ? "Xác nhận xóa" : "Xóa bài viết"}
+                      >
+                        {confirm ? (
+                          <AiFillCheckCircle color={theme.palette.error.main} />
+                        ) : (
+                          <BiTrash color={theme.palette.error.main} />
+                        )}
+                      </IconButton>
+                    )}
                   </HorizontalStack>
                 )}
               </HorizontalStack>
@@ -491,11 +536,11 @@ const PostCard = (props) => {
               {/* ✅ Content for detail page */}
               {!isPreviewMode &&
                 (editing ? (
-                  <ContentUpdateEditor 
-                    handleSubmit={handleSubmit} 
+                  <ContentUpdateEditor
+                    handleSubmit={handleSubmit}
                     originalContent={post.content}
                     originalTitle={post.title}
-                    originalFiles={post.files || post.imgUrl || []}
+                    originalFiles={post.files || []}
                     onCancel={() => setEditing(false)}
                   />
                 ) : (

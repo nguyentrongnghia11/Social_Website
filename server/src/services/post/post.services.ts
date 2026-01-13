@@ -226,35 +226,53 @@ export class PostService {
             throw new ErrorApi(400, "Update post failed");
         }
 
-        if (files && Array.isArray(files) && files.length > 0) {
-            console.log("checked 2 ", files);
-            await _File.deleteMany({ postId: postId });
-
-            // Handle cả string URLs và full Cloudinary objects
-            const fileDocs = files
-                .filter(f => typeof f === 'object' && f.secure_url) // Chỉ lấy objects hợp lệ
-                .map(f => ({
-                    public_id: f.public_id,
-                    width: f.width,
-                    height: f.height,
-                    format: f.format,
-                    created_at: f.created_at,
-                    resource_type: f.resource_type,
-                    tags: f.tags || [],
-                    bytes: f.bytes,
-                    secure_url: f.secure_url,
-                    folder: f.asset_folder || f.folder,
-                    postId: postId,
-                }));
+        if (files && Array.isArray(files)) {
+            console.log("checked 2 - Processing files: ", files);
             
-            console.log("checked 3 ", fileDocs);
-
-            if (fileDocs.length > 0) {
-                await _File.insertMany(fileDocs);
-            }
-        }
-        else {
+            // Delete existing files
             await _File.deleteMany({ postId: postId });
+
+            if (files.length > 0) {
+                // Handle both string URLs and full Cloudinary objects
+                const fileDocs = files
+                    .map(f => {
+                        // If it's already a Cloudinary object with secure_url
+                        if (typeof f === 'object' && f.secure_url) {
+                            return {
+                                public_id: f.public_id,
+                                width: f.width,
+                                height: f.height,
+                                format: f.format,
+                                created_at: f.created_at,
+                                resource_type: f.resource_type,
+                                tags: f.tags || [],
+                                bytes: f.bytes,
+                                secure_url: f.secure_url,
+                                folder: f.asset_folder || f.folder,
+                                postId: postId,
+                            };
+                        }
+                        // If it's a string URL, create a basic file document
+                        else if (typeof f === 'string') {
+                            // Determine resource type from URL
+                            const isVideo = /\.(mp4|webm|ogg|mov|avi)$/i.test(f);
+                            return {
+                                public_id: `legacy_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                                secure_url: f,
+                                resource_type: isVideo ? 'video' : 'image',
+                                postId: postId,
+                            };
+                        }
+                        return null;
+                    })
+                    .filter(f => f !== null);
+                
+                console.log("checked 3 - Processed file docs: ", fileDocs.length);
+
+                if (fileDocs.length > 0) {
+                    await _File.insertMany(fileDocs);
+                }
+            }
         }
         return post;
     }
@@ -318,6 +336,7 @@ export class PostService {
                     status: 1,
                     react: 1,
                     reactUsers: { _id: 1, name: 1 },
+                    files: 1,
                     imgUrl: {
                         $map: {
                             input: {
@@ -354,7 +373,12 @@ export class PostService {
             }
         ]);
 
-        return addStandardPostFields(post, userId);
+        if (!post || post.length === 0) {
+            throw new ErrorApi(404, "Post not found");
+        }
+
+        const processedPosts = addStandardPostFields(post, userId);
+        return processedPosts[0]; // Return single post object, not array
     }
 
     async hiddenPost(postId: string, accountId: string) {
@@ -506,6 +530,7 @@ export class PostService {
                     status: 1,
                     react: 1,
                     reactUsers: { _id: 1, name: 1 },
+                    files: 1,
                     imgUrl: '$files.secure_url',
                     author: {
                         _id: '$author._id',
