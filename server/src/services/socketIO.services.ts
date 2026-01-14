@@ -106,6 +106,10 @@ const handleExistingConversation = async (socket: Socket, msg: any, conversation
                 name: msg.nameSender || 'Unknown',
                 conversationId: conversation._id.toString(),
                 senderName: msg.nameSender,
+                senderId: {
+                    _id: msg.senderId,
+                    name: msg.nameSender || 'Unknown'
+                },
                 contentType: contentType,
                 mediaFiles: msg.mediaFiles || []
             }
@@ -212,6 +216,10 @@ const handleNewUserConversation = async (socket: Socket, msg: any) => {
                     name: msg.nameSender || 'Unknown',
                     conversationId: (nConversation._id as any).toString(),
                     senderName: msg.nameSender,
+                    senderId: {
+                        _id: msg.senderId,
+                        name: msg.nameSender || 'Unknown'
+                    },
                     contentType: contentType,
                     mediaFiles: msg.mediaFiles || []
                 }
@@ -302,7 +310,10 @@ const handleNewGroupConversation = async (socket: Socket, msg: any) => {
                 type: "group",
                 name: msg.groupName,
                 members: msg.memberIds,
-                senderId: msg.senderId,
+                senderId: {
+                    _id: msg.senderId,
+                    name: msg.nameSender || 'Unknown'
+                },
                 nameSender: msg.nameSender || 'Unknown',
                 senderName: msg.nameSender || 'Unknown',
                 content: msg.content || `Đã tạo nhóm "${msg.groupName}"`,
