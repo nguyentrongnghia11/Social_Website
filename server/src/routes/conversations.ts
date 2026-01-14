@@ -43,6 +43,7 @@ const upload = multer({
 router.get('/all', authenticateMiddleware, getAllConventionOfUser)
 router.get('/:id', authenticateMiddleware, getMessageOfUser)
 router.patch('/:id/read', authenticateMiddleware, markMessagesAsRead)
+router.post('/:id/messages', authenticateMiddleware, sendMessageWithMedia)
 
 // New routes for media messages
 router.post('/send-media', authenticateMiddleware, upload.array('files', 10), sendMessageWithMedia)

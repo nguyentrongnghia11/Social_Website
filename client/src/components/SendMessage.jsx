@@ -51,8 +51,10 @@ const SendMessage = (props) => {
               fileSize: result.bytes
             })
           }
+          console.log('☁️ [SendMessage] Uploaded files to Cloudinary:', mediaFiles)
         }
         
+        console.log('📤 [SendMessage] Calling onSendMessage with:', { content: content.trim(), mediaFiles })
         // Clear typing indicator when sending message
         props.onSendMessage(content.trim(), mediaFiles)
         setContent("")

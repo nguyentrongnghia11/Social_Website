@@ -57,13 +57,38 @@ const incrementUnreadCounts = async (conversationId: string, memberIds: string[]
 
 const handleExistingConversation = async (socket: Socket, msg: any, conversation: any) => {
     try {
+        console.log('💾 [handleExistingConversation] Received msg:', { 
+            content: msg.content, 
+            mediaFiles: msg.mediaFiles,
+            mediaFilesCount: msg.mediaFiles?.length 
+        });
+
+        // Determine contentType based on mediaFiles
+        let contentType = 'text';
+        if (msg.mediaFiles && msg.mediaFiles.length > 0) {
+            const firstMedia = msg.mediaFiles[0];
+            if (firstMedia.resourceType === 'video') {
+                contentType = 'video';
+            } else if (firstMedia.resourceType === 'image') {
+                contentType = 'image';
+            } else if (firstMedia.resourceType === 'raw') {
+                contentType = 'file';
+            }
+        }
+
         const message = await _Message.create({
             conversationId: conversation._id,
             senderId: msg.senderId,
-            content: msg.content,
-            contentType: msg.contentType || 'text',
+            content: msg.content || (msg.mediaFiles && msg.mediaFiles.length > 0 ? 'Đã gửi tệp đính kèm' : ''),
+            contentType: contentType,
             mediaFiles: msg.mediaFiles || [],
             type: conversation.type
+        });
+
+        console.log('✅ [handleExistingConversation] Message created:', {
+            _id: message._id,
+            contentType: message.contentType,
+            mediaFilesCount: message.mediaFiles?.length
         });
 
         if (!message) {
@@ -81,10 +106,12 @@ const handleExistingConversation = async (socket: Socket, msg: any, conversation
                 name: msg.nameSender || 'Unknown',
                 conversationId: conversation._id.toString(),
                 senderName: msg.nameSender,
+                contentType: contentType,
                 mediaFiles: msg.mediaFiles || []
             }
         };
 
+        console.log('📡 [handleExistingConversation] Emitting chat event with mediaFiles:', messageData.msg.mediaFiles?.length);
         socket.to(conversation._id.toString()).emit("chat", messageData);
 
         let memberIds: string[] = [];
@@ -141,11 +168,24 @@ const handleNewUserConversation = async (socket: Socket, msg: any) => {
             .populate('senderId receiverId', 'name email avatar')
             .lean();
 
+        // Determine contentType based on mediaFiles
+        let contentType = 'text';
+        if (msg.mediaFiles && msg.mediaFiles.length > 0) {
+            const firstMedia = msg.mediaFiles[0];
+            if (firstMedia.resourceType === 'video') {
+                contentType = 'video';
+            } else if (firstMedia.resourceType === 'image') {
+                contentType = 'image';
+            } else if (firstMedia.resourceType === 'raw') {
+                contentType = 'file';
+            }
+        }
+
         const message = await _Message.create({
             conversationId: nConversation._id,
             senderId: msg.senderId,
-            content: msg.content,
-            contentType: msg.contentType || 'text',
+            content: msg.content || (msg.mediaFiles && msg.mediaFiles.length > 0 ? 'Đã gửi tệp đính kèm' : ''),
+            contentType: contentType,
             mediaFiles: msg.mediaFiles || [],
             type: 'user'
         });
@@ -172,6 +212,7 @@ const handleNewUserConversation = async (socket: Socket, msg: any) => {
                     name: msg.nameSender || 'Unknown',
                     conversationId: (nConversation._id as any).toString(),
                     senderName: msg.nameSender,
+                    contentType: contentType,
                     mediaFiles: msg.mediaFiles || []
                 }
             };
@@ -221,11 +262,24 @@ const handleNewGroupConversation = async (socket: Socket, msg: any) => {
             })
             .lean();
 
+        // Determine contentType based on mediaFiles
+        let contentType = 'text';
+        if (msg.mediaFiles && msg.mediaFiles.length > 0) {
+            const firstMedia = msg.mediaFiles[0];
+            if (firstMedia.resourceType === 'video') {
+                contentType = 'video';
+            } else if (firstMedia.resourceType === 'image') {
+                contentType = 'image';
+            } else if (firstMedia.resourceType === 'raw') {
+                contentType = 'file';
+            }
+        }
+
         const firstMessage = await _Message.create({
             conversationId: newConversation._id,
             senderId: msg.senderId,
             content: msg.content || `Đã tạo nhóm "${msg.groupName}"`,
-            contentType: 'text',
+            contentType: contentType,
             mediaFiles: msg.mediaFiles || [],
             type: 'group'
         });
@@ -254,6 +308,7 @@ const handleNewGroupConversation = async (socket: Socket, msg: any) => {
                 content: msg.content || `Đã tạo nhóm "${msg.groupName}"`,
                 conversationId: newConversation._id.toString(),
                 groupId: (newGroup._id as any).toString(),
+                contentType: contentType,
                 mediaFiles: msg.mediaFiles || []
             }
         };
@@ -310,8 +365,23 @@ export const socketioService = async (socket: Socket) => {
     // Handle chat messages
     socket.on('chat', async (msg) => {
         try {
-            if (!msg || !msg.senderId || !msg.content) {
+            console.log('📨 [Socket.chat] Received message:', {
+                senderId: msg.senderId,
+                content: msg.content?.substring(0, 50),
+                mediaFiles: msg.mediaFiles,
+                mediaFilesCount: msg.mediaFiles?.length,
+                type: msg.type,
+                conversationId: msg.conversationId
+            });
+
+            if (!msg || !msg.senderId) {
                 socket.emit('error', { message: 'Invalid message data' });
+                return;
+            }
+
+            // Allow empty content if there are mediaFiles
+            if (!msg.content && (!msg.mediaFiles || msg.mediaFiles.length === 0)) {
+                socket.emit('error', { message: 'Message must have content or media files' });
                 return;
             }
 

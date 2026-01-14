@@ -2,9 +2,14 @@ import { Schema, model, Document, Types } from 'mongoose'
 
 export interface IMediaFile {
     url: string;
-    type: 'image' | 'video';
-    size: number;
+    type?: 'image' | 'video' | 'audio' | 'file';
+    resourceType?: string;
+    format?: string;
+    size?: number;
+    fileName?: string;
+    fileSize?: number;
     filename?: string;
+    publicId?: string;
     cloudinaryId?: string;
 }
 
@@ -54,9 +59,14 @@ const messageSchema = new Schema<IMessage>({
     mediaFiles: [
         {
             url: { type: String, required: true },
-            type: { type: String, enum: ['image', 'video'], required: true },
-            size: { type: Number, required: true },
+            type: { type: String, enum: ['image', 'video', 'audio', 'file'] },
+            resourceType: { type: String },
+            format: { type: String },
+            size: { type: Number },
+            fileName: { type: String },
+            fileSize: { type: Number },
             filename: { type: String },
+            publicId: { type: String },
             cloudinaryId: { type: String }
         }
     ],

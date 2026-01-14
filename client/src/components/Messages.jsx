@@ -158,6 +158,12 @@ const Messages = (props) => {
   }, []);
 
   const handleSendMessage = useCallback(async (content, mediaFiles = []) => {
+    console.log('🚀 [Messages.handleSendMessage] Called with:', { 
+      content, 
+      mediaFiles, 
+      mediaFilesLength: mediaFiles.length 
+    });
+    
     if (!props.conservant) {
       console.error('Cannot send message - no conservant');
       return;
@@ -167,6 +173,7 @@ const Messages = (props) => {
     if (!props.conservant.conversationId) {
       // Show optimistic message
       const newMessage = { direction: "from", content, senderId: user, mediaFiles };
+      console.log('📝 Draft mode - Creating new conversation with mediaFiles:', mediaFiles);
       setMessages([newMessage]);
 
       // Determine type and prepare data
@@ -206,6 +213,7 @@ const Messages = (props) => {
     }
 
     const newMessage = { direction: "from", content, mediaFiles };
+    console.log('📤 Sending message with mediaFiles:', mediaFiles);
     const newMessages = [...(messages || []), newMessage];
     setMessages(newMessages);
 
@@ -237,6 +245,7 @@ const Messages = (props) => {
       receiverId: receiverId,
     };
 
+    console.log('📡 [Messages] Emitting chat event with eventData:', eventData);
     const emitSuccess = emitEvent("chat", eventData);
     if (!emitSuccess) {
       console.error('❌ Failed to emit chat event - socket not connected');
@@ -246,6 +255,7 @@ const Messages = (props) => {
   const handleReceiveMessage = useCallback((content) => {
     try {
       console.log('📨 Received message:', content)
+      console.log('📎 MediaFiles in received message:', content.msg.mediaFiles)
       
       // Chỉ xử lý message nếu thuộc về cuộc trò chuyện hiện tại
       if (conservantRef.current && conservantRef.current.conversationId !== content.msg.conversationId) {
@@ -269,6 +279,7 @@ const Messages = (props) => {
         senderId: content.msg.senderId,
         mediaFiles: content.msg.mediaFiles || []
       }
+      console.log('📬 New message object created:', newMessage)
       const senderId = content.msg.senderId
 
       const username = content.msg.senderName

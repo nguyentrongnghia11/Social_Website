@@ -10,6 +10,12 @@ const Message = (props) => {
   const message = props.message;
   const theme = useTheme();
 
+  console.log('🎨 Message component rendering with:', { 
+    content: message?.content, 
+    mediaFiles: message?.mediaFiles,
+    mediaFilesLength: message?.mediaFiles?.length 
+  });
+
   // Compute display name: if name has 3 or more parts, show the last part
   const rawName = (message?.senderId && message.senderId.name) || username || "";
   const nameParts = rawName.trim().split(/\s+/).filter(Boolean);
