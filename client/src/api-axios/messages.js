@@ -24,6 +24,11 @@ const getUploadSignature = async (conversationId, fileCount, fileType = 'image')
     return response.data;
 }
 
+const getTotalUnreadCount = async () => {
+    const response = await instance.get('/conversations/unread-count');
+    return response.data;
+}
+
 const uploadToCloudinary = async (file, signature) => {
 
     console.log ("Uploading file with signature:", signature);
@@ -56,4 +61,4 @@ const uploadToCloudinary = async (file, signature) => {
     return await response.json();
 }
 
-export { getMessageOfUser, sendMessage, getUploadSignature, uploadToCloudinary }
+export { getMessageOfUser, sendMessage, getUploadSignature, uploadToCloudinary, getTotalUnreadCount }

@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   IconButton,
   Badge,
-  Menu,
-  MenuItem,
+  Popover,
   List,
   ListItem,
   ListItemText,
@@ -34,9 +33,6 @@ const NotificationBadge = () => {
   const navigate = useNavigate();
 
   const open = Boolean(anchorEl);
-
-  // NotificationProvider handles event registration; this component just consumes context.
-
   const handleClick = (event) => {
     setAnchorEl(event.currentTarget);
   };
@@ -46,10 +42,9 @@ const NotificationBadge = () => {
   };
 
   const handleNotificationClick = (notification) => {
-    // Mark as read in provider
+    console.log('Notification clicked:', notification);
     if (!notification.read) markAsRead(notification._id);
 
-    // Navigate to link if exists
     if (notification.link) {
       navigate(notification.link);
     }
@@ -126,26 +121,36 @@ const NotificationBadge = () => {
         </Badge>
       </IconButton>
 
-      <Menu
+      <Popover
         anchorEl={anchorEl}
         open={open}
         onClose={handleClose}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'right',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
         PaperProps={{
           sx: {
-            width: 380,
-            maxHeight: 500,
-            overflow: 'hidden',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
+            width: 600,
+            maxWidth: '100vw',
             borderRadius: 2,
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
+            overflow: 'hidden',
           },
         }}
-        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-        TransitionProps={{
-          timeout: 300,
-        }}
       >
-        <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: 'background.paper' }}>
+        <Box sx={{ 
+          p: 2, 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+        }}>
           <Typography variant="h6" fontWeight={600}>Thông báo</Typography>
           {unreadCount > 0 && (
             <Button 
@@ -161,17 +166,34 @@ const NotificationBadge = () => {
             </Button>
           )}
         </Box>
-        <Divider />
 
-        {notifications.length === 0 ? (
-          <Box sx={{ p: 5, textAlign: 'center' }}>
-            <NotificationsIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
-            <Typography color="text.secondary" variant="body2">
-              Không có thông báo nào
-            </Typography>
-          </Box>
-        ) : (
-          <List sx={{ p: 0 }}>
+        <Box sx={{ 
+          maxHeight: 500, 
+          overflowY: 'auto', 
+          overflowX: 'hidden',
+          '&::-webkit-scrollbar': {
+            width: '6px',
+          },
+          '&::-webkit-scrollbar-track': {
+            backgroundColor: 'transparent',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            backgroundColor: 'rgba(0,0,0,0.2)',
+            borderRadius: '3px',
+            '&:hover': {
+              backgroundColor: 'rgba(0,0,0,0.3)',
+            }
+          }
+        }}>
+          {notifications.length === 0 ? (
+            <Box sx={{ p: 5, textAlign: 'center' }}>
+              <NotificationsIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
+              <Typography color="text.secondary" variant="body2">
+                Không có thông báo nào
+              </Typography>
+            </Box>
+          ) : (
+            <List sx={{ p: 0 }}>
             {notifications.map((notification, index) => (
               <React.Fragment key={notification._id || index}>
                 <ListItem
@@ -183,6 +205,9 @@ const NotificationBadge = () => {
                       backgroundColor: 'action.selected',
                     },
                     py: 1.5,
+                    px: 2,
+                    width: '100%',
+                    boxSizing: 'border-box',
                   }}
                 >
                   <ListItemAvatar>
@@ -191,13 +216,22 @@ const NotificationBadge = () => {
                     </Avatar>
                   </ListItemAvatar>
                   <ListItemText
+                    sx={{
+                      overflow: 'hidden',
+                      pr: 1,
+                    }}
                     primary={
                       <Box display="flex" alignItems="center" gap={1}>
-                        <Typography variant="subtitle2" sx={{ flex: 1 }}>
+                        <Typography variant="subtitle2" sx={{ 
+                          flex: 1,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}>
                           {notification.title}
                         </Typography>
                         {!notification.read && (
-                          <Circle sx={{ fontSize: 8, color: 'primary.main' }} />
+                          <Circle sx={{ fontSize: 8, color: 'primary.main', flexShrink: 0 }} />
                         )}
                       </Box>
                     }
@@ -209,9 +243,11 @@ const NotificationBadge = () => {
                           color="text.primary"
                           sx={{
                             display: '-webkit-box',
-                            WebkitLineClamp: 2,
+                            WebkitLineClamp: 3,
                             WebkitBoxOrient: 'vertical',
                             overflow: 'hidden',
+                            wordBreak: 'break-word',
+                            overflowWrap: 'break-word',
                           }}
                         >
                           {notification.message}
@@ -233,8 +269,9 @@ const NotificationBadge = () => {
               </React.Fragment>
             ))}
           </List>
-        )}
-      </Menu>
+          )}
+        </Box>
+      </Popover>
     </>
   );
 };

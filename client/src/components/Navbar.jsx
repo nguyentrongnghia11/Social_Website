@@ -25,8 +25,10 @@ import UserAvatar from "./UserAvatar"
 import HorizontalStack from "./util/HorizontalStack"
 import { subscribeForemessage } from "../helpers/messaging_getToken"
 // socket events handled in NotificationProvider
-import { markAsRead } from "../api-axios/notification"
+import { markAsRead, markAllAsRead as markAllAsReadAPI } from "../api-axios/notification"
 import { useNotification } from "./views/NotificationProvider"
+import { onEvent, offEvent } from "../helpers/socketHelper"
+import { getTotalUnreadCount } from "../api-axios/messages"
 
 
 const Navbar = () => {
@@ -37,19 +39,34 @@ const Navbar = () => {
   const [search, setSearch] = useState("")
   const [searchIcon, setSearchIcon] = useState(false)
   const [width, setWindowWidth] = useState(0)
-
-  const messageHandlerRef = useRef()
-
-  // Notification states from provider
   const { notifications, unreadCount, markAsRead: providerMarkAsRead, markAllAsRead: providerMarkAllAsRead } = useNotification();
   const [notificationAnchor, setNotificationAnchor] = useState(null)
   const notificationOpen = Boolean(notificationAnchor)
-  // Unread messages state
-  const [unreadMsgCount, setUnreadMsgCount] = useState(() => {
-    // Lấy từ localStorage nếu có
-    const user = JSON.parse(localStorage.getItem("user"));
-    return user?.user?.unreadCount || 0;
-  });
+  const [showAllNotifications, setShowAllNotifications] = useState(false)
+  const [displayLimit, setDisplayLimit] = useState(10)
+  const notificationScrollRef = useRef(null)
+
+  const [unreadMsgCount, setUnreadMsgCount] = useState(0);
+
+  // Load unread message count from server on mount
+  useEffect(() => {
+    const fetchUnreadCount = async () => {
+      try {
+        const response = await getTotalUnreadCount();
+        console.log('Fetched total unread count:', response);
+
+        if (response?.data?.totalUnreadCount !== undefined) {
+          setUnreadMsgCount(response.data.totalUnreadCount);
+        }
+      } catch (error) {
+        console.error('Failed to fetch unread message count:', error);
+      }
+    };
+
+    if (user) {
+      fetchUnreadCount();
+    }
+  }, [user]);
 
   useEffect(() => {
     updateDimensions()
@@ -57,15 +74,35 @@ const Navbar = () => {
     return () => window.removeEventListener("resize", updateDimensions)
   }, [])
 
-
   useEffect(() => {
     if (!user) return
-
     subscribeForemessage()
-    // NotificationProvider will fetch initial notifications
-    
-    // NotificationProvider handles socket events centrally — do not register here.
-  }, [])
+    const handleNewMessage = (data) => {
+      console.log('📩 New chat message in Navbar:', data);
+      // Only increment if the message is not from current user
+      const currentUserId = user?.user?._id || user?._id;
+      if (data?.msg?.senderId !== currentUserId && data?.msg?.senderId?._id !== currentUserId) {
+        setUnreadMsgCount(prev => prev + 1);
+      }
+    };
+
+    const handleMessageRead = () => {
+      setUnreadMsgCount(prev => Math.max(0, prev - 1));
+    };
+
+    const handleAllMessagesRead = () => {
+      setUnreadMsgCount(0);
+    };
+    onEvent('chat', handleNewMessage);
+    onEvent('message:read', handleMessageRead);
+    onEvent('messages:all-read', handleAllMessagesRead);
+
+    return () => {
+      offEvent('chat', handleNewMessage);
+      offEvent('message:read', handleMessageRead);
+      offEvent('messages:all-read', handleAllMessagesRead);
+    };
+  }, [user])
 
   const mobile = width < 500
   const navbarWidth = width < 600
@@ -75,35 +112,46 @@ const Navbar = () => {
     setWindowWidth(width)
   }
 
-  // Notifications are provided by NotificationProvider
-
   const handleNotificationClick = useCallback((event) => {
     setNotificationAnchor(event.currentTarget)
   }, []);
 
   const handleNotificationClose = useCallback(() => {
     setNotificationAnchor(null)
+    setShowAllNotifications(false)
+    setDisplayLimit(10)
   }, []);
+
+  const handleNotificationScroll = useCallback((e) => {
+    const element = e.target
+    if (element.scrollHeight - element.scrollTop <= element.clientHeight + 50) {
+      if (displayLimit < notifications.length) {
+        setDisplayLimit(prev => Math.min(prev + 10, notifications.length))
+      }
+    }
+  }, [displayLimit, notifications.length]);
 
   const markAsReadNof = useCallback(async (notificationId) => {
     try {
-      await markAsRead(notificationId)
-      // update provider state
+      const user = isLoggedIn();
+      const reciveId = user?.user?._id || user?._id;
+      await markAsRead(notificationId, reciveId)
       providerMarkAsRead(notificationId)
     } catch (error) {
       console.error("Error marking notification as read:", error)
     }
-  }, []);
+  }, [providerMarkAsRead]);
 
-  // Mark all as read
   const markAllAsRead = useCallback(async () => {
     try {
-      await markAsRead(user._id)
+      const currentUser = isLoggedIn();
+      const receiverId = currentUser?.user?._id || currentUser?._id;
+      await markAllAsReadAPI(receiverId)
       providerMarkAllAsRead()
     } catch (error) {
       console.error("Error marking all notifications as read:", error)
     }
-  }, [user, providerMarkAllAsRead]);
+  }, [providerMarkAllAsRead]);
 
   const handleLogout = useCallback(async (e) => {
     logoutUser()
@@ -123,7 +171,6 @@ const Navbar = () => {
     setSearchIcon(!searchIcon)
   }, [searchIcon]);
 
-  // Format notification time
   const formatTime = useCallback((timestamp) => {
     if (!timestamp) return ""
 
@@ -143,9 +190,6 @@ const Navbar = () => {
       return ""
     }
   }, []);
-
-  // Socket listener for new notifications
-  // NotificationProvider handles notification socket events; no local socket listeners here.
 
   return (
     <Stack mb={2}>
@@ -238,7 +282,6 @@ const Navbar = () => {
         </Box>
       )}
 
-      {/* Notification Menu */}
       <Menu
         anchorEl={notificationAnchor}
         open={notificationOpen}
@@ -246,22 +289,26 @@ const Navbar = () => {
         slotProps={{
           paper: {
             sx: {
-              width: mobile ? "90vw" : 380, // Responsive width
+              width: mobile ? "90vw" : 380,
               maxWidth: 400,
-              maxHeight: mobile ? "80vh" : "70vh",
-              overflow: "hidden",
-              display: "flex",
-              flexDirection: "column",
+              maxHeight: mobile ? "65vh" : 480,
               boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
               borderRadius: 2,
             },
           },
         }}
+        MenuListProps={{
+          sx: {
+            p: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            maxHeight: mobile ? "65vh" : 480,
+          }
+        }}
         transformOrigin={{ horizontal: "left", vertical: "top" }}
         anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
-        disableScrollLock={true} // Tránh scroll lock
+        disableScrollLock={true}
       >
-        {/* Header - Fixed */}
         <Box sx={{ p: 2, borderBottom: "1px solid #e0e0e0", flexShrink: 0, bgcolor: "background.paper" }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
@@ -274,22 +321,27 @@ const Navbar = () => {
             )}
           </Stack>
         </Box>
-
-        {/* Content - Scrollable */}
         <Box
+          ref={notificationScrollRef}
+          onScroll={handleNotificationScroll}
           sx={{
             flex: 1,
             overflowY: "auto",
+            overflowX: "hidden",
             minHeight: 0,
+            maxHeight: mobile ? "calc(65vh - 100px)" : 380,
             "&::-webkit-scrollbar": {
               width: "6px",
             },
             "&::-webkit-scrollbar-track": {
-              background: "#f1f1f1",
+              background: "transparent",
             },
             "&::-webkit-scrollbar-thumb": {
-              background: "#c1c1c1",
+              background: "rgba(0,0,0,0.2)",
               borderRadius: "3px",
+              "&:hover": {
+                background: "rgba(0,0,0,0.3)",
+              }
             },
           }}
         >
@@ -300,90 +352,104 @@ const Navbar = () => {
               </Typography>
             </Box>
           ) : (
-            notifications.map((notification, index) => {
-              const notificationId = notification._id
-              return (
-                <MenuItem
-                  key={notificationId}
-                  onClick={() => {
-                    if (!notification.read) markAsReadNof(notificationId)
-                    handleNotificationClose()
-                    if (notification.link) navigate(notification.link)
-                  }}
-                  sx={{
-                    backgroundColor: notification.read ? "transparent" : "rgba(25, 118, 210, 0.08)",
-                    "&:hover": {
-                      backgroundColor: notification.read ? "rgba(0, 0, 0, 0.04)" : "rgba(25, 118, 210, 0.12)",
-                    },
-                    py: 1.5,
-                    px: 1,
-                    alignItems: "flex-start",
-                    minHeight: "auto",
-                  }}
-                >
-                  <ListItemIcon sx={{ minWidth: 40, mt: 0.5 }}>
-                    <Avatar sx={{ width: 32, height: 32, bgcolor: "primary.main", fontSize: "0.875rem" }}>
-                      {notification.type === "like" && "❤️"}
-                      {notification.type === "comment" && "💬"}
-                      {notification.type === "follow" && "👤"}
-                      {notification.type === "post" && "📝"}
-                      {notification.type === "login" && "🔐"}
-                      {!notification.type && "🔔"}
-                    </Avatar>
-                  </ListItemIcon>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography
-                      variant="body2"
-                      component="div"
-                      sx={{
-                        fontWeight: notification.read ? 400 : 600,
-                        wordBreak: "break-word",
-                        lineHeight: 1.4,
-                      }}
-                    >
-                      {notification.title || "Thông báo mới"}
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      component="div"
-                      color="text.secondary"
-                      sx={{
-                        fontSize: "0.8rem",
-                        mt: 0.5,
-                        wordBreak: "break-word",
-                        lineHeight: 1.3,
-                      }}
-                    >
-                      {notification.message || "Nội dung thông báo"}
-                    </Typography>
-                    <Typography
-                      variant="caption"
-                      component="div"
-                      color="text.secondary"
-                      sx={{ mt: 0.5, fontSize: "0.7rem" }}
-                    >
-                      {formatTime(notification.createdAt)}
-                    </Typography>
-                  </Box>
-                </MenuItem>
-              )
-            })
+            <>
+              {notifications.slice(0, showAllNotifications ? displayLimit : 10).map((notification, index) => {
+                const notificationId = notification._id
+                return (
+                  <MenuItem
+                    key={notificationId}
+                    onClick={() => {
+                      if (!notification.read) markAsReadNof(notificationId)
+                      handleNotificationClose()
+                      if (notification.link) navigate(notification.link)
+                    }}
+                    sx={{
+                      backgroundColor: notification.read ? "transparent" : "rgba(25, 118, 210, 0.08)",
+                      "&:hover": {
+                        backgroundColor: notification.read ? "rgba(0, 0, 0, 0.04)" : "rgba(25, 118, 210, 0.12)",
+                      },
+                      py: 1.5,
+                      px: 2,
+                      alignItems: "flex-start",
+                      minHeight: "auto",
+                      whiteSpace: "normal",
+                      display: "flex",
+                    }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 40, mt: 0.5 }}>
+                      <Avatar sx={{ width: 32, height: 32, bgcolor: "primary.main", fontSize: "0.875rem" }}>
+                        {notification.type === "like" && "❤️"}
+                        {notification.type === "comment" && "💬"}
+                        {notification.type === "follow" && "👤"}
+                        {notification.type === "post" && "📝"}
+                        {notification.type === "login" && "🔐"}
+                        {!notification.type && "🔔"}
+                      </Avatar>
+                    </ListItemIcon>
+                    <Box sx={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                      <Typography
+                        variant="body2"
+                        component="div"
+                        sx={{
+                          fontWeight: notification.read ? 400 : 600,
+                          wordBreak: "break-word",
+                          overflowWrap: "break-word",
+                          lineHeight: 1.4,
+                          whiteSpace: "normal",
+                        }}
+                      >
+                        {notification.title || "Thông báo mới"}
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        component="div"
+                        color="text.secondary"
+                        sx={{
+                          fontSize: "0.8rem",
+                          mt: 0.5,
+                          wordBreak: "break-word",
+                          overflowWrap: "break-word",
+                          lineHeight: 1.3,
+                          whiteSpace: "normal",
+                        }}
+                      >
+                        {notification.message || "Nội dung thông báo"}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        component="div"
+                        color="text.secondary"
+                        sx={{ mt: 0.5, fontSize: "0.7rem" }}
+                      >
+                        {formatTime(notification.createdAt)}
+                      </Typography>
+                    </Box>
+                  </MenuItem>
+                )
+              })}
+              {showAllNotifications && displayLimit < notifications.length && (
+                <Box sx={{ p: 2, textAlign: 'center' }}>
+                  <Typography variant="caption" color="text.secondary">
+                    Đang hiển thị {displayLimit} / {notifications.length} thông báo. Scroll xuống để xem thêm...
+                  </Typography>
+                </Box>
+              )}
+            </>
           )}
         </Box>
 
-        {/* Footer - Fixed */}
-        {notifications.length > 0 && (
+        {notifications.length > 0 && !showAllNotifications && notifications.length > 10 && (
           <>
             <Divider />
             <MenuItem
               onClick={() => {
-                handleNotificationClose()
-                navigate("/notifications")
+                setShowAllNotifications(true)
+                setDisplayLimit(20)
               }}
               sx={{
                 justifyContent: "center",
                 flexShrink: 0,
-                py: 0,
+                py: 1,
                 bgcolor: "background.paper",
                 "&:hover": {
                   bgcolor: "action.hover",
@@ -391,7 +457,7 @@ const Navbar = () => {
               }}
             >
               <Typography variant="body2" color="primary" sx={{ fontWeight: 500 }}>
-                Xem tất cả thông báo
+                Xem tất cả thông báo ({notifications.length})
               </Typography>
             </MenuItem>
           </>

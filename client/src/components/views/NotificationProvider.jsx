@@ -4,50 +4,38 @@ import { useNavigate } from "react-router-dom";
 import { CheckCircle } from '@mui/icons-material'
 import { onEvent, offEvent, initiateSocketConnection, socket } from "../../helpers/socketHelper";
 import { isLoggedIn } from "../../helpers/authHelper";
-
-import { getNotifications } from "../../api-axios/notification";
-
-
+import { getNotifications, markAsRead as markAsReadAPI } from "../../api-axios/notification";
 
 const NotificationContext = createContext();
-
 export const useNotification = () => useContext(NotificationContext);
 
 export const NotificationProvider = ({ children }) => {
     const [open, setOpen] = useState(false);
     const [message, setMessage] = useState("");
     const [link, setLink] = useState("");
-    // Notifications list and unread count (shared across app)
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const navigate = useNavigate();
 
-    // Hiển thị Snackbar
     const showNotification = ({ message = "Posted successfully", link = "123" }) => {
         setMessage(message);
         setLink(link);
         setOpen(true);
-        
-        // Play notification sound (optional)
         try {
             const audio = new Audio('/notification-sound.mp3');
             audio.volume = 0.3;
             audio.play().catch(() => {
-                // Silently fail if sound can't play
             });
         } catch (error) {
-            // Ignore sound errors
         }
     };
 
-    // Đóng Snackbar
     const handleClose = (event, reason) => {
         if (reason === "clickaway") return;
         setOpen(false);
         setLink(null);
     };
 
-    // Chuyển hướng nếu có link
     const handleGo = () => {
         if (link) navigate(link);
         setOpen(false);
@@ -55,21 +43,28 @@ export const NotificationProvider = ({ children }) => {
     };
 
     const handleDisplayStatusUploadPost = (content) => {
-
         if (content) {
             showNotification({ message: "Posted successfully!", link: `/posts/${content.postId}` })
         }
     }
 
-    // Helper to add a notification to the shared list
     const addNotification = (notification) => {
         setNotifications((prev) => [notification, ...prev].slice(0, 50));
         if (!notification.read) setUnreadCount((prev) => prev + 1);
     };
 
-    const markAsRead = (notificationId) => {
-        setNotifications((prev) => prev.map(n => n._id === notificationId ? { ...n, read: true } : n));
-        setUnreadCount((prev) => Math.max(0, prev - 1));
+    const markAsRead = async (notificationId) => {
+        try {
+            const user = isLoggedIn();
+            const reciveId = user?.user?._id || user?._id;
+
+            await markAsReadAPI(notificationId, reciveId);
+
+            setNotifications((prev) => prev.map(n => n._id === notificationId ? { ...n, read: true } : n));
+            setUnreadCount((prev) => Math.max(0, prev - 1));
+        } catch (error) {
+            console.error('Failed to mark notification as read:', error);
+        }
     };
 
     const markAllAsRead = () => {
@@ -77,63 +72,57 @@ export const NotificationProvider = ({ children }) => {
         setUnreadCount(0);
     };
 
-    // Handle like notification
     const handleLikeNotification = (notification) => {
         addNotification(notification);
-        showNotification({ 
-            message: notification.message || "Someone liked your post", 
-            link: notification.link 
+        showNotification({
+            message: notification.message || "Someone liked your post",
+            link: notification.link
         });
     };
 
-    // Handle follow notification
     const handleFollowNotification = (notification) => {
         addNotification(notification);
-        showNotification({ 
-            message: notification.message || "You have a new follower", 
-            link: notification.link 
+        showNotification({
+            message: notification.message || "You have a new follower",
+            link: notification.link
         });
     };
 
-    // Handle comment notification
     const handleCommentNotification = (notification) => {
         addNotification(notification);
-        showNotification({ 
-            message: notification.message || "New comment on your post", 
-            link: notification.link 
+        showNotification({
+            message: notification.message || "New comment on your post",
+            link: notification.link
         });
     };
 
-    // Handle message notification
     const handleMessageNotification = (notification) => {
         addNotification(notification);
-        showNotification({ 
-            message: notification.message || "You have a new message", 
-            link: notification.link 
+        showNotification({
+            message: notification.message || "You have a new message",
+            link: notification.link
         });
     };
 
-    // Handle invite notification
     const handleInviteNotification = (notification) => {
         addNotification(notification);
-        showNotification({ 
-            message: notification.message || "You have a new invitation", 
-            link: notification.link 
+        showNotification({
+            message: notification.message || "You have a new invitation",
+            link: notification.link
         });
     };
 
     const handleLoginNotification = (notification) => {
         addNotification(notification);
-        showNotification({ 
-            message: notification.message || "New login detected", 
-            link: null 
+        showNotification({
+            message: notification.message || "New login detected",
+            link: null
         });
     };
 
     useEffect(() => {
         const user = isLoggedIn();
-        
-            if (!user) {
+        if (!user) {
             return;
         }
 
@@ -146,18 +135,18 @@ export const NotificationProvider = ({ children }) => {
         (async () => {
             try {
                 const resp = await getNotifications();
-                // response format: { message, data: [ { list: [...], totalUnread: [ {count} ] } ] }
-                const payload = resp.data?.data || resp.data?.result || resp.data;
+                const payload = resp.data?.data;
                 if (Array.isArray(payload) && payload.length > 0) {
                     const notificationData = payload[0];
                     setNotifications(notificationData.list || []);
+                    console.log("notificationData ", Number(notificationData?.totalUnread?.[0]?.count) || 0);
                     setUnreadCount(Number(notificationData?.totalUnread?.[0]?.count) || 0);
                 }
             } catch (err) {
                 console.error('Failed to load initial notifications', err);
             }
         })();
-        
+
         onEvent("post:uploaded", handleDisplayStatusUploadPost);
         onEvent("like", handleLikeNotification);
         onEvent("follow", handleFollowNotification);
