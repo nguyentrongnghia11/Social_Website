@@ -56,6 +56,7 @@ const stragyVerifyLocal = () => {
             }
 
             const publicKey = await getPublicKey(email, deviceId);
+            console.log('🔓 Middleware: Token verified for:', { email, deviceId, userId: decoded._id });
             return done(null, publicKey);
         } catch (error: any) {
             return done(error, null);

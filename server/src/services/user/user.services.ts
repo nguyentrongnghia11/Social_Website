@@ -110,6 +110,8 @@ export class UserService {
             status: u.status
         };
 
+        console.log('🔐 Signin: Generating tokens for:', { userId: u._id, email: u.email, deviceId });
+
         const { privateKey, publicKey } = generateKeyPair();
         const { accessToken, refreshToken } = generateToken(user, privateKey);
 
@@ -167,6 +169,8 @@ export class UserService {
             status: googleUser.status
         };
 
+        console.log('🔐 Google Signin: Generating tokens for:', { userId: googleUser._id, email: googleUser.email, deviceId });
+
         const { privateKey, publicKey } = generateKeyPair();
         const { accessToken, refreshToken } = generateToken(user, privateKey);
 
@@ -209,43 +213,70 @@ export class UserService {
     }
 
     async refreshToken(refreshTokenOld: string, deviceId: string) {
+        // Step 1: Find the OLD token document by refreshToken + device (most specific query)
         const tokenOld = await _Token.findOne({ refreshToken: refreshTokenOld, device: deviceId })
             .sort({ createdAt: -1 })
             .lean();
 
         if (!tokenOld?.publicKey) {
+            console.error('❌ RefreshToken failed: Token document not found for device:', deviceId);
             throw new ErrorApi(400, 'Public token not found');
         }
 
-        const payLoad = await verifyToken(refreshTokenOld, tokenOld?.publicKey);
+        console.log('🔍 Found old token for email:', tokenOld.email, 'device:', deviceId);
+
+        // Step 2: Verify the old refresh token
+        const payLoad = await verifyToken(refreshTokenOld, tokenOld.publicKey);
         
         if (!payLoad) {
+            console.error('❌ RefreshToken failed: Invalid token signature');
             throw new ErrorApi(401, 'Invalid refresh token');
         }
 
-        const { privateKey, publicKey } = generateKeyPair();
-        const u = await _User.findOne({ email: payLoad.email, type: 'local' }).lean();
+        // Step 3: CRITICAL - Verify that payload email matches token document email
+        if (payLoad.email !== tokenOld.email) {
+            console.error('🚨 SECURITY ALERT: Token email mismatch!', {
+                payloadEmail: payLoad.email,
+                tokenDocEmail: tokenOld.email,
+                deviceId
+            });
+            throw new ErrorApi(403, 'Token validation failed - email mismatch');
+        }
+
+        console.log('✅ Token verified for user:', payLoad.email);
+
+        // Step 4: Find the user
+        const u = await _User.findOne({ email: tokenOld.email, type: 'local' }).lean();
         
         if (!u) {
+            console.error('❌ RefreshToken failed: User not found for email:', tokenOld.email);
             throw new ErrorApi(500, "Not found user");
         }
 
+        // Step 5: Build new JWT payload and generate new tokens
         const user = await buildJwtPayload(u, deviceId);
+        const { privateKey, publicKey } = generateKeyPair();
         const { accessToken, refreshToken } = generateToken(user, privateKey);
         
+        console.log('🔄 Updating token for email:', tokenOld.email, 'device:', deviceId);
+
+        // Step 6: Update the SAME token document (use _id or unique email+device)
         const token = await _Token.findOneAndUpdate(
-            { email: payLoad.email, device: deviceId },
-            { refreshToken, publicKey, deviceId },
-            { new: true, upsert: true }
+            { email: tokenOld.email, device: deviceId }, // Use tokenOld.email (verified), not payLoad.email
+            { refreshToken, publicKey },
+            { new: true }
         ).lean();
 
         if (!token) {
+            console.error('❌ RefreshToken failed: Failed to update token document');
             throw new ErrorApi(400, "Refresh token failed");
         }
 
+        console.log('✅ Token refreshed successfully for:', tokenOld.email);
+
         await saveUserCache(user, publicKey);
 
-        return { accessToken, refreshToken, payload: payLoad };
+        return { accessToken, refreshToken, payload: user };
     }
 
     async getRoleUser(name: string, limit: number = 10) {

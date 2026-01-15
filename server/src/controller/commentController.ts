@@ -9,6 +9,8 @@ class CommentController {
             const { content, parentID } = req.body;
             const u = req.user as IUser;
 
+            console.log('Creating comment for post:', id, 'by user:', u._id);
+
             const newComment = await commentService.createComment(id, content, u._id.toString(), parentID);
 
             return res.json({

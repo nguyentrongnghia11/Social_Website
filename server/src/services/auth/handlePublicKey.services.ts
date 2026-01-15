@@ -8,12 +8,17 @@ const CACHE_TTL = 3600; // 1 hour
 const getPublicKey = async (email: string, deviceId: string): Promise<string> => {
     const redisKey = `${REDIS_KEY_PREFIX}${email}-${deviceId}`;
     
+    console.log('🔑 Getting publicKey for:', { email, deviceId });
+    
     // Try Redis cache first
     let publicKey = await redisClient.get(redisKey);
     
     if (publicKey) {
+        console.log('✅ PublicKey found in Redis cache');
         return publicKey;
     }
+    
+    console.log('⚠️ PublicKey not in cache, querying database...');
     
     // Fallback to database
     const tokenDoc = await _Token.findOne({ email, device: deviceId }).select('publicKey').lean();

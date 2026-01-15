@@ -14,7 +14,17 @@ import {
   Divider,
   Button,
 } from '@mui/material';
-import { Notifications as NotificationsIcon, Circle } from '@mui/icons-material';
+import { 
+  Notifications as NotificationsIcon, 
+  Circle,
+  Favorite as FavoriteIcon,
+  PersonAdd as PersonAddIcon,
+  Comment as CommentIcon,
+  Message as MessageIcon,
+  Mail as MailIcon,
+  Login as LoginIcon,
+  Campaign as CampaignIcon,
+} from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useNotification } from './views/NotificationProvider';
 
@@ -55,19 +65,38 @@ const NotificationBadge = () => {
   const getNotificationIcon = (type) => {
     switch (type) {
       case 'like':
-        return '❤️';
+        return <FavoriteIcon sx={{ color: '#e91e63' }} />;
       case 'follow':
-        return '👤';
+        return <PersonAddIcon sx={{ color: '#2196f3' }} />;
       case 'comment':
-        return '💬';
+        return <CommentIcon sx={{ color: '#ff9800' }} />;
       case 'message':
-        return '✉️';
+        return <MessageIcon sx={{ color: '#4caf50' }} />;
       case 'invite':
-        return '📩';
+        return <MailIcon sx={{ color: '#9c27b0' }} />;
       case 'login':
-        return '🔐';
+        return <LoginIcon sx={{ color: '#607d8b' }} />;
       default:
-        return '🔔';
+        return <CampaignIcon sx={{ color: '#795548' }} />;
+    }
+  };
+
+  const getAvatarColor = (type) => {
+    switch (type) {
+      case 'like':
+        return '#fce4ec';
+      case 'follow':
+        return '#e3f2fd';
+      case 'comment':
+        return '#fff3e0';
+      case 'message':
+        return '#e8f5e9';
+      case 'invite':
+        return '#f3e5f5';
+      case 'login':
+        return '#eceff1';
+      default:
+        return '#efebe9';
     }
   };
 
@@ -103,17 +132,31 @@ const NotificationBadge = () => {
         onClose={handleClose}
         PaperProps={{
           sx: {
-            width: 360,
-            maxHeight: 480,
+            width: 380,
+            maxHeight: 500,
+            overflow: 'hidden',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
+            borderRadius: 2,
           },
         }}
         transformOrigin={{ horizontal: 'right', vertical: 'top' }}
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+        TransitionProps={{
+          timeout: 300,
+        }}
       >
-        <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h6">Thông báo</Typography>
+        <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: 'background.paper' }}>
+          <Typography variant="h6" fontWeight={600}>Thông báo</Typography>
           {unreadCount > 0 && (
-            <Button size="small" onClick={handleMarkAllRead}>
+            <Button 
+              size="small" 
+              onClick={handleMarkAllRead}
+              sx={{ 
+                textTransform: 'none',
+                fontSize: '0.85rem',
+                fontWeight: 500,
+              }}
+            >
               Đánh dấu đã đọc
             </Button>
           )}
@@ -121,8 +164,9 @@ const NotificationBadge = () => {
         <Divider />
 
         {notifications.length === 0 ? (
-          <Box sx={{ p: 4, textAlign: 'center' }}>
-            <Typography color="text.secondary">
+          <Box sx={{ p: 5, textAlign: 'center' }}>
+            <NotificationsIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
+            <Typography color="text.secondary" variant="body2">
               Không có thông báo nào
             </Typography>
           </Box>
@@ -138,10 +182,11 @@ const NotificationBadge = () => {
                     '&:hover': {
                       backgroundColor: 'action.selected',
                     },
+                    py: 1.5,
                   }}
                 >
                   <ListItemAvatar>
-                    <Avatar sx={{ bgcolor: 'primary.main' }}>
+                    <Avatar sx={{ bgcolor: getAvatarColor(notification.type) }}>
                       {getNotificationIcon(notification.type)}
                     </Avatar>
                   </ListItemAvatar>

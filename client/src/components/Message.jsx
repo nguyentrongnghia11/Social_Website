@@ -1,6 +1,6 @@
-import { Avatar, Card, useTheme, Typography, Box } from "@mui/material";
-import { Phone, Videocam, AttachFile, Image as ImageIcon, VideoFile, AudioFile, PictureAsPdf, Description } from "@mui/icons-material";
-import React from "react";
+import { Avatar, Card, useTheme, Typography, Box, Dialog, DialogContent, DialogActions, IconButton } from "@mui/material";
+import { Phone, Videocam, AttachFile, Image as ImageIcon, VideoFile, AudioFile, PictureAsPdf, Description, Close as CloseIcon, ZoomIn } from "@mui/icons-material";
+import React, { useState } from "react";
 import UserAvatar from "./UserAvatar";
 import HorizontalStack from "./util/HorizontalStack";
 
@@ -9,12 +9,24 @@ const Message = (props) => {
   const username = conservant.name;
   const message = props.message;
   const theme = useTheme();
+  const [openImageModal, setOpenImageModal] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
 
   console.log('🎨 Message component rendering with:', { 
     content: message?.content, 
     mediaFiles: message?.mediaFiles,
     mediaFilesLength: message?.mediaFiles?.length 
   });
+
+  const handleImageClick = (imageUrl) => {
+    setSelectedImage(imageUrl);
+    setOpenImageModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setOpenImageModal(false);
+    setSelectedImage(null);
+  };
 
   // Compute display name: if name has 3 or more parts, show the last part
   const rawName = (message?.senderId && message.senderId.name) || username || "";
@@ -38,16 +50,21 @@ const Message = (props) => {
       return (
         <Box
           key={index}
-          component="a"
-          href={file.url}
-          target="_blank"
-          rel="noopener noreferrer"
+          onClick={() => handleImageClick(file.url)}
           sx={{
-            display: 'block',
+            position: 'relative',
+            cursor: 'pointer',
             borderRadius: '8px',
             overflow: 'hidden',
             maxWidth: '300px',
             mt: 1,
+            '&:hover .image-overlay': { 
+              opacity: 1 
+            },
+            '&:hover': {
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            },
+            transition: 'all 0.3s ease',
           }}
         >
           <img
@@ -59,6 +76,36 @@ const Message = (props) => {
               display: 'block',
             }}
           />
+          <Box
+            className="image-overlay"
+            sx={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: 0,
+              transition: 'opacity 0.3s ease',
+            }}
+          >
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: 'rgba(255,255,255,0.2)',
+                borderRadius: '50%',
+                width: 50,
+                height: 50,
+              }}
+            >
+              <ZoomIn sx={{ color: 'white', fontSize: 24 }} />
+            </Box>
+          </Box>
         </Box>
       );
     }
@@ -195,6 +242,39 @@ const Message = (props) => {
           )}
         </Card>
       </div>
+
+      {/* Image Modal */}
+      <Dialog
+        open={openImageModal}
+        onClose={handleCloseModal}
+        maxWidth="lg"
+        fullWidth
+        PaperProps={{
+          sx: {
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            boxShadow: 'none',
+          }
+        }}
+      >
+        <DialogActions sx={{ position: 'absolute', top: 0, right: 0, zIndex: 1 }}>
+          <IconButton onClick={handleCloseModal} sx={{ color: 'white' }}>
+            <CloseIcon />
+          </IconButton>
+        </DialogActions>
+        <DialogContent sx={{ p: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {selectedImage && (
+            <img
+              src={selectedImage}
+              alt="Full size"
+              style={{
+                maxWidth: '100%',
+                maxHeight: '90vh',
+                objectFit: 'contain',
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </HorizontalStack>
   );
 };

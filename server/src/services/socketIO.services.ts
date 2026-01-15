@@ -7,6 +7,7 @@ import _Group from '../models/group';
 import _Call from '../models/call';
 import groupService from "../services/group/group.services";
 import callService from "./call/call.services";
+import { sendMessageNotification, sendGroupMessageNotification } from './notification/notification.services';
 
 declare module "socket.io" {
     interface Socket {
@@ -118,15 +119,44 @@ const handleExistingConversation = async (socket: Socket, msg: any, conversation
         console.log('📡 [handleExistingConversation] Emitting chat event with mediaFiles:', messageData.msg.mediaFiles?.length);
         socket.to(conversation._id.toString()).emit("chat", messageData);
 
+        // Send push notification to offline users
         let memberIds: string[] = [];
         if (conversation.type === 'group' && conversation.groupId) {
-            const group = await _Group.findById(conversation.groupId).select('members').lean();
-            memberIds = (group?.members || []).map((id: any) => id.toString());
+            const group = await _Group.findById(conversation.groupId).select('members name').lean();
+            memberIds = (group?.members || []).map((id: any) => id.toString()).filter((id: string) => id !== msg.senderId);
+            
+            // Send group notification to offline members
+            const onlineMemberIds = await Promise.all(memberIds.map(id => checkUserOnline(id)));
+            const offlineMemberIds = memberIds.filter((id, idx) => onlineMemberIds[idx].length === 0);
+            
+            if (offlineMemberIds.length > 0 && group) {
+                await sendGroupMessageNotification(
+                    offlineMemberIds,
+                    msg.nameSender || 'Unknown',
+                    msg.content || 'Đã gửi tệp đính kèm',
+                    group.name || 'Group',
+                    conversation._id.toString()
+                );
+            }
         } else {
             memberIds = [
                 conversation.senderId?.toString(),
                 conversation.receiverId?.toString()
-            ].filter(Boolean);
+            ].filter(Boolean).filter((id: string) => id !== msg.senderId);
+            
+            // Send notification to offline recipient
+            const recipientId = memberIds[0];
+            if (recipientId) {
+                const isOnline = await checkUserOnline(recipientId);
+                if (isOnline.length === 0) {
+                    await sendMessageNotification(
+                        recipientId,
+                        msg.nameSender || 'Unknown',
+                        msg.content || 'Đã gửi tệp đính kèm',
+                        conversation._id.toString()
+                    );
+                }
+            }
         }
 
         await incrementUnreadCounts(conversation._id.toString(), memberIds, msg.senderId);
@@ -231,6 +261,14 @@ const handleNewUserConversation = async (socket: Socket, msg: any) => {
                     conversation: populatedConversation
                 });
             });
+        } else {
+            // Receiver is offline, send push notification
+            await sendMessageNotification(
+                msg.receiverId,
+                msg.nameSender || 'Unknown',
+                msg.content || 'Đã gửi tệp đính kèm',
+                (nConversation._id as any).toString()
+            );
         }
 
         await redisClient.incr(`${KEY_UNREAD_COUNT}${msg.receiverId}:${nConversation._id}`);
@@ -341,6 +379,25 @@ const handleNewGroupConversation = async (socket: Socket, msg: any) => {
                 conversation: populatedConversation
             }
         );
+
+        // Send push notification to offline members
+        const offlineMembers = msg.memberIds.filter((id: string) => id !== msg.senderId);
+        const onlineStatusChecks = await Promise.all(
+            offlineMembers.map((id: string) => checkUserOnline(id))
+        );
+        const offlineMemberIds = offlineMembers.filter(
+            (_: string, idx: number) => onlineStatusChecks[idx].length === 0
+        );
+
+        if (offlineMemberIds.length > 0) {
+            await sendGroupMessageNotification(
+                offlineMemberIds,
+                msg.nameSender || 'Unknown',
+                msg.content || `Đã tạo nhóm "${msg.groupName}"`,
+                msg.groupName,
+                newConversation._id.toString()
+            );
+        }
 
         await incrementUnreadCounts(
             newConversation._id.toString(),

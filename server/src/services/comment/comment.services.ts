@@ -18,12 +18,20 @@ export class CommentService {
 
         if (newComment) {
             await detectToxicProducer(newComment);
+            console.log("Post id ", postId)
+            const post = await _Post.findById(postId);
+            console.log('Post found for comment notification:', post?.artistId);
 
-            // Send notification to post owner
-            const post = await _Post.findById(postId).select('userId');
+            console.log("Fucking ", post, ' ', post?.artistId.toString(), ' ', userId)
             if (post && post.artistId.toString() !== userId) {
                 const user = await _User.findById(userId).select('name');
-                
+
+                console.log('🔔 Sending comment notification:', {
+                    from: user?.name,
+                    to: post.artistId,
+                    postId
+                });
+
                 await handleNotification({
                     message: `${user?.name || 'Someone'} đã bình luận về bài viết của bạn: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`,
                     title: 'Bình luận mới',
@@ -41,7 +49,7 @@ export class CommentService {
                 const parentComment = await _Comment.findById(parentID).select('userId');
                 if (parentComment && parentComment.userId.toString() !== userId) {
                     const user = await _User.findById(userId).select('name');
-                    
+
                     await handleNotification({
                         message: `${user?.name || 'Someone'} đã trả lời bình luận của bạn: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`,
                         title: 'Trả lời bình luận',
@@ -93,7 +101,7 @@ export class CommentService {
 
     async updateComment(id: string, content: any) {
         const data = await _Comment.findByIdAndUpdate(id, content, { new: true });
-        
+
         if (!data) {
             throw new ErrorApi(400, "Update comment fail");
         }
@@ -109,7 +117,7 @@ export class CommentService {
         }
 
         const comment = await _Comment.deleteById(id);
-        
+
         if (!comment) {
             throw new ErrorApi(500, 'Delete comment failed');
         }

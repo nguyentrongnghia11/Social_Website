@@ -420,6 +420,12 @@ export class PostService {
         // Send notification to post owner
         if (post.artistId.toString() !== userId) {
             const user = await _User.findById(userId).select('name');
+            
+            console.log('🔔 Sending like notification:', {
+                from: user?.name,
+                to: post.artistId,
+                postID
+            });
 
             await handleNotification({
                 message: `${user?.name || 'Someone'} đã thích bài viết của bạn`,

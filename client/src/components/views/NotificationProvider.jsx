@@ -27,6 +27,17 @@ export const NotificationProvider = ({ children }) => {
         setMessage(message);
         setLink(link);
         setOpen(true);
+        
+        // Play notification sound (optional)
+        try {
+            const audio = new Audio('/notification-sound.mp3');
+            audio.volume = 0.3;
+            audio.play().catch(() => {
+                // Silently fail if sound can't play
+            });
+        } catch (error) {
+            // Ignore sound errors
+        }
     };
 
     // Đóng Snackbar
@@ -68,7 +79,7 @@ export const NotificationProvider = ({ children }) => {
 
     // Handle like notification
     const handleLikeNotification = (notification) => {
-
+        addNotification(notification);
         showNotification({ 
             message: notification.message || "Someone liked your post", 
             link: notification.link 
@@ -77,7 +88,7 @@ export const NotificationProvider = ({ children }) => {
 
     // Handle follow notification
     const handleFollowNotification = (notification) => {
-
+        addNotification(notification);
         showNotification({ 
             message: notification.message || "You have a new follower", 
             link: notification.link 
@@ -86,7 +97,7 @@ export const NotificationProvider = ({ children }) => {
 
     // Handle comment notification
     const handleCommentNotification = (notification) => {
-
+        addNotification(notification);
         showNotification({ 
             message: notification.message || "New comment on your post", 
             link: notification.link 
@@ -95,9 +106,7 @@ export const NotificationProvider = ({ children }) => {
 
     // Handle message notification
     const handleMessageNotification = (notification) => {
-
-        // add to list and show toast
-        addNotification(notification)
+        addNotification(notification);
         showNotification({ 
             message: notification.message || "You have a new message", 
             link: notification.link 
@@ -106,7 +115,7 @@ export const NotificationProvider = ({ children }) => {
 
     // Handle invite notification
     const handleInviteNotification = (notification) => {
-
+        addNotification(notification);
         showNotification({ 
             message: notification.message || "You have a new invitation", 
             link: notification.link 
@@ -115,6 +124,7 @@ export const NotificationProvider = ({ children }) => {
 
     // Handle login notification
     const handleLoginNotification = (notification) => {
+        addNotification(notification);
         showNotification({ 
             message: notification.message || "New login detected", 
             link: null 
