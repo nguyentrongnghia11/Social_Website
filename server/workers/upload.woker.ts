@@ -5,7 +5,7 @@ import { handleImageUploadAndUpdate } from "../src/services/upload/handleImageUp
 import _Notification from "../src/models/notification";
 import { io } from "../src";
 import redisClient from "../src/databases/connectRedis";
-import { handleNotification } from "../src/services/notification/handleNotification.services";
+import { handleNotification } from "../src/services/notification/notification.services";
 
 export const uploadWorker = async () => {
 

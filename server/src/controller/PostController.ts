@@ -151,6 +151,7 @@ class PostController {
 
             const result = await postService.reactPost(_id.toString(), postID);
 
+            
             return res.json({
                 status: 200,
                 message: result.liked ? 'Like post success' : 'Unliked post',

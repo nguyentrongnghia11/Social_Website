@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import { Snackbar, Alert, Button } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle } from '@mui/icons-material'
-import { onEvent, offEvent, initiateSocketConnection } from "../../helpers/socketHelper";
+import { onEvent, offEvent, initiateSocketConnection, socket } from "../../helpers/socketHelper";
 import { isLoggedIn } from "../../helpers/authHelper";
 
 import { getNotifications } from "../../api-axios/notification";
@@ -122,7 +122,6 @@ export const NotificationProvider = ({ children }) => {
         });
     };
 
-    // Handle login notification
     const handleLoginNotification = (notification) => {
         addNotification(notification);
         showNotification({ 
@@ -134,19 +133,16 @@ export const NotificationProvider = ({ children }) => {
     useEffect(() => {
         const user = isLoggedIn();
         
-        // Chỉ đăng ký events khi user đã login
             if (!user) {
             return;
         }
 
-        // Khởi tạo socket connection trước
         const socket = initiateSocketConnection();
         if (!socket) {
             console.warn('Failed to initialize socket connection');
             return;
         }
 
-        // Fetch initial notifications for user
         (async () => {
             try {
                 const resp = await getNotifications();
@@ -162,7 +158,6 @@ export const NotificationProvider = ({ children }) => {
             }
         })();
         
-        // Register all event listeners
         onEvent("post:uploaded", handleDisplayStatusUploadPost);
         onEvent("like", handleLikeNotification);
         onEvent("follow", handleFollowNotification);
@@ -180,7 +175,7 @@ export const NotificationProvider = ({ children }) => {
             offEvent("invite", handleInviteNotification);
             offEvent("login", handleLoginNotification);
         }
-    }, [])
+    }, [socket])
 
 
     return (

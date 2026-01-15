@@ -1,10 +1,11 @@
 import { NextFunction, Response, Request } from "express";
-import notificationControllerService from "../services/notification/notificationController.services";
+import { getNotifications, getNotificationById, getNotificationsByReceiver, markReadNotification } from "../services/notification/notification.services";
+// import notificationControllerService from "../services/notification/notificationController.services";
 
 class NotificationController {
     async getNotification(req: Request, res: Response, next: NextFunction) {
         try {
-            const listNotice = await notificationControllerService.getNotifications();
+            const listNotice = await getNotifications();
 
             return res.status(200).json({
                 message: "List success",
@@ -19,7 +20,7 @@ class NotificationController {
         try {
             const { notificationId, reciveId } = req.body;
 
-            await notificationControllerService.markReadNotification(notificationId, reciveId);
+            await markReadNotification(notificationId, reciveId);
 
             return res.status(200).json({
                 message: "Update status success"
@@ -33,9 +34,9 @@ class NotificationController {
         try {
             const id = req.params.id;
 
-            console.log (id)
+            console.log(id)
 
-            const notice = await notificationControllerService.getNotificationById(id);
+            const notice = await getNotificationById(id);
 
             return res.status(200).json({
                 message: 'Get notification success',
@@ -50,9 +51,9 @@ class NotificationController {
         try {
             const id = req.params.id;
 
-            const result = await notificationControllerService.getNotificationsByReceiver(id);
+            const result = await getNotificationsByReceiver(id);
 
-            console.log (result)
+            console.log(result)
             return res.status(200).json({
                 message: 'Get notifications for user success',
                 data: result

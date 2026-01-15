@@ -20,15 +20,14 @@ export const authSocket = async (socket: Socket, next: (err?: ExtendedError) => 
         }
 
         const { accessToken } = cookies.parse(cookieHeader);
-        console.log("Access Token:", accessToken);
         if (!accessToken) {
-            console.log("No access token found in cookies");
+            console.log("No access token cookies");
             return next(new Error(UNAUTHORIZED_ERROR));
         }
 
         const infor = jwt.decode(accessToken, { json: true }) as JwtPayload | null;
 
-        console.log(infor)
+        console.log(infor?.name)
 
         if (!infor?.email || !infor?.deviceId) {
             console.log("Invalid token payload");
@@ -50,7 +49,6 @@ export const authSocket = async (socket: Socket, next: (err?: ExtendedError) => 
             const u = user as JwtPayload;
             const uid = u._id;
 
-
             if (!uid) {
                 return next(new Error(UNAUTHORIZED_ERROR));
             }
@@ -64,8 +62,6 @@ export const authSocket = async (socket: Socket, next: (err?: ExtendedError) => 
                 console.error('Error fetching conversations:', err);
                 return next(new Error(UNAUTHORIZED_ERROR));
             }
-
-            // Đăng ký socket.id vào Redis cho từng conversationId (nếu cần)
             await Promise.all([
                 redisClient.sAdd(`${KEY_USER_ONLINE_SOCKET}${uid}`, socket.id),
                 ...conversationIds.map((convId: string) =>

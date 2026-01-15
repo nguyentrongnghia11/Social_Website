@@ -1,7 +1,7 @@
 import _Comment from '../../models/comment';
 import { ErrorApi } from '../../middleware/error';
 import { detectToxicProducer } from '../queue/detectToxicProducer.services';
-import { handleNotification } from '../notification/handleNotification.services';
+import { handleNotification } from '../notification/notification.services';
 import _Post from '../../models/post';
 import _User from '../../models/user';
 import { Types } from 'mongoose';

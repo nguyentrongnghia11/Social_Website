@@ -9,8 +9,6 @@ import { getPublicKey } from '../services/auth/handlePublicKey.services';
 import { ErrorApi } from './error';
 
 export const authenticateMiddleware = (req: Request, res: Response, next: NextFunction) => {
-    //return ve middleware
-    console.log ("authenticateMiddleware")
     return passport.authenticate('jwt', { session: true }, (err: any, user: unknown, info: unknown) => {
         if (err) return next(new ErrorApi(401, err.message))
 
@@ -40,7 +38,6 @@ const stragyVerifyLocal = () => {
             const { email, deviceId, iat: timeCreateToken } = decoded;
 
             if (timeCreateToken) {
-                // Parallel Redis calls
                 const [timeLogout, timeLogoutAllDevice] = await Promise.all([
                     redisClient.get(`TOKEN-AVAILABLE-${email}-${deviceId}`),
                     redisClient.get(`TOKEN-AVAILABLE-ALL-${email}`)
@@ -56,7 +53,9 @@ const stragyVerifyLocal = () => {
             }
 
             const publicKey = await getPublicKey(email, deviceId);
-            console.log('🔓 Middleware: Token verified for:', { email, deviceId, userId: decoded._id });
+
+            console.log ("public key email ", email, " device ", deviceId, ' key ', publicKey.substring(0, 30) + '...'  )
+
             return done(null, publicKey);
         } catch (error: any) {
             return done(error, null);

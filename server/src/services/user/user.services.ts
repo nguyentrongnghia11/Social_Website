@@ -8,7 +8,7 @@ import { Types } from 'mongoose';
 import { generateOtpcode } from '../../utils/generateOtpcode';
 import { generateToken, verifyToken } from '../../utils/handleToken';
 import { buildJwtPayload } from '../../utils/buildJwtPayload';
-import { handleNotification } from '../notification/handleNotification.services';
+import { handleNotification } from '../notification/notification.services';
 import { generateKeyPair } from '../../utils/generatePairKey';
 import { saveUserCache } from '../auth/authSession.services';
 import { mailProducer } from '../queue/otpProducer.services';
@@ -213,66 +213,48 @@ export class UserService {
     }
 
     async refreshToken(refreshTokenOld: string, deviceId: string) {
-        // Step 1: Find the OLD token document by refreshToken + device (most specific query)
         const tokenOld = await _Token.findOne({ refreshToken: refreshTokenOld, device: deviceId })
             .sort({ createdAt: -1 })
             .lean();
 
         if (!tokenOld?.publicKey) {
-            console.error('❌ RefreshToken failed: Token document not found for device:', deviceId);
+            console.error('RefreshToken failed: Token  not found for device:', deviceId);
             throw new ErrorApi(400, 'Public token not found');
         }
-
-        console.log('🔍 Found old token for email:', tokenOld.email, 'device:', deviceId);
-
-        // Step 2: Verify the old refresh token
         const payLoad = await verifyToken(refreshTokenOld, tokenOld.publicKey);
+
+        console.log ("payload rf ", payLoad)
         
         if (!payLoad) {
-            console.error('❌ RefreshToken failed: Invalid token signature');
+            console.error('Khong co payload');
             throw new ErrorApi(401, 'Invalid refresh token');
         }
 
-        // Step 3: CRITICAL - Verify that payload email matches token document email
         if (payLoad.email !== tokenOld.email) {
-            console.error('🚨 SECURITY ALERT: Token email mismatch!', {
-                payloadEmail: payLoad.email,
-                tokenDocEmail: tokenOld.email,
-                deviceId
-            });
             throw new ErrorApi(403, 'Token validation failed - email mismatch');
         }
 
-        console.log('✅ Token verified for user:', payLoad.email);
-
-        // Step 4: Find the user
-        const u = await _User.findOne({ email: tokenOld.email, type: 'local' }).lean();
+        const u = await _User.findOne({ email: tokenOld.email, type: payLoad.type}).lean();
         
         if (!u) {
-            console.error('❌ RefreshToken failed: User not found for email:', tokenOld.email);
+            console.error('ref User not found for email:', tokenOld.email, payLoad.type);
             throw new ErrorApi(500, "Not found user");
         }
 
-        // Step 5: Build new JWT payload and generate new tokens
         const user = await buildJwtPayload(u, deviceId);
         const { privateKey, publicKey } = generateKeyPair();
         const { accessToken, refreshToken } = generateToken(user, privateKey);
         
-        console.log('🔄 Updating token for email:', tokenOld.email, 'device:', deviceId);
-
-        // Step 6: Update the SAME token document (use _id or unique email+device)
         const token = await _Token.findOneAndUpdate(
-            { email: tokenOld.email, device: deviceId }, // Use tokenOld.email (verified), not payLoad.email
+            { email: tokenOld.email, device: deviceId }, 
             { refreshToken, publicKey },
             { new: true }
         ).lean();
 
         if (!token) {
-            console.error('❌ RefreshToken failed: Failed to update token document');
+            console.error('rf failed to update token document');
             throw new ErrorApi(400, "Refresh token failed");
         }
-
-        console.log('✅ Token refreshed successfully for:', tokenOld.email);
 
         await saveUserCache(user, publicKey);
 

@@ -416,8 +416,6 @@ const handleNewGroupConversation = async (socket: Socket, msg: any) => {
 // Main socket service
 export const socketioService = async (socket: Socket) => {
     console.log(`Socket connected: ${socket.id}`);
-
-    // Join conversation room
     socket.on('join-conversation', async (conversationId) => {
         try {
             if (!conversationId) return;
@@ -430,7 +428,6 @@ export const socketioService = async (socket: Socket) => {
         }
     });
 
-    // Handle chat messages
     socket.on('chat', async (msg) => {
         try {
             console.log('📨 [Socket.chat] Received message:', {
@@ -447,7 +444,6 @@ export const socketioService = async (socket: Socket) => {
                 return;
             }
 
-            // Allow empty content if there are mediaFiles
             if (!msg.content && (!msg.mediaFiles || msg.mediaFiles.length === 0)) {
                 socket.emit('error', { message: 'Message must have content or media files' });
                 return;
@@ -461,7 +457,6 @@ export const socketioService = async (socket: Socket) => {
             if (existsConversation) {
                 await handleExistingConversation(socket, msg, existsConversation);
             } else {
-                // New conversation - determine type
                 if (msg.type === "user") {
                     await handleNewUserConversation(socket, msg);
                 } else if (msg.type === "group") {
@@ -507,30 +502,30 @@ export const socketioService = async (socket: Socket) => {
 
             // Validate required fields
             if (!callerId || !receiverId || !conversationId || !callType) {
-                console.error('❌ Missing required fields for call-initiate');
+                console.error('Missing for call-initiate');
                 socket.emit('call-error', { message: 'Missing required fields' });
                 return;
             }
 
             // Validate callType
             if (!['audio', 'video'].includes(callType)) {
-                console.error('❌ Invalid call type:', callType);
+                console.error('Invalid call type:', callType);
                 socket.emit('call-error', { message: 'Invalid call type' });
                 return;
             }
 
-            console.log('📞 [Call-Initiate] Starting call:', { callerId, receiverId, callType });
+            console.log('[Call-Initiate] Starting call:', { callerId, receiverId, callType });
             
             const call = await callService.initiateCall(callerId, receiverId, conversationId, callType);
 
             if (!call) {
-                console.error('❌ Failed to create call in database');
+                console.error('Failed to create call in database');
                 socket.emit('call-error', { message: 'Failed to initiate call' });
                 return;
             }
 
             const callId = call._id.toString();
-            console.log('✅ [Call-Initiate] Call created:', callId);
+            console.log('[Call-Initiate] Call created:', callId);
 
             // Check if receiver is online
             const receiverSocketIds = await checkUserOnline(receiverId);
@@ -538,7 +533,7 @@ export const socketioService = async (socket: Socket) => {
             if (receiverSocketIds.length > 0) {
                 // Send call notification to all receiver's devices
                 receiverSocketIds.forEach(socketId => {
-                    console.log('📤 [Call-Initiate] Sending to receiver socket:', socketId);
+                    console.log('[Call-Initiate] Sending to receiver socket:', socketId);
                     socket.to(socketId).emit('call-incoming', {
                         callId,
                         callerId,
@@ -554,7 +549,7 @@ export const socketioService = async (socket: Socket) => {
                 const missedCallTimeout = setTimeout(async () => {
                     try {
                         const currentCall = await callService.getCallById(callId);
-                        console.log('⏰ [Timeout] Checking call status:', currentCall?.status);
+                        console.log('[Timeout] Checking call status:', currentCall?.status);
                         
                         if (currentCall && currentCall.status === 'calling') {
                             console.log('📥 [Timeout] Marking call as missed:', callId);
@@ -576,7 +571,7 @@ export const socketioService = async (socket: Socket) => {
                             });
                         }
                     } catch (error) {
-                        console.error('❌ Error in missed call timeout:', error);
+                        console.error('Error in missed call timeout:', error);
                     }
                 }, 45000); // 45 seconds
 
@@ -584,7 +579,6 @@ export const socketioService = async (socket: Socket) => {
                 socket.data.callTimeout = missedCallTimeout;
                 
             } else {
-                console.log('🚫 [Call-Initiate] Receiver offline');
                 await callService.markCallAsMissed(callId);
                 socket.emit('call-user-offline', {
                     callId,
@@ -592,7 +586,6 @@ export const socketioService = async (socket: Socket) => {
                 });
             }
 
-            // Notify caller that call was initiated successfully
             socket.emit('call-initiated', {
                 callId,
                 receiverId,
@@ -603,7 +596,7 @@ export const socketioService = async (socket: Socket) => {
             console.log('✅ [Call-Initiate] Complete');
 
         } catch (error) {
-            console.error('❌ Error initiating call:', error);
+            console.error('Error initiating call:', error);
             socket.emit('call-error', { message: 'Failed to initiate call' });
         }
     });
@@ -647,10 +640,10 @@ export const socketioService = async (socket: Socket) => {
     }) => {
         try {
             const { callId, callerId, answer } = data;
-            console.log('📞 [Call-Answer] Received answer for call:', callId);
+            console.log('[Call-Answer] Received answer for call:', callId);
 
             if (!callId || !callerId || !answer) {
-                console.error('❌ Missing required fields for call-answer');
+                console.error('Missing required fields for call-answer');
                 socket.emit('call-error', { message: 'Missing required fields' });
                 return;
             }
@@ -659,32 +652,32 @@ export const socketioService = async (socket: Socket) => {
             if (socket.data.callTimeout) {
                 clearTimeout(socket.data.callTimeout);
                 socket.data.callTimeout = null;
-                console.log('⏰ Cleared missed call timeout');
+                console.log('Cleared missed call timeout');
             }
 
             // Update call status to accepted
             if (socket.user?.id) {
                 await callService.acceptCall(callId, socket.user.id);
-                console.log('✅ Call accepted in database');
+                console.log('Call accepted in database');
             }
 
             // Forward answer to caller
             const callerSocketIds = await checkUserOnline(callerId);
             if (callerSocketIds.length > 0) {
                 callerSocketIds.forEach(socketId => {
-                    console.log('📤 [Call-Answer] Sending to caller socket:', socketId);
+                    console.log('[Call-Answer] Sending to caller socket:', socketId);
                     socket.to(socketId).emit('call-answer', {
                         callId,
                         answer
                     });
                 });
             } else {
-                console.warn('⚠️ Caller no longer online');
+                console.warn('Caller no longer online');
                 socket.emit('call-error', { message: 'Caller no longer online' });
             }
 
         } catch (error) {
-            console.error('❌ Error handling call answer:', error);
+            console.error('Error handling call answer:', error);
             socket.emit('call-error', { message: 'Failed to send answer' });
         }
     });
@@ -722,10 +715,10 @@ export const socketioService = async (socket: Socket) => {
     }) => {
         try {
             const { callId, callerId, reason } = data;
-            console.log('🚫 [Call-Reject] Call rejected:', callId);
+            console.log('[Call-Reject] Call rejected:', callId);
 
             if (!callId || !callerId) {
-                console.error('❌ Missing required fields for call-reject');
+                console.error('Missing required fields for call-reject');
                 socket.emit('call-error', { message: 'Missing required fields' });
                 return;
             }
@@ -734,7 +727,7 @@ export const socketioService = async (socket: Socket) => {
             if (socket.data.callTimeout) {
                 clearTimeout(socket.data.callTimeout);
                 socket.data.callTimeout = null;
-                console.log('⏰ Cleared missed call timeout');
+                console.log('leared missed call timeout');
             }
 
             // Update call status
@@ -746,7 +739,7 @@ export const socketioService = async (socket: Socket) => {
             const callerSocketIds = await checkUserOnline(callerId);
             if (callerSocketIds.length > 0) {
                 callerSocketIds.forEach(socketId => {
-                    console.log('📤 [Call-Reject] Notifying caller socket:', socketId);
+                    console.log(' [Call-Reject] Notifying caller socket:', socketId);
                     socket.to(socketId).emit('call-rejected', {
                         callId,
                         reason: reason || 'Call rejected'
@@ -755,7 +748,7 @@ export const socketioService = async (socket: Socket) => {
             }
 
         } catch (error) {
-            console.error('❌ Error rejecting call:', error);
+            console.error('Error rejecting call:', error);
             socket.emit('call-error', { message: 'Failed to reject call' });
         }
     });

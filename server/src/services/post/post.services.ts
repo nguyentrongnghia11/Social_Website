@@ -7,7 +7,7 @@ import redisClient from '../../databases/connectRedis';
 import cloudinary from '../../databases/cloud';
 import { uploadProducer } from '../queue/uploadProducer.services';
 import { encodePostProducer } from '../queue/encodePostProducer.services';
-import { handleNotification } from '../notification/handleNotification.services';
+import { handleNotification } from '../notification/notification.services';
 import _User from '../../models/user';
 
 /**
@@ -401,7 +401,6 @@ export class PostService {
         const isLiked = post.react?.includes(userObjectId);
 
         if (isLiked) {
-            // Unlike: remove user from react array
             await _Post.findByIdAndUpdate(
                 postID,
                 { $pull: { react: userObjectId } },
@@ -409,24 +408,14 @@ export class PostService {
             );
             return { liked: false };
         }
-
-        // Like: add user to react array
         await _Post.findByIdAndUpdate(
             postID,
             { $addToSet: { react: userObjectId } },
             { new: true }
         );
-
-        // Send notification to post owner
+        //send
         if (post.artistId.toString() !== userId) {
             const user = await _User.findById(userId).select('name');
-            
-            console.log('🔔 Sending like notification:', {
-                from: user?.name,
-                to: post.artistId,
-                postID
-            });
-
             await handleNotification({
                 message: `${user?.name || 'Someone'} đã thích bài viết của bạn`,
                 title: 'Lượt thích mới',
@@ -445,7 +434,6 @@ export class PostService {
     async getAllPost(page: number = 1, limit: number = 10, sortBy: string = 'latest', userId?: string) {
         const skip: number = (page - 1) * limit;
 
-        // Determine sort criteria based on sortBy parameter
         let sortCriteria: any = { createdAt: -1 }; // default: latest
 
         switch (sortBy.toLowerCase()) {
