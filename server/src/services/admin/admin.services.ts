@@ -252,33 +252,41 @@ export class CommentManagementService {
         visibility?: string;
         search?: string;
     }) {
-        const { page, limit, visibility, search } = filters;
-        const query: any = {};
-        
-        if (visibility) query.visibility = visibility;
-        if (search) {
-            query.content = { $regex: search, $options: 'i' };
-        }
-
-        const skip = (page - 1) * limit;
-        const comments = await _Comment.find(query)
-            .populate('userId', 'name email')
-            .populate('postId', 'title')
-            .skip(skip)
-            .limit(limit)
-            .sort({ createdAt: -1 });
-
-        const total = await _Comment.countDocuments(query);
-
-        return {
-            comments,
-            pagination: {
-                page,
-                limit,
-                total,
-                totalPages: Math.ceil(total / limit)
+        try {
+            const { page, limit, visibility, search } = filters;
+            const query: any = {};
+            
+            if (visibility) query.visibility = visibility;
+            if (search) {
+                query.content = { $regex: search, $options: 'i' };
             }
-        };
+
+            const skip = (page - 1) * limit;
+            const comments = await _Comment.find(query)
+                .populate('userId', 'name')
+                .populate('postId', 'title')
+                .skip(skip)
+                .limit(limit)
+                .sort({ createdAt: -1 })
+                .lean();
+
+            const total = await _Comment.countDocuments(query);
+
+            console.log ("comments found: ", comments.length)
+
+            return {
+                comments,
+                pagination: {
+                    page,
+                    limit,
+                    total,
+                    totalPages: Math.ceil(total / limit)
+                }
+            };
+        } catch (error) {
+            console.error('Error in getComments service:', error);
+            throw error;
+        }
     }
 
     async getCommentById(id: string) {
@@ -289,6 +297,9 @@ export class CommentManagementService {
     }
 
     async updateCommentVisibility(id: string, visibility: string) {
+
+        console.log ("Updating comment visibility: ", id, visibility)
+
         const comment = await _Comment.findByIdAndUpdate(
             id,
             { visibility },

@@ -32,7 +32,7 @@ import { BASE_URL } from "./config";
 import { io } from "socket.io-client";
 import './api-axios/common'
 import OTPView from "./components/views/OTPView";
-import { isLoggedIn } from "./helpers/authHelper";
+import { isLoggedIn, validateSession } from "./helpers/authHelper";
 import { NotificationProvider } from "./components/views/NotificationProvider";
 import { generateDeviceId } from "./helpers/initDevice";
 import AdminPage from "./components/views/DashBoardView";
@@ -104,13 +104,36 @@ function AppContent() {
 
 function App() {
 
-  const user = isLoggedIn()
+  const [user, setUser] = useState(isLoggedIn());
   const [serverDown, setServerDown] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [isValidating, setIsValidating] = useState(true);
 
   useEffect(() => {
-    generateDeviceId()
-  }, [])
+    generateDeviceId();
+    
+    // Validate session khi app khởi động
+    const checkSession = async () => {
+      const storedUser = isLoggedIn();
+      
+      if (storedUser) {
+        console.log('Validating stored session...');
+        const validUser = await validateSession();
+        
+        if (validUser) {
+          console.log('Session is valid');
+          setUser(validUser);
+        } else {
+          console.log('Session expired, clearing user');
+          setUser(null);
+        }
+      }
+      
+      setIsValidating(false);
+    };
+    
+    checkSession();
+  }, []);
 
   const handleRetry = () => {
     setIsRetrying(true);
@@ -119,6 +142,18 @@ function App() {
       setIsRetrying(false);
     }, 2000);
   };
+
+  // Show loading state khi đang validate session
+  if (isValidating) {
+    return (
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+          <div>Đang kiểm tra phiên đăng nhập...</div>
+        </div>
+      </ThemeProvider>
+    );
+  }
 
   // Nếu server down và user đã login, hiển thị ServerDownPage
   if (serverDown && user) {

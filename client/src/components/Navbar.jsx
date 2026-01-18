@@ -47,8 +47,6 @@ const Navbar = () => {
   const notificationScrollRef = useRef(null)
 
   const [unreadMsgCount, setUnreadMsgCount] = useState(0);
-
-  // Load unread message count from server on mount
   useEffect(() => {
     const fetchUnreadCount = async () => {
       try {

@@ -7,6 +7,7 @@ const router = Router();
 
 router.get('/all', notificationController.getNotification)
 router.patch('/mark-as-read',validateMarkedReadNotification ,notificationController.markedReadNotification)
+router.patch('/mark-all-as-read', authenticateMiddleware, notificationController.markAllAsRead)
 router.get('/user/:id', authenticateMiddleware, notificationController.getNotificationsForUser)
 router.get('/:id', authenticateMiddleware, notificationController.getNotificationById)
 

@@ -4,42 +4,67 @@ import _File from '../../models/file';
 import { Types } from 'mongoose';
 import { ErrorApi } from '../../middleware/error';
 import redisClient from '../../databases/connectRedis';
-import cloudinary from '../../databases/cloud';
+import { S3Service } from '../storage/s3.service';
+import { BUCKET_NAME } from '../../databases/s3';
 import { uploadProducer } from '../queue/uploadProducer.services';
 import { encodePostProducer } from '../queue/encodePostProducer.services';
 import { handleNotification } from '../notification/notification.services';
 import _User from '../../models/user';
+import crypto from 'crypto';
+import { v4 as uuidv4 } from 'uuid';
 
-/**
- * Helper: Add standard post fields (liked, userLikePreview, edited, status)
- */
-const addStandardPostFields = (posts: any[], userId?: string): any[] => {
+// Helper function to convert S3 URL to presigned URL
+const getPresignedUrl = async (url: string): Promise<string> => {
+    if (!url) return url;
+
+    // Only process S3 URLs (amazonaws.com)
+    if (url.includes('amazonaws.com')) {
+        try {
+            const match = url.match(/amazonaws\.com\/(.+)$/);
+            if (match) {
+                const key = match[1];
+                return await S3Service.getSignedUrl(key, 86400); // 24 hours
+            }
+        } catch (error) {
+            console.error('Error generating presigned URL:', error);
+        }
+    }
+
+    // Return original URL if not S3 or if error
+    return url;
+};
+
+const addStandardPostFields = async (posts: any[], userId?: string): Promise<any[]> => {
     const userObjectId = userId ? new Types.ObjectId(userId) : null;
 
-    return posts.map(post => {
-        // Check if user liked this post
+    const processedPosts = await Promise.all(posts.map(async (post: any) => {
+        if (post.imgUrl && Array.isArray(post.imgUrl) && post.imgUrl.length > 0) {
+            post.imgUrl = await Promise.all(
+                post.imgUrl.map((url: string) => getPresignedUrl(url))
+            );
+        }
+
+        if (post.videoUrl && Array.isArray(post.videoUrl) && post.videoUrl.length > 0) {
+            post.videoUrl = await Promise.all(
+                post.videoUrl.map((url: string) => getPresignedUrl(url))
+            );
+        }
         let liked = false;
 
         if (userObjectId && post.react && Array.isArray(post.react)) {
             liked = post.react.some((reactUserId: any) => {
-
-                console.log('Comparing reactUserId:', reactUserId.toString(), 'with userObjectId:', userObjectId.toString());
                 return reactUserId.toString() === userObjectId.toString();
             });
         }
-
-        // Get first 3 users who liked (for avatar preview)
         const userLikePreview = post.reactUsers?.slice(0, 3).map((u: any) => ({
             _id: u._id,
             username: u.name
         })) || [];
 
-        // Check if post was edited
         const edited = post.updatedAt && post.createdAt
             ? new Date(post.updatedAt).getTime() - new Date(post.createdAt).getTime() > 1000
             : false;
 
-        // Remove react array from response
         delete post.react;
         delete post.reactUsers;
 
@@ -50,7 +75,9 @@ const addStandardPostFields = (posts: any[], userId?: string): any[] => {
             edited,
             status: post.status || 'active'
         };
-    });
+    }));
+
+    return processedPosts;
 };
 
 export class PostService {
@@ -73,21 +100,53 @@ export class PostService {
         return newPost;
     }
 
-    async grantPermissionUploadFile(typeImg: string, title: string, content: string, userId: string) {
+    async grantPermissionUploadFile(typeImg: string, title: string, content: string, userId: string, contentType?: string, postId?: string, files?: Array<{ contentType: string, fileName: string, fileSize: number }>) {
         if (!typeImg) {
             throw new ErrorApi(400, "Type image missing");
         }
+        const allowedTypes = [
+            'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+            'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'
+        ];
 
-        const timestamp = Math.floor(Date.now() / 1000);
         const folder = typeImg === "avatar" ? "avatar" : "upload";
 
-        const signature = await cloudinary.utils.api_sign_request(
-            { timestamp, folder },
-            cloudinary.config().api_secret
-        );
+        if (postId && files && Array.isArray(files) && files.length > 0) {
+            console.log("Khi co file")
+            for (const file of files) {
+                if (!allowedTypes.includes(file.contentType)) {
+                    throw new ErrorApi(400, `File type ${file.contentType} is not allowed. Only images and videos are supported.`);
+                }
+            }
 
-        if (!signature) {
-            throw new ErrorApi(500, "Grant permission fail");
+            const uploadUrls = await Promise.all(
+                files.map(async (file) => {
+                    const fileKey = `${folder}/${postId}/${uuidv4()}`;
+                    const presignedData = await S3Service.getPresignedUploadUrl(
+                        fileKey,
+                        file.contentType,
+                        3600
+                    );
+                    return {
+                        uploadUrl: presignedData.url,
+                        key: presignedData.key,
+                        fileName: file.fileName,
+                        fileSize: file.fileSize
+                    };
+                })
+            );
+
+            return {
+                uploadUrls,
+                postId,
+                bucket: BUCKET_NAME,
+                region: process.env.AWS_REGION || 'us-east-1',
+                folder
+            };
+        }
+
+        if (contentType && !allowedTypes.includes(contentType)) {
+            throw new ErrorApi(400, `File type ${contentType} is not allowed. Only images and videos are supported.`);
         }
 
         const post_draft = await _Post.create({ title, artistId: userId, content });
@@ -96,30 +155,25 @@ export class PostService {
             throw new ErrorApi(500, "Create post draft fail");
         }
 
+        console.log("Created post draft with ID:", post_draft._id);
+
         await encodePostProducer(post_draft);
+        const fileKey = `${folder}/${post_draft._id}/${uuidv4()}`;
+        const presignedData = await S3Service.getPresignedUploadUrl(
+            fileKey,
+            contentType || 'application/octet-stream',
+            3600
+        );
 
-        const information: {
-            api_key: string;
-            timestamp: number;
-            signature: string;
-            folder: string;
-            tags: string;
-            eager?: Array<{ width: number; height: number; crop: string }>;
-            cloud_name: string;
-            postId: string;
-        } = {
-            api_key: cloudinary.config().api_key,
-            timestamp,
-            signature,
+        const information = {
+            uploadUrl: presignedData.url,
+            key: presignedData.key,
+            bucket: BUCKET_NAME,
+            region: process.env.AWS_REGION || 'us-east-1',
             folder,
-            tags: post_draft._id as string,
-            cloud_name: cloudinary.config().cloud_name,
-            postId: post_draft._id as string
+            postId: post_draft._id as string,
+            timestamp: Date.now()
         };
-
-        if (typeImg === "avatar") {
-            information.eager = [{ width: 150, height: 150, crop: "thumb" }];
-        }
 
         return information;
     }
@@ -132,48 +186,29 @@ export class PostService {
         if (!typeImg) {
             throw new ErrorApi(400, "Type image missing");
         }
-
-        // Kiểm tra post có tồn tại và user có quyền update không
         const post = await _Post.findOne({ _id: postId, artistId: userId });
 
         if (!post) {
             throw new ErrorApi(404, "Post not found or you don't have permission");
         }
 
-        const timestamp = Math.floor(Date.now() / 1000);
         const folder = typeImg === "avatar" ? "avatar" : "upload";
-
-        const signature = await cloudinary.utils.api_sign_request(
-            { timestamp, folder },
-            cloudinary.config().api_secret
+        const fileKey = `${folder}/${postId}/${uuidv4()}`;
+        const presignedData = await S3Service.getPresignedUploadUrl(
+            fileKey,
+            'image/*',
+            3600
         );
 
-        if (!signature) {
-            throw new ErrorApi(500, "Grant permission fail");
-        }
-
-        const information: {
-            api_key: string;
-            timestamp: number;
-            signature: string;
-            folder: string;
-            tags: string;
-            eager?: Array<{ width: number; height: number; crop: string }>;
-            cloud_name: string;
-            postId: string;
-        } = {
-            api_key: cloudinary.config().api_key,
-            timestamp,
-            signature,
+        const information = {
+            uploadUrl: presignedData.url,
+            key: presignedData.key,
+            bucket: BUCKET_NAME,
+            region: process.env.AWS_REGION || 'us-east-1',
             folder,
-            tags: postId,
-            cloud_name: cloudinary.config().cloud_name,
-            postId: postId
+            postId: postId,
+            timestamp: Date.now()
         };
-
-        if (typeImg === "avatar") {
-            information.eager = [{ width: 150, height: 150, crop: "thumb" }];
-        }
 
         return information;
     }
@@ -183,19 +218,24 @@ export class PostService {
             throw new ErrorApi(400, "Danh sách file trống hoặc không hợp lệ");
         }
 
-        const fileDocs = listFile.map(f => ({
-            public_id: f.public_id,
-            width: f.width,
-            height: f.height,
-            format: f.format,
-            created_at: f.created_at,
-            resource_type: f.resource_type,
-            tags: f.tags || [],
-            bytes: f.bytes,
-            secure_url: f.secure_url,
-            folder: f.asset_folder,
-            postId: postId || null,
-        }));
+        const fileDocs = listFile.map(f => {
+            const doc: any = {
+                public_id: f.key || f.public_id, // S3 key
+                format: f.format || f.key?.split('.').pop() || 'unknown',
+                created_at: f.created_at || new Date(),
+                resource_type: f.resource_type || f.type || 'image',
+                tags: f.tags || [],
+                bytes: f.bytes || f.size || 0,
+                secure_url: f.url || f.secure_url,
+                folder: f.folder || f.asset_folder,
+                postId: postId || null,
+            };
+
+            if (f.width) doc.width = f.width;
+            if (f.height) doc.height = f.height;
+
+            return doc;
+        });
 
         await _File.insertMany(fileDocs);
 
@@ -204,8 +244,6 @@ export class PostService {
 
     async updatePost(postId: string, title: string, content: string, userId: string, files?: any[]) {
         console.log("checked 1");
-
-        // Kiểm tra post có tồn tại và user có phải tác giả không
         const existingPost = await _Post.findOne({ _id: postId });
 
         if (!existingPost) {
@@ -228,26 +266,26 @@ export class PostService {
 
         if (files && Array.isArray(files)) {
             console.log("checked 2 - Processing files: ", files);
-            
+
             // Delete existing files
             await _File.deleteMany({ postId: postId });
 
             if (files.length > 0) {
-                // Handle both string URLs and full Cloudinary objects
+                // Handle both string URLs and objects
                 const fileDocs = files
                     .map(f => {
-                        // If it's already a Cloudinary object with secure_url
-                        if (typeof f === 'object' && f.secure_url) {
+                        // If it's an object with url/secure_url
+                        if (typeof f === 'object' && (f.url || f.secure_url)) {
                             return {
-                                public_id: f.public_id,
-                                width: f.width,
-                                height: f.height,
-                                format: f.format,
-                                created_at: f.created_at,
-                                resource_type: f.resource_type,
+                                public_id: f.key || f.public_id,
+                                width: f.width || null,
+                                height: f.height || null,
+                                format: f.format || f.key?.split('.').pop() || 'unknown',
+                                created_at: f.created_at || new Date(),
+                                resource_type: f.resource_type || f.type || 'image',
                                 tags: f.tags || [],
-                                bytes: f.bytes,
-                                secure_url: f.secure_url,
+                                bytes: f.bytes || f.size || 0,
+                                secure_url: f.url || f.secure_url,
                                 folder: f.asset_folder || f.folder,
                                 postId: postId,
                             };
@@ -266,7 +304,7 @@ export class PostService {
                         return null;
                     })
                     .filter(f => f !== null);
-                
+
                 console.log("checked 3 - Processed file docs: ", fileDocs.length);
 
                 if (fileDocs.length > 0) {
@@ -278,7 +316,6 @@ export class PostService {
     }
 
     async getPost(postId: string, userId?: string) {
-        console.log("Getting post with ID:", postId, "for user ID:", userId);
         if (!postId) {
             throw new ErrorApi(400, "Post id not found");
         }
@@ -376,9 +413,8 @@ export class PostService {
         if (!post || post.length === 0) {
             throw new ErrorApi(404, "Post not found");
         }
-
-        const processedPosts = addStandardPostFields(post, userId);
-        return processedPosts[0]; // Return single post object, not array
+        const processedPosts = await addStandardPostFields(post, userId);
+        return processedPosts[0];
     }
 
     async hiddenPost(postId: string, accountId: string) {
@@ -423,7 +459,7 @@ export class PostService {
                 sender: userObjectId,
                 type: 'like',
                 read: false,
-                link: `/post/${postID}`,
+                link: `/posts/${postID}`,
                 postId: new Types.ObjectId(postID)
             } as any);
         }
@@ -434,7 +470,7 @@ export class PostService {
     async getAllPost(page: number = 1, limit: number = 10, sortBy: string = 'latest', userId?: string) {
         const skip: number = (page - 1) * limit;
 
-        let sortCriteria: any = { createdAt: -1 }; // default: latest
+        let sortCriteria: any = { createdAt: -1 };
 
         switch (sortBy.toLowerCase()) {
             case 'likes':
@@ -525,7 +561,32 @@ export class PostService {
                     react: 1,
                     reactUsers: { _id: 1, name: 1 },
                     files: 1,
-                    imgUrl: '$files.secure_url',
+                    imgUrl: {
+                        $map: {
+                            input: {
+                                $filter: {
+                                    input: '$files',
+                                    as: 'file',
+                                    cond: { $eq: ['$$file.resource_type', 'image'] }
+                                }
+                            },
+                            as: 'img',
+                            in: '$$img.secure_url'
+                        }
+                    },
+                    videoUrl: {
+                        $map: {
+                            input: {
+                                $filter: {
+                                    input: '$files',
+                                    as: 'file',
+                                    cond: { $eq: ['$$file.resource_type', 'video'] }
+                                }
+                            },
+                            as: 'video',
+                            in: '$$video.secure_url'
+                        }
+                    },
                     author: {
                         _id: '$author._id',
                         name: '$author.name',
@@ -545,12 +606,12 @@ export class PostService {
             }
         ]);
 
-        return addStandardPostFields(listPost, userId);
+        return await addStandardPostFields(listPost, userId);
     }
 
 
     async removePost(postId: string) {
-        console.log ("Removing post with ID:", postId);
+        console.log("Removing post with ID:", postId);
         return await _Post.findByIdAndDelete(postId);
     }
 

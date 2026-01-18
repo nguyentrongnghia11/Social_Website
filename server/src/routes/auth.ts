@@ -1,6 +1,6 @@
 import passport from 'passport'
 
-import express from 'express'
+import express, { Request, Response } from 'express'
 
 import controller from '../controller/userController';
 import { authenticateMiddleware } from '../middleware/verifyToken';
@@ -15,6 +15,10 @@ router.post('/notice', controller.regisGroup);
 router.get('/v1/user/:id/detail', controller.getUserDetail);
 router.get('/v1/user/me', authenticateMiddleware, controller.getCurrentUser);
 router.get('/v1/user', controller.getUser);
+
+// Validate token endpoint - check if current token is still valid
+router.get('/validate', authenticateMiddleware, controller.validateToken);
+
 router.patch('/v1/token', authenticateMiddleware, controller.updateTokenDevice);
 router.post('/v1/refresh', controller.refreshToken);
 router.get('/v1/google', (req, res, next) => {

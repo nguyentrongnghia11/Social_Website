@@ -79,17 +79,11 @@ const grantPermissionUpload = async (formData) => {
     return res.data
 }
 
-const postFile = async (formData, cloud_name) => {
+const postFile = async (formData, s3_config) => {
     try {
-        console.log(formData, cloud_name)
-        const res = await axios.post(
-            `https://api.cloudinary.com/v1_1/${cloud_name}/image/upload`,
-            formData,
-            {
-                headers: { "Content-Type": "multipart/form-data" }
-            }
-        );
-        return res.data;
+        console.log(formData, s3_config)
+        // This function is deprecated - use direct S3 upload with presigned URLs instead
+        throw new Error("postFile is deprecated. Use presigned URL upload.");
     } catch (err) {
         console.error("Upload error:", err.response?.data || err.message);
         throw err;

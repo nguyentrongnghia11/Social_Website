@@ -53,9 +53,6 @@ const stragyVerifyLocal = () => {
             }
 
             const publicKey = await getPublicKey(email, deviceId);
-
-            console.log ("public key email ", email, " device ", deviceId, ' key ', publicKey.substring(0, 30) + '...'  )
-
             return done(null, publicKey);
         } catch (error: any) {
             return done(error, null);

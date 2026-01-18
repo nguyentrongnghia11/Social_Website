@@ -68,7 +68,6 @@ postSchema.virtual('comments', {
     justOne: false
 });
 
-// Dùng post('save') thay vì pre('save')
 postSchema.post('save', async function (doc, next) {
     try {
         const result = await _User.findByIdAndUpdate(
@@ -91,7 +90,6 @@ postSchema.post('save', async function (doc, next) {
 
 postSchema.plugin(mongoose_delete, { overrideMethods: 'all' });
 
-// Indexes for performance
 postSchema.index({ artistId: 1, createdAt: -1 });
 postSchema.index({ react: 1 });
 postSchema.index({ status: 1 });

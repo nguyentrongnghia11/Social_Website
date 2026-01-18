@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "musicapp-ec944",
+  "private_key_id": "7d8c5e1816e94c17b2be3245367f352091ecc7c3",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQC7tAz2Ah6TkwWu\nQXRHAyG1LsY4Gw6CUQuqbEhdIHv3NbpnAKJS8Ws9bJbV7epfgvBBC0dOmWUhokDF\nNb8d1MfxB4Z6PtBuyuK8prDS87JweXGZOoPMylG7DUU4yfCl484fq1AW6kGXEb2n\nGsPnEWPt3cUqJsvCn9xXwlVoWDzVbjefcV53oM89HaGvyoqsZvDGBwTOWIaiSfA4\no+JboFhphulSNvuwyElIRe9UYNAhd7VtMZ84f998e/H3oSCDdeacRWJy2+4tp461\nzLvJkLLdgNFABwMl0uF54bX5seaVSxJm16shVCRujRtkEm/+LmaAIqArIiJUK379\nNFbbNO0VAgMBAAECggEABrG+iezmwkSgEz2VCWNR3xsH9BWi8tWJIPmJAH6ZbTum\npj3I4Zm9RWI2DvMpRLbFcsxq1/bIkJEvgNkQiTPUMwMdsgZuJfATyL6j18zb3v8L\nJM0yyNRTuI7EmpM5LfFt9zCDmWL0FpCKFFz0AlhbGVoAyia6uvo7QDYCGHKX2NTB\nzaEdMuZBrrnwqrYbRYvSnSJPBLBrFswrcV2nloE6RA29SoebIwTJhRHvFi5GSJsS\n+XBgdd/CRht2rOlz+MufxPlJ1z9iFmoZcXP29PGMLbExlbRtSeIkCTYPB5JGeY8Y\nkGdjRmkOe03vAcOE5OifkjD7VRh++iSXkA8E87x9AQKBgQDqq8BKH/eoeqqQDRt2\nc/4C94fZ+7nwee4hHfd+OowxlG1aMbGc/ldtn6w+UPkcKAkjdrsmVgN5F/nPg6fr\nsfaybHRjwGbraFPSd6qqvOImiGj4WftIl4rIGB+DmEkAEW1WjF7R4NNa7yQc50Y6\nLLdmsWaMkqZaS2h98vWAmIPk5QKBgQDMw3j78/pt6svsw2JW2btr4Fup+7eVOKZV\nb0DzX1i0M0rFkZmh4L4NQNQ8BsLHOkTZnCNQ6qPQNbuWN8r2XGu4IyQ4B8Dy8rk+\n2OwieWxFcUYS2WmX/ARGSSQpAHIFyOo001JUmdckcC1N9sCspOdk2QrqL6YfqJJV\nYI/Gn/8UcQKBgHC31KIGHtgfK4QLt7A64LyeFvPeVJ6sgnQHx9Qq3SIHcEsNaYnG\nJUpzkrFQBYe/tzwAkL5GPF7S5FwHmgW9MojbTUCIrybNss16S1C9b0cg6IK5/dgN\nakzYQXLdF9tfg4w52mWnPv4Dte3oLLROvD0oYuCMpDjk1akBpWiCWX/9AoGAJhbq\nh3vABvhZTMafoWZJPezzQDCJ2uE518SlQWBoIMU10ICgIoOq9s4rbKsZSnQlYJFx\n5Fhxdoa4SV5BjAhvJUasMxwGIWtTWESD0Hnj0RscHN+Ci/oeVXC/oDzr+PWB06fH\nteMUKTwQwWL4PmVCgfj51cxdS6BQ8D7RH/KdQZECgYBWeFEazkn5k6YOSY0iGxEC\nMGWTaKOUV8+dyEtkxeFoxs8zsObzITq2oChyqHjD6dlOt5V/MZ36ngU67yhPflq2\n7P91XgpK4uhgcETLyndzrBtQc+gfl0bfOEj7g99Or+u5EKVx4G/UTTcEnSjNHfss\n8Oc2Iu6MC42u6omkCZx6uA==\n-----END PRIVATE KEY-----\n",
+  "client_email": "firebase-adminsdk-vhmfz@musicapp-ec944.iam.gserviceaccount.com",
+  "client_id": "105916785014487178448",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-vhmfz%40musicapp-ec944.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

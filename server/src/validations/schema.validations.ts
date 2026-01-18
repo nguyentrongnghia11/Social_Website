@@ -46,7 +46,7 @@ const UpdatePostSchema = Joi.object({
     files: Joi.array().items(
         Joi.alternatives().try(
             Joi.string(), // Allow string URLs
-            Joi.object().unknown(true) // Allow Cloudinary objects with any properties
+            Joi.object().unknown(true) // Allow objects with any properties
         )
     ).optional()
 })

@@ -62,7 +62,31 @@ export const getNotifications = async () => {
             $facet: {
                 list: [
                     { $sort: { createdAt: -1 } },
-                    { $limit: 5 }
+                    { $limit: 50 },
+                    {
+                        $lookup: {
+                            from: 'users',
+                            localField: 'sender',
+                            foreignField: '_id',
+                            as: 'sender'
+                        }
+                    },
+                    { $unwind: { path: '$sender', preserveNullAndEmptyArrays: true } },
+                    {
+                        $project: {
+                            message: 1,
+                            title: 1,
+                            type: 1,
+                            read: 1,
+                            link: 1,
+                            postId: 1,
+                            createdAt: 1,
+                            'sender._id': 1,
+                            'sender.username': 1,
+                            'sender.name': 1,
+                            'sender.avatar': 1
+                        }
+                    }
                 ],
                 totalUnread: [
                     { $match: { read: false } },
@@ -120,7 +144,31 @@ export const getNotificationsByReceiver = async (receiverId: string) => {
             $facet: {
                 list: [
                     { $sort: { createdAt: -1 } },
-                    { $limit: 5 }
+                    { $limit: 100 },
+                    {
+                        $lookup: {
+                            from: 'users',
+                            localField: 'sender',
+                            foreignField: '_id',
+                            as: 'sender'
+                        }
+                    },
+                    { $unwind: { path: '$sender', preserveNullAndEmptyArrays: true } },
+                    {
+                        $project: {
+                            message: 1,
+                            title: 1,
+                            type: 1,
+                            read: 1,
+                            link: 1,
+                            postId: 1,
+                            createdAt: 1,
+                            'sender._id': 1,
+                            'sender.username': 1,
+                            'sender.name': 1,
+                            'sender.avatar': 1
+                        }
+                    }
                 ],
                 totalUnread: [
                     { $match: { read: false } },

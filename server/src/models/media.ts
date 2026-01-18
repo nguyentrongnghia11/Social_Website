@@ -9,7 +9,6 @@ export interface IMedia extends Document {
     postId?: Types.ObjectId;
     commentId?: Types.ObjectId;
     status: 'active' | 'blocked';
-    cloudinaryId?: string;
 }
 
 const mediaSchema = new Schema<IMedia>({
@@ -43,9 +42,6 @@ const mediaSchema = new Schema<IMedia>({
         type: String,
         enum: ['active', 'blocked'],
         default: 'active'
-    },
-    cloudinaryId: {
-        type: String
     }
 }, { timestamps: true });
 

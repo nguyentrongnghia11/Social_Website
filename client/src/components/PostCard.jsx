@@ -140,6 +140,9 @@ const PostCard = (props) => {
   const renderImages = () => {
     if (!post.imgUrl || post.imgUrl.length === 0 || !isDetailPage) return null
 
+    console.log("PostCard - Rendering images:", post.imgUrl);
+    console.log("Post data:", post);
+
     return (
       <Box sx={{ mt: 2, mb: 2 }}>
         <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
@@ -185,11 +188,16 @@ const PostCard = (props) => {
                   maxWidth: "300px",
                   maxHeight: "200px",
                   objectFit: "contain",
+                  opacity: 0,
+                  transition: "opacity 0.3s ease-in-out",
                 }}
                 onLoad={(e) => {
+                  console.log("✅ Image loaded successfully:", image);
                   e.target.style.opacity = "1"
                 }}
                 onError={(e) => {
+                  console.error("❌ Image failed to load:", image);
+                  e.target.style.opacity = "1"
                   e.target.src = "/placeholder.svg?height=200&width=300&text=Image+not+found"
                 }}
               />

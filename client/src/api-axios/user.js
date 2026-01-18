@@ -62,6 +62,16 @@ const getUserById = async (userId) => {
     }
 }
 
+const validateToken = async () => {
+    try {
+        const response = await instance.get('/auth/validate');
+        return response.data;
+    } catch (error) {
+        console.error('Token validation failed:', error);
+        return { valid: false, error: error.message };
+    }
+}
+
 const verify = async (otp) => {
     console.log("user verfi ", otp)
     try {
@@ -203,7 +213,6 @@ const logout = async () => {
     }
 }
 
-
 export {
     login,
     loginWithGoogle,
@@ -217,5 +226,6 @@ export {
     getFollowers,
     getFollowing,
     getFollowStatus,
-    logout
+    logout,
+    validateToken
 }

@@ -339,14 +339,19 @@ class AdminController {
 
     async getComments(req: Request, res: Response, next: NextFunction) {
         try {
+
             const page = parseInt(req.query.page as string) || 1;
             const limit = parseInt(req.query.limit as string) || 10;
             const visibility = req.query.visibility as string;
             const search = req.query.search as string;
 
+            console.log ("visibility ", visibility)
+
             const result = await this.commentService.getComments({
                 page, limit, visibility, search
             });
+
+            console.log ("result ", result)
 
             res.json({
                 status: 200,

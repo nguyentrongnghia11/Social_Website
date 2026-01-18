@@ -116,11 +116,25 @@ const saveMessageMedia = async (req: Request, res: Response, next: NextFunction)
     }
 }
 
+const getTotalUnreadCount = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const user = req.user as IUser;
+        const result = await messageService.getTotalUnreadCount(user._id.toString());
+        return res.status(200).json({
+            message: 'Total unread message count',
+            data: result
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
 export { 
     getAllConventionOfUser, 
     getMessageOfUser, 
     markMessagesAsRead, 
     sendMessageWithMedia,
     grantPermissionUploadMedia,
-    saveMessageMedia
+    saveMessageMedia,
+    getTotalUnreadCount
 };

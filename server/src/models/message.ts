@@ -10,7 +10,6 @@ export interface IMediaFile {
     fileSize?: number;
     filename?: string;
     publicId?: string;
-    cloudinaryId?: string;
 }
 
 export interface IMessage extends Document {
@@ -66,8 +65,7 @@ const messageSchema = new Schema<IMessage>({
             fileName: { type: String },
             fileSize: { type: Number },
             filename: { type: String },
-            publicId: { type: String },
-            cloudinaryId: { type: String }
+            publicId: { type: String }
         }
     ],
     isRead: {

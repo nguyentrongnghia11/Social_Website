@@ -5,7 +5,8 @@ import {
     markMessagesAsRead,
     sendMessageWithMedia,
     grantPermissionUploadMedia,
-    saveMessageMedia
+    saveMessageMedia,
+    getTotalUnreadCount
 } from "../controller/messageController";
 import { authenticateMiddleware } from '../middleware/verifyToken';
 import multer from 'multer';
@@ -41,6 +42,7 @@ const upload = multer({
 });
 
 router.get('/all', authenticateMiddleware, getAllConventionOfUser)
+router.get('/unread-count', authenticateMiddleware, getTotalUnreadCount)
 router.get('/:id', authenticateMiddleware, getMessageOfUser)
 router.patch('/:id/read', authenticateMiddleware, markMessagesAsRead)
 router.post('/:id/messages', authenticateMiddleware, sendMessageWithMedia)

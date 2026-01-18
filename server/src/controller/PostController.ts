@@ -8,6 +8,8 @@ class PostController {
             const { title, content } = req.body;
             const user = req.user as IUser;
 
+            console.log ("Creating post for user khong hinh anh:", user._id);
+
             const files = req.files as { [fieldname: string]: Express.Multer.File[] };
             const imageFiles = files["image"] || [];
             const videoFiles = files["video"] || [];
@@ -26,10 +28,18 @@ class PostController {
 
     async grantPermissionUploadFile(req: Request, res: Response, next: NextFunction) {
         try {
-            const { typeImg, title, content } = req.body;
+            const { typeImg, title, content, contentType, postId, files } = req.body;
             const { _id } = req.user as IUser;
 
-            const information = await postService.grantPermissionUploadFile(typeImg, title, content, _id.toString());
+            const information = await postService.grantPermissionUploadFile(
+                typeImg, 
+                title, 
+                content, 
+                _id.toString(), 
+                contentType,
+                postId,
+                files
+            );
 
             return res.status(200).json({
                 message: "Grant permission success",

@@ -39,7 +39,7 @@ export class CommentService {
                     sender: new Types.ObjectId(userId),
                     type: 'comment',
                     read: false,
-                    link: `/post/${postId}`,
+                    link: `/posts/${postId}`,
                     postId: new Types.ObjectId(postId)
                 } as any);
             }
@@ -57,7 +57,7 @@ export class CommentService {
                         sender: new Types.ObjectId(userId),
                         type: 'comment',
                         read: false,
-                        link: `/post/${postId}`,
+                        link: `/posts/${postId}`,
                         postId: new Types.ObjectId(postId)
                     } as any);
                 }

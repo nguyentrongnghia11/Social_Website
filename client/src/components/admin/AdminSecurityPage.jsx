@@ -242,7 +242,22 @@ const AdminSecurityPage = () => {
               onPageChange={handleChangePage}
               rowsPerPage={rowsPerPage}
               onRowsPerPageChange={handleChangeRowsPerPage}
+              rowsPerPageOptions={[5, 10, 25, 50]}
               labelRowsPerPage="Số dòng mỗi trang:"
+              labelDisplayedRows={({ from, to, count }) => 
+                `${from}–${to} của ${count !== -1 ? count : `nhiều hơn ${to}`}`
+              }
+              sx={{
+                '.MuiTablePagination-toolbar': {
+                  alignItems: 'center'
+                },
+                '.MuiTablePagination-selectLabel': {
+                  margin: 0
+                },
+                '.MuiTablePagination-displayedRows': {
+                  margin: 0
+                }
+              }}
             />
           </CardContent>
         </Card>

@@ -14,7 +14,7 @@ export interface IComment {
     parentID: Types.ObjectId | null;
     path: string;
     isDelete: boolean;
-    isToxic: string;
+    isToxic: boolean;
     visibility: 'published' | 'hidden';
 }
 
@@ -36,7 +36,8 @@ const commentSchema = new Schema<ICommentDocument, ICommentModel>({
     },
     userId: {
         type: Schema.Types.ObjectId,
-        required: true
+        required: true,
+        ref: 'User'
     },
     parentID: {
         type: Schema.Types.ObjectId,
@@ -47,8 +48,8 @@ const commentSchema = new Schema<ICommentDocument, ICommentModel>({
         required: true
     },
     isToxic: {
-        type: String,
-        default: ""
+        type: Boolean,
+        default: false
     },
     visibility: {
         type: String,
@@ -94,5 +95,4 @@ commentSchema.pre('save', async function (next) {
 
 commentSchema.plugin(MongooseDelete as any, { overrideMethods: 'all', deletedAt: true });
 
-// 💡 Quan trọng: gán model với cả Document + Model
 export default model<ICommentDocument, ICommentModel>('comments', commentSchema);

@@ -67,11 +67,11 @@
  *   "commentCount": 5,
  *   
  *   "imgUrl": [
- *     "https://cloudinary.com/image1.jpg",
- *     "https://cloudinary.com/image2.jpg"
+ *     "https://s3.amazonaws.com/bucket/image1.jpg",
+ *     "https://s3.amazonaws.com/bucket/image2.jpg"
  *   ],
  *   "videoUrl": [
- *     "https://cloudinary.com/video1.mp4"
+ *     "https://s3.amazonaws.com/bucket/video1.mp4"
  *   ],
  *   
  *   "imageCount": 2,

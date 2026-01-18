@@ -31,19 +31,17 @@ const PostEditor = () => {
   })
 
   const formDataRef = useRef(new FormData());
-
-
   const [mediaFiles, setMediaFiles] = useState({
     images: [],
     videos: [],
   })
 
   const handleGrantPermissionUpload = async (e) => {
-    e.preventDefault(); // chặn reload trang
+    e.preventDefault(); 
 
     if (uploading) return;
     setUploading(true);
-    setServerError(""); // reset lỗi cũ nếu có
+    setServerError(""); 
 
     try {
       const result = await grantPermissionUpload({ ...formData, typeImg: "upload" });
@@ -53,14 +51,11 @@ const PostEditor = () => {
         return
       };
       let uploadedBytes = 0;
-      // Reset formData mới cho lần upload
       formDataRef.current = new FormData();
 
-      console.log("cloude name ", result)
+      console.log("S3 upload data ", result)
       // Gộp cả ảnh và video
       const arrFile = [...mediaFiles.images, ...mediaFiles.videos];
-      
-      // Nếu không có file nào, chỉ cần hiển thị thông báo và chuyển trang
       if (arrFile.length === 0) {
         setSnackbar({ 
           open: true, 
@@ -75,38 +70,57 @@ const PostEditor = () => {
       }
       
       const totalBytes = arrFile.reduce((acc, file) => acc + file.size, 0);
-      console.log("Total ", totalBytes)
-      const cloudName = result.data.cloud_name;
-      console.log("cloude name ", cloudName)
-
-      const uploadPromises = arrFile.map((file) => {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("api_key", result.data.api_key);
-        formData.append("timestamp", result.data.timestamp);
-        formData.append("signature", result.data.signature);
-        formData.append("folder", result.data.folder);
-
-        console.log("Form up cloud ", formData)
-
-        const endpoint = file.type.startsWith("video/")
-          ? `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`
-          : `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
-
-        return axios.post(endpoint, formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-          onUploadProgress: (progressEvent) => {
-            uploadedBytes += progressEvent.loaded;
-            const percent = Math.round((uploadedBytes / totalBytes) * 100);
-            setTotalProgress(percent); // cập nhật UI
+      
+      // Gọi MỘT LẦN để lấy TẤT CẢ presigned URLs cùng lúc
+      const filesInfo = arrFile.map(file => ({
+        contentType: file.type,
+        fileName: file.name,
+        fileSize: file.size
+      }));
+      
+      const uploadUrlsResult = await grantPermissionUpload({ 
+        typeImg: "upload",
+        postId: result.data.postId,
+        files: filesInfo,
+        title: formData.title,
+        content: formData.content
+      });
+      
+      console.log("Received batch presigned URLs:", uploadUrlsResult.data);
+      
+      const uploadPromises = arrFile.map(async (file, index) => {
+        const uploadUrl = uploadUrlsResult.data.uploadUrls[index];
+        
+        console.log(`Uploading file ${index + 1}/${arrFile.length}:`, file.name)
+        const response = await fetch(uploadUrl.uploadUrl, {
+          method: 'PUT',
+          body: file,
+          headers: {
+            'Content-Type': file.type
           }
         });
+
+        if (!response.ok) {
+          throw new Error(`Upload failed for ${file.name}: ${response.status} ${response.statusText}`);
+        }
+
+        uploadedBytes += file.size;
+        const percent = Math.round((uploadedBytes / totalBytes) * 100);
+        setTotalProgress(percent);
+
+        return {
+          key: uploadUrl.key,
+          url: uploadUrl.uploadUrl.split('?')[0],
+          resource_type: file.type.startsWith('video/') ? 'video' : 'image',
+          format: file.name.split('.').pop(),
+          bytes: file.size,
+          type: file.type.startsWith('video/') ? 'video' : 'image'
+        };
       });
 
-      const responses = await Promise.all(uploadPromises);
-      console.log("responesse ", responses)
-      const uploadedFiles = responses.map((r) => r.data);
-      console.log('upload file ', uploadedFiles)
+      const uploadedFiles = await Promise.all(uploadPromises);
+      console.log('Uploaded files to S3:', uploadedFiles)
+      
       try {
         const res = await saveMedia(uploadedFiles, result.data.postId)
         console.log("Server updated:", res);
@@ -124,10 +138,13 @@ const PostEditor = () => {
         }, 1000);
       } catch (err) {
         console.error("Update server fail", err);
-        setServerError("Lưu thông tin file lên server thất bại!");
+        console.error("Error response:", err.response?.data);
+        console.error("Error status:", err.response?.status);
+        console.error("Uploaded files that caused error:", uploadedFiles);
+        setServerError(err.response?.data?.message || "Lưu thông tin file lên server thất bại!");
         setSnackbar({ 
           open: true, 
-          message: 'Lưu thông tin file lên server thất bại!', 
+          message: err.response?.data?.message || 'Lưu thông tin file lên server thất bại!', 
           severity: 'error' 
         });
       }
@@ -145,12 +162,10 @@ const PostEditor = () => {
     }
   };
 
-
   const [serverError, setServerError] = useState("")
   const [errors, setErrors] = useState({})
   const user = isLoggedIn()
 
-  // Quill editor configuration
   const quillModules = {
     toolbar: [
       [{ header: [1, 2, 3, 4, 5, 6, false] }],

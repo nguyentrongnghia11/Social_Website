@@ -452,6 +452,18 @@ class UserController {
             next(error);
         }
     }
+
+    async validateToken(req: Request, res: Response, next: NextFunction) {
+        try {
+            return res.status(200).json({ 
+                valid: true, 
+                message: 'Token is valid',
+                user: req.user 
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
 }
 
 export default new UserController();

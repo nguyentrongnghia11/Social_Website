@@ -29,36 +29,30 @@ const getTotalUnreadCount = async () => {
     return response.data;
 }
 
-const uploadToCloudinary = async (file, signature) => {
-
-    console.log ("Uploading file with signature:", signature);
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('folder', signature.folder);
-    formData.append('timestamp', signature.timestamp);
-    formData.append('signature', signature.signature);
-    formData.append('api_key', signature.apiKey);
-
-    // Xác định endpoint dựa trên fileType từ backend
-    let uploadType = 'auto';
-    if (signature.fileType === 'image') uploadType = 'image';
-    else if (signature.fileType === 'video') uploadType = 'video';
-    else if (signature.fileType === 'audio') uploadType = 'video'; // audio dùng video endpoint
-    else if (signature.fileType === 'document') uploadType = 'raw';
-
-    const response = await fetch(
-        `https://api.cloudinary.com/v1_1/${signature.cloudName}/${uploadType}/upload`,
-        {
-            method: 'POST',
-            body: formData
+const uploadToS3 = async (file, presignedData) => {
+    console.log("Uploading file to S3 with presigned URL:", presignedData);
+    
+    // Upload directly to S3 using presigned URL
+    const response = await fetch(presignedData.uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: {
+            'Content-Type': file.type
         }
-    );
+    });
 
     if (!response.ok) {
-        throw new Error('Upload failed');
+        throw new Error('S3 upload failed');
     }
 
-    return await response.json();
+    // Return file info
+    return {
+        url: presignedData.uploadUrl.split('?')[0], // Remove query params to get actual URL
+        key: presignedData.key,
+        type: file.type.startsWith('image/') ? 'image' : 'video',
+        size: file.size,
+        filename: file.name
+    };
 }
 
-export { getMessageOfUser, sendMessage, getUploadSignature, uploadToCloudinary, getTotalUnreadCount }
+export { getMessageOfUser, sendMessage, getUploadSignature, uploadToS3, getTotalUnreadCount }

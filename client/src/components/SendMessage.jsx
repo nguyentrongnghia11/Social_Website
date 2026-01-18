@@ -4,7 +4,7 @@ import { TextField, Stack, IconButton, InputAdornment, Chip, Box, CircularProgre
 import { useState, useRef, useEffect } from "react"
 import { Send as SendIcon, AttachFile as AttachFileIcon, EmojiEmotions as EmojiIcon, Close as CloseIcon } from "@mui/icons-material"
 import HorizontalStack from "./util/HorizontalStack"
-import { getUploadSignature, uploadToCloudinary } from "../api-axios/messages"
+import { getUploadSignature, uploadToS3 } from "../api-axios/messages"
 
 const SendMessage = (props) => {
   const [content, setContent] = useState("")
@@ -40,18 +40,21 @@ const SendMessage = (props) => {
             fileType
           )
           
-          for (const file of selectedFiles) {
-            const result = await uploadToCloudinary(file, signature.data)
+          // signature.data.presignedUrls is an array of presigned URL objects
+          for (let i = 0; i < selectedFiles.length; i++) {
+            const file = selectedFiles[i]
+            const presignedUrl = signature.data.presignedUrls[i]
+            
+            const result = await uploadToS3(file, presignedUrl)
             mediaFiles.push({
-              url: result.secure_url,
-              publicId: result.public_id,
-              resourceType: result.resource_type,
-              format: result.format,
+              url: result.url,
+              key: result.key,
+              resourceType: result.type,
               fileName: file.name,
-              fileSize: result.bytes
+              fileSize: result.size
             })
           }
-          console.log('☁️ [SendMessage] Uploaded files to Cloudinary:', mediaFiles)
+          console.log('☁️ [SendMessage] Uploaded files to S3:', mediaFiles)
         }
         
         console.log('📤 [SendMessage] Calling onSendMessage with:', { content: content.trim(), mediaFiles })

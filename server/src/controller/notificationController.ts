@@ -50,13 +50,33 @@ class NotificationController {
     async getNotificationsForUser(req: Request, res: Response, next: NextFunction) {
         try {
             const id = req.params.id;
-
             const result = await getNotificationsByReceiver(id);
 
-            console.log(result)
+            console.log ("res ",  result);
+
             return res.status(200).json({
                 message: 'Get notifications for user success',
                 data: result
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async markAllAsRead(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { receiverId } = req.body;
+
+            if (!receiverId) {
+                return res.status(400).json({
+                    message: 'Receiver ID is required'
+                });
+            }
+
+            await markReadNotification(undefined, receiverId);
+
+            return res.status(200).json({
+                message: 'All notifications marked as read'
             });
         } catch (error) {
             next(error);

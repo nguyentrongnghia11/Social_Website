@@ -4,8 +4,8 @@ import { Schema, model, Document, ObjectId } from "mongoose"
 export interface IFile extends Document {
     secure_url: string,
     bytes: number,
-    width: number,
-    height: number
+    width?: number,
+    height?: number
     public_id: string,
     postId: ObjectId,
     folder: string,
@@ -17,8 +17,8 @@ export interface IFile extends Document {
 export const fileSchema = new Schema<IFile>({
     secure_url: { type: String, required: true },
     bytes: { type: Number, required: true },
-    width: { type: Number, required: true },
-    height: { type: Number, required: true },
+    width: { type: Number, required: false },
+    height: { type: Number, required: false },
     public_id: { type: String, required: true },
     postId: { type: Schema.Types.ObjectId, required: true, ref: 'posts' },
     folder: { type: String, required: false },

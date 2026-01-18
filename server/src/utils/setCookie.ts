@@ -1,10 +1,19 @@
 import { Response } from 'express'
 export const setCookie = (res: Response, accessToken: string, refreshToken: string) => {
-
-    console.log(process.env.ACCESS_TOKEN_EXPIRES)
-
-    const maxAccessToken: number = parseInt(process.env.ACCESS_TOKEN_EXPIRES || "200000")
-    const maxRefreshToken: number = parseInt(process.env.REFRESH_TOKEN_EXPIRES || "20000")
-    res.cookie('accessToken', accessToken, { httpOnly: true, maxAge: 9000000});
-    res.cookie('refreshToken', refreshToken, { httpOnly: true, maxAge: maxRefreshToken });
+    const maxAccessToken: number = 15 * 60 * 1000; 
+    const maxRefreshToken: number = 24 * 60 * 60 * 1000; 
+    
+    res.cookie('accessToken', accessToken, { 
+        httpOnly: true, 
+        maxAge: maxAccessToken,
+        secure: process.env.NODE_ENV === 'production', 
+        sameSite: 'strict'
+    });
+    
+    res.cookie('refreshToken', refreshToken, { 
+        httpOnly: true, 
+        maxAge: maxRefreshToken,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict'
+    });
 }
