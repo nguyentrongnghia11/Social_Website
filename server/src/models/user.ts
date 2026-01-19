@@ -1,10 +1,12 @@
+import { Model } from 'mongoose';
 
 import { Schema, Document, model, Types } from 'mongoose'
 import { type } from 'os';
 
 export enum Role {
     Admin = 'admin',
-    User = 'user'
+    User = 'user',
+    Moderator = 'moderator'
 }
 
 export interface IUser extends Document {
@@ -12,6 +14,7 @@ export interface IUser extends Document {
     name: string;
     email: string;
     role: Role;
+    permissions: string[];
     password: string;
     imgUrl?: string;
     type: 'local' | 'google';
@@ -36,19 +39,20 @@ const userSchema = new Schema<IUser>({
         type: String,
         required: true
     },
-
     email: {
         type: String,
         required: true
     },
-
     role: {
         type: String,
         enum: Object.values(Role),
         required: true,
         default: Role.Admin
     },
-
+    permissions: [{
+        type: String,
+        default: []
+    }],
     password: {
         type: String,
         required: function (this: any) {
@@ -115,7 +119,6 @@ const userSchema = new Schema<IUser>({
     }
 }, { timestamps: true });
 
-// Indexes for performance
 userSchema.index({ email: 1 });
 userSchema.index({ name: 1 });
 userSchema.index({ email: 1, type: 1 });

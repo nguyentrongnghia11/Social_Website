@@ -21,6 +21,7 @@ const getALlPosts = async (query) => {
         sortBy: query.sortBy ? mapSortBy(query.sortBy) : 'latest'
     }
     const data = await instance.get(`/post/all?` + new URLSearchParams(params))
+    console.log("day la dât fet ", data.data)
     return data.data;
 }
 
@@ -41,7 +42,7 @@ const searchPosts = async (query) => {
         limit: query.limit || 10,
         sortBy: query.sortBy ? mapSortBy(query.sortBy) : 'latest'
     }
-    
+
     const data = await instance.get(`/post/search?` + new URLSearchParams(params))
     return data.data;
 }
@@ -93,7 +94,7 @@ const postFile = async (formData, s3_config) => {
 const saveMedia = async (listFile, postId) => {
     try {
         console.log("day la list file ", listFile)
-        console.log (postId)
+        console.log(postId)
         const res = await instance.post(`/post/save/media`, { postId, listFile });
         console.log("day la res post ", res)
         return res.data;
@@ -135,6 +136,27 @@ const updatePost = async (postId, user, data) => {
     }
 };
 
+// Content moderation APIs
+const hidePost = async (postId) => {
+    const res = await instance.patch(`/post/${postId}/hide`);
+    return res.data;
+};
+
+const unhidePost = async (postId) => {
+    const res = await instance.patch(`/post/${postId}/unhide`);
+    return res.data;
+};
+
+const hideComment = async (commentId) => {
+    const res = await instance.patch(`/comment/${commentId}/hide`);
+    return res.data;
+};
+
+const unhideComment = async (commentId) => {
+    const res = await instance.patch(`/comment/${commentId}/unhide`);
+    return res.data;
+};
+
 
 export {
     getALlPosts,
@@ -152,5 +174,9 @@ export {
     deleteComment,
     getUserLikes,
     deletePost,
-    updatePost
+    updatePost,
+    hidePost,
+    unhidePost,
+    hideComment,
+    unhideComment
 }

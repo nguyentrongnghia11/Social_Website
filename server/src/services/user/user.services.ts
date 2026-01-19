@@ -20,7 +20,7 @@ import _Comment from '../../models/comment';
 export class UserService {
     async signupWithLocal(email: string) {
         const u = await _User.findOne({ email: email, type: 'local' });
-        console.log ("check u", u);
+        console.log("check u", u);
         if (u) {
             throw new ErrorApi(409, 'Account already exists');
         }
@@ -39,8 +39,8 @@ export class UserService {
         role: string,
         deviceId: string
     ) {
-        const acc = await _User.findOne({ email: email, type : 'local' });
-        console.log ("check acc", acc);
+        const acc = await _User.findOne({ email: email, type: 'local' });
+        console.log("check acc", acc);
         if (acc) {
             throw new ErrorApi(409, 'User exists');
         }
@@ -56,6 +56,10 @@ export class UserService {
             throw new ErrorApi(409, 'OTP not match');
         }
 
+        // Get default permissions for the role
+        const { getDefaultPermissions } = await import('../../enums/role-permission.map');
+        const defaultPermissions = getDefaultPermissions(role as any);
+
         const user = await _User.create({
             name: username,
             password: (await bcrypt.hash(password, 10)).toString(),
@@ -63,6 +67,7 @@ export class UserService {
             imgUrl: '',
             type: 'local',
             role: role,
+            permissions: defaultPermissions,
         });
 
         const payload = await buildJwtPayload(user, deviceId);
@@ -146,7 +151,7 @@ export class UserService {
         }
 
         // Cache user data (non-blocking)
-        saveUserCache(user, publicKey).catch(err => 
+        saveUserCache(user, publicKey).catch(err =>
             console.error('Cache save error:', err)
         );
 
@@ -157,8 +162,8 @@ export class UserService {
         const groups = await _Group.find({ members: googleUser._id })
             .select('_id')
             .lean();
-            
-            const user = {
+
+        const user = {
             _id: googleUser._id,
             name: googleUser.name,
             type: googleUser.type,
@@ -205,7 +210,7 @@ export class UserService {
         }
 
         // Cache user data
-        saveUserCache(user, publicKey).catch(err => 
+        saveUserCache(user, publicKey).catch(err =>
             console.error('Cache save error:', err)
         );
 
@@ -223,8 +228,8 @@ export class UserService {
         }
         const payLoad = await verifyToken(refreshTokenOld, tokenOld.publicKey);
 
-        console.log ("payload rf ", payLoad)
-        
+        console.log("payload rf ", payLoad)
+
         if (!payLoad) {
             console.error('Khong co payload');
             throw new ErrorApi(401, 'Invalid refresh token');
@@ -234,8 +239,8 @@ export class UserService {
             throw new ErrorApi(403, 'Token validation failed - email mismatch');
         }
 
-        const u = await _User.findOne({ email: tokenOld.email, type: payLoad.type}).lean();
-        
+        const u = await _User.findOne({ email: tokenOld.email, type: payLoad.type }).lean();
+
         if (!u) {
             console.error('ref User not found for email:', tokenOld.email, payLoad.type);
             throw new ErrorApi(500, "Not found user");
@@ -244,9 +249,9 @@ export class UserService {
         const user = await buildJwtPayload(u, deviceId);
         const { privateKey, publicKey } = generateKeyPair();
         const { accessToken, refreshToken } = generateToken(user, privateKey);
-        
+
         const token = await _Token.findOneAndUpdate(
-            { email: tokenOld.email, device: deviceId }, 
+            { email: tokenOld.email, device: deviceId },
             { refreshToken, publicKey },
             { new: true }
         ).lean();
@@ -372,7 +377,7 @@ export class UserService {
         await redisClient.set(keyLogout, timeLogout);
 
         const isDelete = await _Token.deleteMany({ email: email, deviceId: deviceId });
-        
+
         if (!isDelete) {
             throw new ErrorApi(403, 'Logout failed');
         }
@@ -389,7 +394,7 @@ export class UserService {
         await redisClient.set(keyLogout, timeLogout);
 
         const isDelete = await _Token.deleteMany({ email: email, deviceId: deviceId });
-        
+
         if (!isDelete) {
             throw new ErrorApi(403, 'Logout failed');
         }
@@ -552,7 +557,7 @@ export class UserService {
             link: `/profile/${userId}`
         } as any);
 
-        return { 
+        return {
             success: true,
             following: true,
             message: `You are now following ${targetUser.name}`
@@ -595,7 +600,7 @@ export class UserService {
             { new: true }
         );
 
-        return { 
+        return {
             success: true,
             following: false,
             message: `You unfollowed ${targetUser.name}`
@@ -654,6 +659,21 @@ export class UserService {
             page,
             totalPages: Math.ceil(totalFollowing / limit)
         };
+    }
+
+    async updateProfile(userId: string, data: { name?: string, biography?: string }) {
+        const updateData: any = {};
+        if (data.name) updateData.name = data.name;
+        if (data.biography) updateData.biography = data.biography;
+
+        const user = await _User.findByIdAndUpdate(userId, updateData, { new: true })
+            .select('name email role type imgUrl avt_url biography createdAt status')
+            .lean();
+
+        if (!user) {
+            throw new ErrorApi(404, 'User not found');
+        }
+        return user;
     }
 
     async checkFollowStatus(userId: string, targetUserId: string) {

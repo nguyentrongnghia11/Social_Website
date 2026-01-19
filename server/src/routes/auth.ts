@@ -10,7 +10,7 @@ import { limiter } from '../middleware/checkRatelimt';
 const router = express.Router();
 
 router.post('/v1/login', validateSignin, controller.signin);
-router.get('/v1/user/search', limiter ,controller.getRoleUser);
+router.get('/v1/user/search', limiter, controller.getRoleUser);
 router.post('/notice', controller.regisGroup);
 router.get('/v1/user/:id/detail', controller.getUserDetail);
 router.get('/v1/user/me', authenticateMiddleware, controller.getCurrentUser);
@@ -35,6 +35,7 @@ router.delete('/v1/logout', authenticateMiddleware, controller.logout);
 router.get('/v1/role', authenticateMiddleware, controller.getRoleUser);
 router.get('/v1/auth/google/callback', passport.authenticate('oauth2', { failureRedirect: '/', session: false }), controller.googleCallback);
 router.get('/v1/unread-count', authenticateMiddleware, controller.getUnreadCount);
+router.patch('/v1/user/profile', authenticateMiddleware, controller.updateProfile);
 
 // Follow/Unfollow routes
 router.post('/v1/user/:id/follow', authenticateMiddleware, controller.followUser);

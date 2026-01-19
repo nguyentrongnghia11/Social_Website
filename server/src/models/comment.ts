@@ -15,7 +15,6 @@ export interface IComment {
     path: string;
     isDelete: boolean;
     isToxic: boolean;
-    visibility: 'published' | 'hidden';
 }
 
 export type ICommentDocument = IComment & Document & SoftDeleteDocument;
@@ -50,11 +49,6 @@ const commentSchema = new Schema<ICommentDocument, ICommentModel>({
     isToxic: {
         type: Boolean,
         default: false
-    },
-    visibility: {
-        type: String,
-        enum: ['published', 'hidden'],
-        default: 'published'
     }
 
 }, {

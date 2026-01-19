@@ -9,7 +9,7 @@ const loginWithGoogle = async () => {
             deviceId = uuidv4();
             localStorage.setItem("deviceId", deviceId);
         }
-        
+
         // Redirect to backend Google OAuth endpoint with deviceId as query parameter
         window.location.href = `http://localhost:3000/v1/google?deviceId=${deviceId}`;
     } catch (error) {
@@ -137,9 +137,9 @@ const followUser = async (userId) => {
         return { status: 200, data: response.data };
     } catch (error) {
         console.error('Error in followUser:', error);
-        return { 
-            status: error.response?.status || 500, 
-            error: error.response?.data?.message || 'Failed to follow user' 
+        return {
+            status: error.response?.status || 500,
+            error: error.response?.data?.message || 'Failed to follow user'
         };
     }
 }
@@ -150,9 +150,9 @@ const unfollowUser = async (userId) => {
         return { status: 200, data: response.data };
     } catch (error) {
         console.error('Error in unfollowUser:', error);
-        return { 
-            status: error.response?.status || 500, 
-            error: error.response?.data?.message || 'Failed to unfollow user' 
+        return {
+            status: error.response?.status || 500,
+            error: error.response?.data?.message || 'Failed to unfollow user'
         };
     }
 }
@@ -165,9 +165,9 @@ const getFollowers = async (userId, page = 1, limit = 20) => {
         return { status: 200, data: response.data };
     } catch (error) {
         console.error('Error in getFollowers:', error);
-        return { 
-            status: error.response?.status || 500, 
-            error: error.response?.data?.message || 'Failed to get followers' 
+        return {
+            status: error.response?.status || 500,
+            error: error.response?.data?.message || 'Failed to get followers'
         };
     }
 }
@@ -180,9 +180,9 @@ const getFollowing = async (userId, page = 1, limit = 20) => {
         return { status: 200, data: response.data };
     } catch (error) {
         console.error('Error in getFollowing:', error);
-        return { 
-            status: error.response?.status || 500, 
-            error: error.response?.data?.message || 'Failed to get following' 
+        return {
+            status: error.response?.status || 500,
+            error: error.response?.data?.message || 'Failed to get following'
         };
     }
 }
@@ -193,9 +193,9 @@ const getFollowStatus = async (userId) => {
         return { status: 200, data: response.data };
     } catch (error) {
         console.error('Error in getFollowStatus:', error);
-        return { 
-            status: error.response?.status || 500, 
-            error: error.response?.data?.message || 'Failed to get follow status' 
+        return {
+            status: error.response?.status || 500,
+            error: error.response?.data?.message || 'Failed to get follow status'
         };
     }
 }
@@ -206,9 +206,9 @@ const logout = async () => {
         return { status: 200, data: response.data };
     } catch (error) {
         console.error('Error in logout:', error);
-        return { 
-            status: error.response?.status || 500, 
-            error: error.response?.data?.message || 'Failed to logout' 
+        return {
+            status: error.response?.status || 500,
+            error: error.response?.data?.message || 'Failed to logout'
         };
     }
 }
@@ -227,5 +227,16 @@ export {
     getFollowing,
     getFollowStatus,
     logout,
-    validateToken
+    validateToken,
+    updateUser
+}
+
+const updateUser = async (user, data) => {
+    try {
+        const response = await instance.patch("/auth/v1/user/profile", data);
+        return response;
+    } catch (error) {
+        console.error('Error in updateUser:', error);
+        return { error: error.message || 'Failed to update user' };
+    }
 }

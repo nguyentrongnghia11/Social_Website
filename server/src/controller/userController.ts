@@ -7,11 +7,11 @@ import redisClient from '../databases/connectRedis';
 
 class UserController {
     async signupWithLocal(req: Request, res: Response, next: NextFunction) {
-        console.log ("req.body", req.body);
+        console.log("req.body", req.body);
         try {
             const { email } = req.body;
 
-            console.log ("email", email);
+            console.log("email", email);
 
             await userService.signupWithLocal(email);
 
@@ -60,9 +60,9 @@ class UserController {
                     message: 'Missing data'
                 });
             }
-            const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || 
-                       req.socket.remoteAddress || 
-                       'unknown';
+            const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+                req.socket.remoteAddress ||
+                'unknown';
             const userAgent = req.headers['user-agent'] || 'unknown';
 
             const result = await userService.signin(email, password, deviceId, ip, userAgent);
@@ -74,7 +74,7 @@ class UserController {
             return res.status(200).json({
                 message: "login success",
                 result: {
-                    user: {...result.user, unreadCount: parseInt(unreadCount || '0')},
+                    user: { ...result.user, unreadCount: parseInt(unreadCount || '0') },
                 },
                 refreshToken: result.refreshToken
             });
@@ -93,23 +93,23 @@ class UserController {
     async googleCallback(req: Request, res: Response, next: NextFunction) {
         try {
             // Lấy device ID từ nhiều nguồn: query param > state > cookie > header
-            let deviceId: string | undefined = 
-                (req.query.deviceId as string) || 
+            let deviceId: string | undefined =
+                (req.query.deviceId as string) ||
                 (req.query.state as string) ||
                 req.cookies.deviceId ||
                 (Array.isArray(req.headers["x-device-id"]) ? undefined : req.headers["x-device-id"]);
 
             if (!deviceId) {
-                return res.status(400).json({ 
+                return res.status(400).json({
                     message: 'Invalid device ID',
-                    error: 'Device ID is required for authentication. Please include it as query parameter: ?deviceId=xxx' 
+                    error: 'Device ID is required for authentication. Please include it as query parameter: ?deviceId=xxx'
                 });
             }
 
             if (!req.user) {
-                return res.status(401).json({ 
+                return res.status(401).json({
                     message: 'Authentication failed',
-                    error: 'No user data received from Google' 
+                    error: 'No user data received from Google'
                 });
             }
 
@@ -130,9 +130,9 @@ class UserController {
                 status: result.user.status,
                 deviceId: deviceId
             };
-            
+
             console.log('📤 Redirecting to frontend with userData:', userData);
-            
+
             return res.redirect(`${frontendUrl}/auth/callback?success=true&user=${encodeURIComponent(JSON.stringify(userData))}`);
         } catch (error) {
             console.error('Google callback error:', error);
@@ -322,8 +322,8 @@ class UserController {
                 });
             }
 
-            const deviceId = Array.isArray(req.headers["x-device-id"]) 
-                ? req.headers["x-device-id"][0] 
+            const deviceId = Array.isArray(req.headers["x-device-id"])
+                ? req.headers["x-device-id"][0]
                 : req.headers["x-device-id"];
 
             return res.status(200).json({
@@ -455,11 +455,21 @@ class UserController {
 
     async validateToken(req: Request, res: Response, next: NextFunction) {
         try {
-            return res.status(200).json({ 
-                valid: true, 
-                message: 'Token is valid',
-                user: req.user 
-            });
+            // Already validated by middleware
+            return res.status(200).json({ valid: true });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async updateProfile(req: Request, res: Response, next: NextFunction) {
+        try {
+            const userId = req.user as IUser;
+            const { name, biography } = req.body;
+
+            const updatedUser = await userService.updateProfile(userId._id.toString(), { name, biography });
+
+            return res.status(200).json({ success: true, result: updatedUser });
         } catch (error) {
             next(error);
         }

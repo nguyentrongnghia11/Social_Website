@@ -1,16 +1,17 @@
-import { Button, IconButton, Typography, useTheme } from "@mui/material";
+import { Button, IconButton, Typography, useTheme, Menu, MenuItem } from "@mui/material";
 import { Box, compose } from "@mui/system";
 import React, { useState, useCallback } from "react";
 import { AiFillEdit, AiOutlineLine, AiOutlinePlus } from "react-icons/ai";
+import { MoreVert } from "@mui/icons-material";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { isLoggedIn } from "../helpers/authHelper";
 import CommentEditor from "./CommentEditor";
 import ContentDetails from "./ContentDetails";
 import HorizontalStack from "./util/HorizontalStack";
-import { deleteComment, updateComment, createComment } from "../api-axios/posts.";
+import { deleteComment, updateComment, createComment, hideComment, unhideComment } from "../api-axios/posts.";
 import ContentUpdateEditor from "./ContentUpdateEditor";
 import Markdown from "./Markdown";
-import { MdCancel } from "react-icons/md";
+import { MdCancel, MdVisibility, MdVisibilityOff } from "react-icons/md";
 import { BiReply, BiTrash } from "react-icons/bi";
 import { BsReply, BsReplyFill } from "react-icons/bs";
 import moment from "moment";
@@ -26,8 +27,14 @@ const Comment = (props) => {
   // const [comment, setComment] = useState(commentData);
   const user = isLoggedIn();
   const isAuthor = user && user.userId === comment.userId?._id;
+  const isModerator = user && (user.user?.role === 'admin' || user.user?.role === 'moderator' || user.user?.permissions?.includes('hide_comment'));
+  const [loading, setLoading] = useState(false);
+  const [menuAnchorEl, setMenuAnchorEl] = useState(null);
+  const menuOpen = Boolean(menuAnchorEl);
   const navigate = useNavigate();
   const param = useParams()
+
+  console.log("user ne cu ", user)
 
 
 
@@ -55,6 +62,35 @@ const Comment = (props) => {
 
     setEditing(false);
   }, [comment, user, editComment]);
+
+  const handleToggleHide = useCallback(async (e) => {
+    e.stopPropagation()
+    handleMenuClose()
+    setLoading(true)
+    try {
+      if (comment.deleted) {
+        await unhideComment(comment._id)
+        editComment({ ...comment, deleted: false })
+      } else {
+        await hideComment(comment._id)
+        editComment({ ...comment, deleted: true })
+      }
+    } catch (error) {
+      console.error(error)
+      alert('Có lỗi xảy ra khi thay đổi trạng thái bình luận')
+    }
+    setLoading(false)
+  }, [comment, editComment])
+
+  const handleMenuOpen = useCallback((e) => {
+    e.stopPropagation()
+    setMenuAnchorEl(e.currentTarget)
+  }, [])
+
+  const handleMenuClose = useCallback((e) => {
+    if (e) e.stopPropagation()
+    setMenuAnchorEl(null)
+  }, [])
 
 
   const handleSubmit2 = useCallback(async (e) => {
@@ -116,66 +152,91 @@ const Comment = (props) => {
             </Typography>
           </Box>
         ) : (
-          <HorizontalStack justifyContent="space-between" >
-            <HorizontalStack>
-              <ContentDetails
-                username={comment.commenter?.username || "trongnghia"}
-                createdAt={comment.createdAt}
-                edited={comment.edited}
+          <>
+            <HorizontalStack justifyContent="space-between" >
+              <HorizontalStack>
+                <ContentDetails
+                  username={comment.commenter?.username || "trongnghia"}
+                  createdAt={comment.createdAt}
+                  edited={comment.edited}
 
-              />
+                />
 
-              <IconButton
-                color="primary"
-                onClick={() => setMinimised(!minimised)}
-              >
-                {minimised ? (
-                  <AiOutlinePlus size={15} />
-                ) : (
-                  <AiOutlineLine size={15} />
-                )}
-              </IconButton>
-            </HorizontalStack>
-            {!minimised && (
-              <HorizontalStack spacing={1}>
                 <IconButton
-                  variant="text"
-                  size="small"
-                  onClick={handleSetReplying}
+                  color="primary"
+                  onClick={() => setMinimised(!minimised)}
                 >
-                  {!replying ? (
-                    <BsReplyFill color={iconColor} />
+                  {minimised ? (
+                    <AiOutlinePlus size={15} />
                   ) : (
-                    <MdCancel color={iconColor} />
+                    <AiOutlineLine size={15} />
                   )}
                 </IconButton>
-                {user && (isAuthor || user.isAdmin) && (
-                  <HorizontalStack spacing={1}>
-                    <IconButton
-                      variant="text"
-                      size="small"
-                      onClick={() => {
-                        setEditing(!editing);
-                      }}
-                    >
-                      {editing ? (
-                        <MdCancel color={iconColor} />
-                      ) : (
-                        <AiFillEdit color={iconColor} />
-                      )}
-                    </IconButton>
-                    <IconButton
-                      variant="text"
-                      size="small"
-                      onClick={handleDelete}
-                    >
-                      <BiTrash color={theme.palette.error.main} />
-                    </IconButton>
-                  </HorizontalStack>
-                )}
               </HorizontalStack>
-            )}
-          </HorizontalStack>
+              {!minimised && (
+                <HorizontalStack spacing={1}>
+                  <IconButton
+                    variant="text"
+                    size="small"
+                    onClick={handleSetReplying}
+                  >
+                    {!replying ? (
+                      <BsReplyFill color={iconColor} />
+                    ) : (
+                      <MdCancel color={iconColor} />
+                    )}
+                  </IconButton>
+                  {user && (isAuthor || isModerator) && (
+                    <IconButton
+                      variant="text"
+                      size="small"
+                      onClick={handleMenuOpen}
+                      title="Tùy chọn"
+                    >
+                      <MoreVert fontSize="small" />
+                    </IconButton>
+                  )}
+                </HorizontalStack>
+              )}
+            </HorizontalStack>
+
+            <Menu
+              anchorEl={menuAnchorEl}
+              open={menuOpen}
+              onClose={handleMenuClose}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {(isAuthor || user?.isAdmin) && (
+                <MenuItem onClick={() => { setEditing(!editing); handleMenuClose(); }} disabled={loading}>
+                  <AiFillEdit style={{ marginRight: 8 }} />
+                  {editing ? 'Hủy chỉnh sửa' : 'Chỉnh sửa'}
+                </MenuItem>
+              )}
+
+              {isModerator && (
+                <MenuItem onClick={handleToggleHide} disabled={loading}>
+                  {comment.deleted ? (
+                    <>
+                      <MdVisibility style={{ marginRight: 8 }} />
+                      Hiện bình luận
+                    </>
+                  ) : (
+                    <>
+                      <MdVisibilityOff style={{ marginRight: 8 }} />
+                      Ẩn bình luận
+                    </>
+                  )}
+                </MenuItem>
+              )}
+
+              {(isAuthor || user?.isAdmin) && (
+                <MenuItem onClick={handleDelete} disabled={loading}>
+                  <BiTrash style={{ marginRight: 8, color: theme.palette.error.main }} />
+                  <span style={{ color: theme.palette.error.main }}>Xóa bình luận</span>
+                </MenuItem>
+              )}
+            </Menu>
+          </>
         )}
 
         {!minimised && (

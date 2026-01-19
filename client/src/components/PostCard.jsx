@@ -10,12 +10,14 @@ import {
   DialogContent,
   DialogActions,
   Button,
+  Menu,
+  MenuItem,
 } from "@mui/material"
 import { Box } from "@mui/system"
 import React, { useState, useCallback, useMemo } from "react"
 import { AiFillCheckCircle, AiFillEdit, AiFillMessage } from "react-icons/ai"
 import { useNavigate } from "react-router-dom"
-import { deletePost, updatePost, likePost } from "../api-axios/posts."
+import { deletePost, updatePost, likePost, hidePost, unhidePost } from "../api-axios/posts."
 import { isLoggedIn } from "../helpers/authHelper"
 import ContentDetails from "./ContentDetails"
 import LikeBox from "./LikeBox"
@@ -23,10 +25,10 @@ import PostContentBox from "./PostContentBox"
 import HorizontalStack from "./util/HorizontalStack"
 import ContentUpdateEditor from "./ContentUpdateEditor"
 import "./postCard.css"
-import { MdCancel } from "react-icons/md"
+import { MdCancel, MdVisibility, MdVisibilityOff } from "react-icons/md"
 import { BiTrash } from "react-icons/bi"
 import UserLikePreview from "./UserLikePreview"
-import { ZoomIn, Close, ExpandMore } from "@mui/icons-material"
+import { ZoomIn, Close, ExpandMore, MoreVert } from "@mui/icons-material"
 import HTMLContent from "./HTMLContent"
 
 const PostCard = (props) => {
@@ -41,6 +43,7 @@ const PostCard = (props) => {
   );
 
   const isAdmin = user && (user.isAdmin || user.user?.isAdmin);
+  const isModerator = user && (user.user?.role === 'admin' || user.user?.role === 'moderator' || user.user?.permissions?.includes('hide_post'));
 
   const theme = useTheme()
   const iconColor = theme.palette.primary.main
@@ -51,6 +54,8 @@ const PostCard = (props) => {
   const [liked, setLiked] = useState(post.liked || false)
   const [selectedImage, setSelectedImage] = useState(null)
   const [imageDialogOpen, setImageDialogOpen] = useState(false)
+  const [menuAnchorEl, setMenuAnchorEl] = useState(null)
+  const menuOpen = Boolean(menuAnchorEl)
   const [expanded, setExpanded] = useState(false)
   const isPreviewMode = preview === "primary" || preview === "secondary"
   const isCompactPreview = preview === "secondary"
@@ -136,6 +141,35 @@ const PostCard = (props) => {
     e.stopPropagation()
     setExpanded(!expanded)
   }, [expanded])
+
+  const handleMenuOpen = useCallback((e) => {
+    e.stopPropagation()
+    setMenuAnchorEl(e.currentTarget)
+  }, [])
+
+  const handleMenuClose = useCallback((e) => {
+    if (e) e.stopPropagation()
+    setMenuAnchorEl(null)
+  }, [])
+
+  const handleToggleHide = useCallback(async (e) => {
+    e.stopPropagation()
+    handleMenuClose()
+    setLoading(true)
+    try {
+      if (post.deleted) {
+        await unhidePost(post._id)
+        setPost({ ...post, deleted: false })
+      } else {
+        await hidePost(post._id)
+        setPost({ ...post, deleted: true })
+      }
+    } catch (error) {
+      console.error(error)
+      alert('Có lỗi xảy ra khi thay đổi trạng thái bài viết')
+    }
+    setLoading(false)
+  }, [post])
 
   const renderImages = () => {
     if (!post.imgUrl || post.imgUrl.length === 0 || !isDetailPage) return null
@@ -454,37 +488,56 @@ const PostCard = (props) => {
                   preview={isPreviewMode}
                   compact={isCompactPreview}
                 />
-                {user && (isAuthor || isAdmin) && !isCompactPreview && (
-                  <HorizontalStack spacing={0.5}>
-                    {/* Chỉ tác giả mới có thể chỉnh sửa */}
-                    {isAuthor && (
-                      <IconButton
-                        disabled={loading}
-                        size={isPreviewMode ? "small" : "medium"}
-                        onClick={handleEditPost}
-                        title="Chỉnh sửa bài viết"
-                      >
-                        {editing ? <MdCancel color={iconColor} /> : <AiFillEdit color={iconColor} />}
-                      </IconButton>
-                    )}
-                    {/* Tác giả và admin đều có thể xóa */}
-                    {(isAuthor || isAdmin) && (
-                      <IconButton
-                        disabled={loading}
-                        size={isPreviewMode ? "small" : "medium"}
-                        onClick={handleDeletePost}
-                        title={confirm ? "Xác nhận xóa" : "Xóa bài viết"}
-                      >
-                        {confirm ? (
-                          <AiFillCheckCircle color={theme.palette.error.main} />
-                        ) : (
-                          <BiTrash color={theme.palette.error.main} />
-                        )}
-                      </IconButton>
-                    )}
-                  </HorizontalStack>
+
+                {user && (isAuthor || isAdmin || isModerator) && !isCompactPreview && (
+                  <IconButton
+                    size={isPreviewMode ? "small" : "medium"}
+                    onClick={handleMenuOpen}
+                    title="Tùy chọn"
+                  >
+                    <MoreVert />
+                  </IconButton>
                 )}
               </HorizontalStack>
+
+              <Menu
+                anchorEl={menuAnchorEl}
+                open={menuOpen}
+                onClose={handleMenuClose}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {isAuthor && (
+                  <MenuItem onClick={handleEditPost} disabled={loading}>
+                    <AiFillEdit style={{ marginRight: 8 }} />
+                    {editing ? 'Hủy chỉnh sửa' : 'Chỉnh sửa'}
+                  </MenuItem>
+                )}
+
+                {isModerator && (
+                  <MenuItem onClick={handleToggleHide} disabled={loading}>
+                    {post.deleted ? (
+                      <>
+                        <MdVisibility style={{ marginRight: 8 }} />
+                        Hiện bài viết
+                      </>
+                    ) : (
+                      <>
+                        <MdVisibilityOff style={{ marginRight: 8 }} />
+                        Ẩn bài viết
+                      </>
+                    )}
+                  </MenuItem>
+                )}
+
+                {(isAuthor || isAdmin) && (
+                  <MenuItem onClick={handleDeletePost} disabled={loading}>
+                    <BiTrash style={{ marginRight: 8, color: theme.palette.error.main }} />
+                    <span style={{ color: theme.palette.error.main }}>
+                      {confirm ? 'Xác nhận xóa' : 'Xóa bài viết'}
+                    </span>
+                  </MenuItem>
+                )}
+              </Menu>
 
               <Typography
                 variant={cardSizing.titleVariant}

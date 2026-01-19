@@ -34,11 +34,11 @@ const ProfileView = () => {
     setError("");
 
     console.log('Fetching user with id:', params.id)
-    
+
     try {
       const data = await getUserById(params.id);
       console.log('Profile API response:', data)
-      
+
       if (data.error) {
         setError(data.error);
       } else if (data.result) {
@@ -64,10 +64,11 @@ const ProfileView = () => {
     e.preventDefault();
 
     const content = e.target.content.value;
+    const name = e.target.title ? e.target.title.value : profile.user.name;
 
-    await updateUser(user, { biography: content });
+    await updateUser(user, { name, biography: content });
 
-    setProfile({ ...profile, user: { ...profile.user, biography: content } });
+    setProfile({ ...profile, user: { ...profile.user, name, biography: content } });
     setEditing(false);
   };
 
@@ -77,7 +78,7 @@ const ProfileView = () => {
 
   const handleMessage = () => {
     console.log("profile.user ", profile)
-    navigate("/messenger", { state: { user: profile} });
+    navigate("/messenger", { state: { user: profile } });
   };
 
   useEffect(() => {

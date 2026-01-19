@@ -34,7 +34,7 @@ const Profile = (props) => {
 
   useEffect(() => {
     if (props.profile) {
-      console.log ('pppp',props.profile)
+      console.log('pppp', props.profile)
       setUser(props.profile);
       setFollowersCount(props.profile.followersCount || 0);
       setFollowingCount(props.profile.followingCount || 0);
@@ -44,7 +44,7 @@ const Profile = (props) => {
   // Lấy dữ liệu từ localStorage nếu đang xem profile của chính mình
   const getProfileStats = () => {
     if (!user) return { likes: 0, posts: 0 };
-    
+
     // Nếu có userPosts, likedPosts và commentedPosts từ localStorage (profile của mình)
     if (user.userPosts !== undefined || user.likedPosts !== undefined) {
       return {
@@ -52,7 +52,7 @@ const Profile = (props) => {
         posts: user.userPosts?.length || user.postCount || 0,
       };
     }
-    
+
     // Fallback cho profile người khác
     return {
       likes: user.totalLike || 0,
@@ -87,8 +87,8 @@ const Profile = (props) => {
           <Typography variant="h5">{user.name}</Typography>
 
           {user.status === 'banned' && (
-            <Alert 
-              severity="error" 
+            <Alert
+              severity="error"
               icon={<MdBlock />}
               sx={{ width: '100%' }}
             >
@@ -101,6 +101,8 @@ const Profile = (props) => {
               <ContentUpdateEditor
                 handleSubmit={props.handleSubmit}
                 originalContent={user.biography}
+                originalTitle={user.name}
+                titleLabel="Tên hiển thị"
                 validate={props.validate}
               />
             </Box>
@@ -128,8 +130,8 @@ const Profile = (props) => {
 
           {currentUser && user._id !== currentUser.user._id && (
             <Stack direction="row" spacing={1}>
-              <Button 
-                variant="outlined" 
+              <Button
+                variant="outlined"
                 onClick={props.handleMessage}
                 disabled={user.status === 'banned'}
               >
@@ -140,14 +142,14 @@ const Profile = (props) => {
           )}
 
           <HorizontalStack spacing={3}>
-            <Typography 
+            <Typography
               color="text.secondary"
               sx={{ cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
               onClick={handleOpenFollowers}
             >
               <b>{followersCount}</b> Followers
             </Typography>
-            <Typography 
+            <Typography
               color="text.secondary"
               sx={{ cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
               onClick={handleOpenFollowing}
@@ -168,7 +170,7 @@ const Profile = (props) => {
       ) : (
         <Loading label="Loading profile" />
       )}
-      
+
       {user && (
         <FollowListModal
           open={followModalOpen}

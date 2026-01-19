@@ -5,6 +5,10 @@ export const getUsers = (params) => {
   return instance.get('/admin/users', { params });
 };
 
+export const createUser = (data) => {
+  return instance.post('/admin/users', data);
+};
+
 export const getUserStats = () => {
   return instance.get('/admin/users/stats');
 };
@@ -31,6 +35,27 @@ export const getUserHistory = (id) => {
 
 export const getUserActivities = (id) => {
   return instance.get(`/admin/users/${id}/activities`);
+};
+
+// Permission Management
+export const getAvailablePermissions = () => {
+  return instance.get('/admin/permissions');
+};
+
+export const getUserPermissions = (id) => {
+  return instance.get(`/admin/users/${id}/permissions`);
+};
+
+export const updateUserPermissions = (id, permissions) => {
+  return instance.put(`/admin/users/${id}/permissions`, { permissions });
+};
+
+export const addUserPermission = (id, permission) => {
+  return instance.post(`/admin/users/${id}/permissions`, { permission });
+};
+
+export const removeUserPermission = (id, permission) => {
+  return instance.delete(`/admin/users/${id}/permissions/${permission}`);
 };
 
 // Post Management

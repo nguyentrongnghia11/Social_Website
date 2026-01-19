@@ -37,7 +37,7 @@ const ContentUpdateEditor = (props) => {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    console.log (content, title, files)
+    console.log(content, title, files)
     let error = null;
 
     if (props.validate) {
@@ -50,8 +50,8 @@ const ContentUpdateEditor = (props) => {
       // Tạo một event giả với title và content
       const syntheticEvent = {
         ...e,
-        preventDefault: () => {},
-        stopPropagation: () => {},
+        preventDefault: () => { },
+        stopPropagation: () => { },
         target: {
           ...e.target,
           title: { value: title },
@@ -71,12 +71,12 @@ const ContentUpdateEditor = (props) => {
             fullWidth
             margin="normal"
             name="title"
-            label="Tiêu đề"
+            label={props.titleLabel || "Tiêu đề"}
             sx={{ backgroundColor: "white" }}
             onChange={handleTitleChange}
           />
         )}
-        
+
         <Box>
           <Typography variant="subtitle2" sx={{ mb: 1 }}>Nội dung</Typography>
           <RichTextEditor
@@ -88,7 +88,7 @@ const ContentUpdateEditor = (props) => {
             minHeight={200}
           />
         </Box>
-        
+
         {files && files.length > 0 && (
           <Box>
             <Typography variant="subtitle2" sx={{ mb: 1 }}>Tệp đính kèm (Hình ảnh & Video)</Typography>

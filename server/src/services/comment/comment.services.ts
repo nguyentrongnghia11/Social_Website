@@ -124,6 +124,24 @@ export class CommentService {
 
         return { success: true };
     }
+
+    async setCommentVisibility(id: string, visible: boolean) {
+        const findComment = await _Comment.findWithDeleted({ _id: id });
+
+        if (!findComment) {
+            throw new ErrorApi(404, 'Comment not found');
+        }
+
+        const CommentModel = _Comment as any;
+
+        if (visible) {
+            await CommentModel.restore({ _id: id });
+        } else {
+            await CommentModel.deleteById(id);
+        }
+
+        return { success: true };
+    }
 }
 
 export default new CommentService();

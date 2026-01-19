@@ -67,6 +67,56 @@ class CommentController {
             next(error);
         }
     }
+
+    async hideComment(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+            const user = req.user as IUser;
+
+            // Check if user has hide_comment permission
+            const hasPermission = user.permissions?.includes('hide_comment') || user.role === 'admin';
+            if (!hasPermission) {
+                return res.status(403).json({
+                    status: 403,
+                    message: 'Bạn không có quyền ẩn bình luận'
+                });
+            }
+
+            await commentService.setCommentVisibility(id, false);
+
+            return res.json({
+                status: 200,
+                message: 'Đã ẩn bình luận thành công'
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async unhideComment(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+            const user = req.user as IUser;
+
+            // Check if user has hide_comment permission
+            const hasPermission = user.permissions?.includes('hide_comment') || user.role === 'admin';
+            if (!hasPermission) {
+                return res.status(403).json({
+                    status: 403,
+                    message: 'Bạn không có quyền hiện bình luận'
+                });
+            }
+
+            await commentService.setCommentVisibility(id, true);
+
+            return res.json({
+                status: 200,
+                message: 'Đã hiện bình luận thành công'
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
 }
 
 export default new CommentController();

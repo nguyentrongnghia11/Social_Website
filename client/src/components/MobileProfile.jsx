@@ -98,6 +98,8 @@ const MobileProfile = (props) => {
                 <ContentUpdateEditor
                   handleSubmit={props.handleSubmit}
                   originalContent={user.biography}
+                  originalTitle={user.name}
+                  titleLabel="Tên hiển thị"
                   validate={props.validate}
                 />
               </Box>

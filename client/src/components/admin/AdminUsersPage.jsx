@@ -32,6 +32,10 @@ import {
   CircularProgress,
   Alert,
   Snackbar,
+  Checkbox,
+  FormControlLabel,
+  FormGroup,
+  Divider,
 } from '@mui/material';
 import {
   Search,
@@ -43,6 +47,7 @@ import {
   Add,
   Download,
   Refresh,
+  Security,
 } from '@mui/icons-material';
 import {
   getUsers,
@@ -51,6 +56,10 @@ import {
   updateUserStatus,
   deleteUser,
   getUserHistory,
+  getAvailablePermissions,
+  getUserPermissions,
+  updateUserPermissions,
+  createUser,
 } from '../../api-axios/admin';
 
 const AdminUsersPage = () => {
@@ -68,9 +77,34 @@ const AdminUsersPage = () => {
   const [openHistoryDialog, setOpenHistoryDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
 
+  // Permission management states
+  const [openPermissionDialog, setOpenPermissionDialog] = useState(false);
+  const [availablePermissions, setAvailablePermissions] = useState([]);
+  const [userPermissions, setUserPermissions] = useState([]);
+  const [permissionLoading, setPermissionLoading] = useState(false);
+
+  // Add User Dialog states
+  const [openAddDialog, setOpenAddDialog] = useState(false);
+  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'user', status: 'active' });
+  const [addLoading, setAddLoading] = useState(false);
+
+  // Login History states
+  const [loginHistory, setLoginHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
   useEffect(() => {
     loadUsers();
+    loadAvailablePermissions();
   }, [statusFilter, roleFilter]);
+
+  const loadAvailablePermissions = async () => {
+    try {
+      const res = await getAvailablePermissions();
+      setAvailablePermissions(res.data.data || []);
+    } catch (err) {
+      console.error('Error loading permissions:', err);
+    }
+  };
 
   const loadUsers = async () => {
     setLoading(true);
@@ -105,13 +139,50 @@ const AdminUsersPage = () => {
 
   const handleViewHistory = async (user) => {
     setSelectedUser(user);
+    setHistoryLoading(true);
+    setOpenHistoryDialog(true);
     try {
-      const res = await getUserHistory(user.id);
-      setSelectedUser({ ...user, history: res.data });
+      const res = await getUserHistory(user._id);
+      setLoginHistory(res.data.data || []);
     } catch (err) {
       console.error('Error loading history:', err);
+      setLoginHistory([]);
+    } finally {
+      setHistoryLoading(false);
     }
-    setOpenHistoryDialog(true);
+  };
+
+  // Add User handler
+  const handleAddUser = async () => {
+    if (!newUser.name || !newUser.email || !newUser.password) {
+      setSnackbar({
+        open: true,
+        message: 'Vui lòng điền đầy đủ thông tin',
+        severity: 'error'
+      });
+      return;
+    }
+
+    setAddLoading(true);
+    try {
+      const res = await createUser(newUser);
+      setUsers([res.data.data, ...users]);
+      setOpenAddDialog(false);
+      setNewUser({ name: '', email: '', password: '', role: 'user', status: 'active' });
+      setSnackbar({
+        open: true,
+        message: 'Tạo người dùng thành công',
+        severity: 'success'
+      });
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err.response?.data?.message || 'Không thể tạo người dùng',
+        severity: 'error'
+      });
+    } finally {
+      setAddLoading(false);
+    }
   };
 
   const handleToggleBan = async (userId) => {
@@ -158,6 +229,77 @@ const AdminUsersPage = () => {
     }
   };
 
+  // Permission management handlers
+  const handleOpenPermissions = async (user) => {
+    setSelectedUser(user);
+    setPermissionLoading(true);
+    setOpenPermissionDialog(true);
+    try {
+      const res = await getUserPermissions(user._id);
+      setUserPermissions(res.data.data.permissions || []);
+    } catch (err) {
+      console.error('Error loading user permissions:', err);
+      setUserPermissions([]);
+    } finally {
+      setPermissionLoading(false);
+    }
+  };
+
+  const handlePermissionToggle = (permission) => {
+    setUserPermissions(prev => {
+      if (prev.includes(permission)) {
+        return prev.filter(p => p !== permission);
+      } else {
+        return [...prev, permission];
+      }
+    });
+  };
+
+  const handleSavePermissions = async () => {
+    if (!selectedUser) return;
+    try {
+      await updateUserPermissions(selectedUser._id, userPermissions);
+      setUsers(users.map(user =>
+        user._id === selectedUser._id ? { ...user, permissions: userPermissions } : user
+      ));
+      setOpenPermissionDialog(false);
+      setSnackbar({
+        open: true,
+        message: 'Đã cập nhật quyền hạn người dùng',
+        severity: 'success'
+      });
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err.response?.data?.message || 'Không thể cập nhật quyền hạn',
+        severity: 'error'
+      });
+    }
+  };
+
+  const getPermissionLabel = (permission) => {
+    const labels = {
+      // User permissions
+      'create_post': 'Tạo bài viết',
+      'edit_own_post': 'Sửa bài viết của mình',
+      'delete_own_post': 'Xóa bài viết của mình',
+      'create_comment': 'Tạo bình luận',
+      'edit_own_comment': 'Sửa bình luận của mình',
+      'delete_own_comment': 'Xóa bình luận của mình',
+      // Moderator permissions
+      'hide_post': 'Ẩn bài viết',
+      'hide_comment': 'Ẩn bình luận',
+      'delete_any_post': 'Xóa bất kỳ bài viết',
+      'delete_any_comment': 'Xóa bất kỳ bình luận',
+      'ban_user_comment': 'Cấm user bình luận',
+      'ban_user_post': 'Cấm user đăng bài',
+      // Admin permissions
+      'manage_users': 'Quản lý người dùng',
+      'view_admin_panel': 'Truy cập trang Admin',
+    };
+    return labels[permission] || permission;
+  };
+
   const getRoleColor = (role) => {
     switch (role) {
       case 'admin': return 'error';
@@ -190,7 +332,7 @@ const AdminUsersPage = () => {
             Quản lý danh sách người dùng, phân quyền và trạng thái tài khoản
           </Typography>
         </Box>
-        <Button variant="contained" startIcon={<Add />}>
+        <Button variant="contained" startIcon={<Add />} onClick={() => setOpenAddDialog(true)}>
           Thêm người dùng
         </Button>
       </Box>
@@ -345,6 +487,14 @@ const AdminUsersPage = () => {
                             >
                               <History fontSize="small" />
                             </IconButton>
+                            <IconButton
+                              size="small"
+                              color="secondary"
+                              onClick={() => handleOpenPermissions(user)}
+                              title="Quản lý quyền hạn"
+                            >
+                              <Security fontSize="small" />
+                            </IconButton>
                           </Box>
                         </TableCell>
                       </TableRow>
@@ -362,7 +512,7 @@ const AdminUsersPage = () => {
             onRowsPerPageChange={handleChangeRowsPerPage}
             rowsPerPageOptions={[5, 10, 25, 50]}
             labelRowsPerPage="Số dòng mỗi trang:"
-            labelDisplayedRows={({ from, to, count }) => 
+            labelDisplayedRows={({ from, to, count }) =>
               `${from}–${to} của ${count !== -1 ? count : `nhiều hơn ${to}`}`
             }
             sx={{
@@ -420,46 +570,115 @@ const AdminUsersPage = () => {
 
       {/* History Dialog */}
       <Dialog open={openHistoryDialog} onClose={() => setOpenHistoryDialog(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Lịch sử hoạt động</DialogTitle>
+        <DialogTitle>Lịch sử đăng nhập</DialogTitle>
         <DialogContent>
           {selectedUser && (
             <Box sx={{ pt: 2 }}>
               <Typography variant="h6" gutterBottom>
                 {selectedUser.name}
               </Typography>
-              <TableContainer component={Paper} variant="outlined">
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Hành động</TableCell>
-                      <TableCell>IP</TableCell>
-                      <TableCell>Thời gian</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    <TableRow key="history-1">
-                      <TableCell>Đăng nhập</TableCell>
-                      <TableCell>192.168.1.1</TableCell>
-                      <TableCell>2024-03-15 10:30</TableCell>
-                    </TableRow>
-                    <TableRow key="history-2">
-                      <TableCell>Đổi mật khẩu</TableCell>
-                      <TableCell>192.168.1.1</TableCell>
-                      <TableCell>2024-03-10 15:20</TableCell>
-                    </TableRow>
-                    <TableRow key="history-3">
-                      <TableCell>Đăng nhập</TableCell>
-                      <TableCell>192.168.1.2</TableCell>
-                      <TableCell>2024-03-08 09:15</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </TableContainer>
+              {historyLoading ? (
+                <Box display="flex" justifyContent="center" py={4}>
+                  <CircularProgress />
+                </Box>
+              ) : loginHistory.length === 0 ? (
+                <Alert severity="info">Không có lịch sử đăng nhập</Alert>
+              ) : (
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Hành động</TableCell>
+                        <TableCell>IP</TableCell>
+                        <TableCell>User Agent</TableCell>
+                        <TableCell>Thời gian</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {loginHistory.map((item, index) => (
+                        <TableRow key={`history-${index}`}>
+                          <TableCell>
+                            <Chip
+                              label={item.action === 'login' ? 'Đăng nhập' : item.action === 'login_google' ? 'Đăng nhập Google' : item.action}
+                              size="small"
+                              color={item.action?.includes('login') ? 'success' : 'default'}
+                            />
+                          </TableCell>
+                          <TableCell>{item.ip || 'N/A'}</TableCell>
+                          <TableCell sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {item.userAgent || 'N/A'}
+                          </TableCell>
+                          <TableCell>
+                            {item.timestamp ? new Date(item.timestamp).toLocaleString('vi-VN') : 'N/A'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
             </Box>
           )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenHistoryDialog(false)}>Đóng</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Permission Dialog */}
+      <Dialog open={openPermissionDialog} onClose={() => setOpenPermissionDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1}>
+            <Security color="secondary" />
+            Quản lý quyền hạn
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {selectedUser && (
+            <Box sx={{ pt: 2 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                Người dùng: {selectedUser.name}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Vai trò: {selectedUser.role}
+              </Typography>
+              <Divider sx={{ my: 2 }} />
+              <Typography variant="subtitle2" gutterBottom>
+                Chọn quyền hạn:
+              </Typography>
+              {permissionLoading ? (
+                <Box display="flex" justifyContent="center" py={2}>
+                  <CircularProgress size={24} />
+                </Box>
+              ) : (
+                <FormGroup>
+                  {availablePermissions.map((permission) => (
+                    <FormControlLabel
+                      key={permission}
+                      control={
+                        <Checkbox
+                          checked={userPermissions.includes(permission)}
+                          onChange={() => handlePermissionToggle(permission)}
+                          color="primary"
+                        />
+                      }
+                      label={getPermissionLabel(permission)}
+                    />
+                  ))}
+                </FormGroup>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenPermissionDialog(false)}>Hủy</Button>
+          <Button
+            variant="contained"
+            onClick={handleSavePermissions}
+            disabled={permissionLoading}
+          >
+            Lưu thay đổi
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -477,6 +696,71 @@ const AdminUsersPage = () => {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      {/* Add User Dialog */}
+      <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Thêm người dùng mới</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+              fullWidth
+              label="Tên"
+              value={newUser.name}
+              onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+              required
+            />
+            <TextField
+              fullWidth
+              label="Email"
+              type="email"
+              value={newUser.email}
+              onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+              required
+            />
+            <TextField
+              fullWidth
+              label="Mật khẩu"
+              type="password"
+              value={newUser.password}
+              onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+              required
+            />
+            <FormControl fullWidth>
+              <InputLabel>Vai trò</InputLabel>
+              <Select
+                value={newUser.role}
+                label="Vai trò"
+                onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
+              >
+                <MenuItem value="user">User</MenuItem>
+                <MenuItem value="moderator">Moderator</MenuItem>
+                <MenuItem value="admin">Admin</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel>Trạng thái</InputLabel>
+              <Select
+                value={newUser.status}
+                label="Trạng thái"
+                onChange={(e) => setNewUser({ ...newUser, status: e.target.value })}
+              >
+                <MenuItem value="active">Hoạt động</MenuItem>
+                <MenuItem value="banned">Đã khóa</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenAddDialog(false)}>Hủy</Button>
+          <Button
+            variant="contained"
+            onClick={handleAddUser}
+            disabled={addLoading}
+          >
+            {addLoading ? <CircularProgress size={24} /> : 'Tạo người dùng'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

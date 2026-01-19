@@ -1,18 +1,18 @@
 
 import { Schema, Document, model } from 'mongoose'
-import mongoose_delete from 'mongoose-delete'
+import mongoose_delete, { SoftDeleteDocument, SoftDeleteModel } from 'mongoose-delete'
 import _User from './user'
 import { Types } from 'mongoose';
 import { number } from 'joi';
 import { fileSchema, IFile } from './file';
 
-export interface Post extends Document {
+
+export interface Post extends SoftDeleteDocument {
     title: string,
     artistId: Types.ObjectId;
     react: [Types.ObjectId];
     content: string;
     status: "pending" | "resovled" | "reject";
-    visibility: "published" | "hidden";
     embedding: number[]
 }
 
@@ -37,11 +37,6 @@ const postSchema = new Schema<Post>({
     status: {
         type: String,
         default: "pending"
-    },
-    visibility: {
-        type: String,
-        enum: ["published", "hidden"],
-        default: "published"
     },
 
     content: {
@@ -95,4 +90,5 @@ postSchema.index({ react: 1 });
 postSchema.index({ status: 1 });
 postSchema.index({ embedding: 1 });
 
-export default model<Post>('posts', postSchema);
+const PostModel = model<Post, SoftDeleteModel<Post>>('posts', postSchema);
+export default PostModel;

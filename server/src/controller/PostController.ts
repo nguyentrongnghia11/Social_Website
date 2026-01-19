@@ -8,7 +8,7 @@ class PostController {
             const { title, content } = req.body;
             const user = req.user as IUser;
 
-            console.log ("Creating post for user khong hinh anh:", user._id);
+            console.log("Creating post for user khong hinh anh:", user._id);
 
             const files = req.files as { [fieldname: string]: Express.Multer.File[] };
             const imageFiles = files["image"] || [];
@@ -32,10 +32,10 @@ class PostController {
             const { _id } = req.user as IUser;
 
             const information = await postService.grantPermissionUploadFile(
-                typeImg, 
-                title, 
-                content, 
-                _id.toString(), 
+                typeImg,
+                title,
+                content,
+                _id.toString(),
                 contentType,
                 postId,
                 files
@@ -161,7 +161,7 @@ class PostController {
 
             const result = await postService.reactPost(_id.toString(), postID);
 
-            
+
             return res.json({
                 status: 200,
                 message: result.liked ? 'Like post success' : 'Unliked post',
@@ -176,6 +176,56 @@ class PostController {
         return res.status(501).json({
             message: 'Not implemented'
         });
+    }
+
+    async hidePost(req: Request, res: Response, next: NextFunction) {
+        try {
+            const postId = req.params.id;
+            const user = req.user as IUser;
+
+            // Check if user has hide_post permission
+            const hasPermission = user.permissions?.includes('hide_post') || user.role === 'admin';
+            if (!hasPermission) {
+                return res.status(403).json({
+                    status: 403,
+                    message: 'Bạn không có quyền ẩn bài viết'
+                });
+            }
+
+            await postService.setPostVisibility(postId, false);
+
+            return res.json({
+                status: 200,
+                message: 'Đã ẩn bài viết thành công'
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async unhidePost(req: Request, res: Response, next: NextFunction) {
+        try {
+            const postId = req.params.id;
+            const user = req.user as IUser;
+
+            // Check if user has hide_post permission
+            const hasPermission = user.permissions?.includes('hide_post') || user.role === 'admin';
+            if (!hasPermission) {
+                return res.status(403).json({
+                    status: 403,
+                    message: 'Bạn không có quyền hiện bài viết'
+                });
+            }
+
+            await postService.setPostVisibility(postId, true);
+
+            return res.json({
+                status: 200,
+                message: 'Đã hiện bài viết thành công'
+            });
+        } catch (error) {
+            next(error);
+        }
     }
 
     async getAllPost(req: Request, res: Response, next: NextFunction) {

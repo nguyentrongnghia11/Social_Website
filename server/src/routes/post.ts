@@ -35,18 +35,22 @@ router.get("/search", post.searchPost)
 router.get("/mypost", authenticateMiddleware, post.getMyPost)
 router.get("/liked", authenticateMiddleware, post.getPostLikedOfUser)
 router.get("/commented", authenticateMiddleware, post.getPostUserCommented)
-router.get("/user/all",authenticateMiddleware, post.getPostOfUser)
+router.get("/user/all", authenticateMiddleware, post.getPostOfUser)
 router.get("/top", post.getTopPost)
-router.post("/create", authenticateMiddleware, validateCreatePost,upload.fields([{ name: 'image', maxCount: 5 },
-{ name: 'video', maxCount: 2 }]) , post.createPost)
+router.post("/create", authenticateMiddleware, validateCreatePost, upload.fields([{ name: 'image', maxCount: 5 },
+{ name: 'video', maxCount: 2 }]), post.createPost)
 router.patch("/react", authenticateMiddleware, limiter, post.reactPost)
-router.post("/grant-permission", authenticateMiddleware,post.grantPermissionUploadFile)
+router.post("/grant-permission", authenticateMiddleware, post.grantPermissionUploadFile)
 router.post("/:id/grant-permission", authenticateMiddleware, post.grantPermissionForUpdatePost)
-router.post("/save/media", authenticateMiddleware,post.updateFile)
+router.post("/save/media", authenticateMiddleware, post.updateFile)
 router.delete("/:id/hidden", passport.authenticate(['jwt', 'oauth2'], { failureRedirect: '/' }), post.hiddenPost)
-router.get("/:id",authenticateMiddleware ,post.getPost)
+router.get("/:id", authenticateMiddleware, post.getPost)
 router.delete("/:id", passport.authenticate(['jwt', 'oauth2'], { failureRedirect: '/' }), post.removePost)
 // router.patch("/:id", passport.authenticate(['jwt', 'oauth2'], { failureRedirect: '/' }), post.moderationPost)
 router.patch("/:id", authenticateMiddleware, validateUpdatePost, post.updatePost)
+
+// Content moderation routes
+router.patch("/:id/hide", authenticateMiddleware, post.hidePost)
+router.patch("/:id/unhide", authenticateMiddleware, post.unhidePost)
 
 export default router;  

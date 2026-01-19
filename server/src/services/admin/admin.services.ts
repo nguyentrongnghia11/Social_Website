@@ -8,9 +8,11 @@ import _Broadcast from '../../models/broadcast';
 import _Banner from '../../models/banner';
 import _Settings from '../../models/settings';
 import { Types } from 'mongoose';
+import { getDefaultPermissions } from '../../enums/role-permission.map';
+
 
 export class UserManagementService {
-    
+
     async getUsers(filters: {
         page: number;
         limit: number;
@@ -20,7 +22,7 @@ export class UserManagementService {
     }) {
         const { page, limit, role, status, search } = filters;
         const query: any = {};
-        
+
         if (role) query.role = role;
         if (status) query.status = status;
         if (search) {
@@ -58,9 +60,14 @@ export class UserManagementService {
     }
 
     async updateUserRole(id: string, role: string) {
+        const defaultPermissions = getDefaultPermissions(role as any);
+
         const user = await _User.findByIdAndUpdate(
             id,
-            { role },
+            {
+                role,
+                permissions: defaultPermissions
+            },
             { new: true }
         ).select('-password');
         return user;
@@ -80,16 +87,94 @@ export class UserManagementService {
         return user;
     }
 
+    async createUser(data: {
+        name: string;
+        email: string;
+        password: string;
+        role: string;
+        status?: string;
+    }) {
+        const bcrypt = require('bcrypt');
+        const defaultPermissions = getDefaultPermissions(data.role as any);
+
+        const existingUser = await _User.findOne({ email: data.email });
+        if (existingUser) {
+            throw new Error('User with this email already exists');
+        }
+
+        const hashedPassword = await bcrypt.hash(data.password, 10);
+
+        const user = await _User.create({
+            name: data.name,
+            email: data.email,
+            password: hashedPassword,
+            role: data.role,
+            permissions: defaultPermissions,
+            status: data.status || 'active',
+            type: 'local'
+        });
+
+        return user;
+    }
+
+    // Permission management methods
+    async getUserPermissions(id: string) {
+        const user = await _User.findById(id).select('permissions role');
+        if (!user) return null;
+
+        // If user has no custom permissions, return default role permissions
+        if (!user.permissions || user.permissions.length === 0) {
+            return {
+                permissions: getDefaultPermissions(user.role),
+                isDefault: true,
+                role: user.role
+            };
+        }
+
+        return {
+            permissions: user.permissions,
+            isDefault: false,
+            role: user.role
+        };
+    }
+
+    async updateUserPermissions(id: string, permissions: string[]) {
+        const user = await _User.findByIdAndUpdate(
+            id,
+            { permissions },
+            { new: true }
+        ).select('-password');
+        return user;
+    }
+
+    async addUserPermission(id: string, permission: string) {
+        const user = await _User.findByIdAndUpdate(
+            id,
+            { $addToSet: { permissions: permission } },
+            { new: true }
+        ).select('-password');
+        return user;
+    }
+
+    async removeUserPermission(id: string, permission: string) {
+        const user = await _User.findByIdAndUpdate(
+            id,
+            { $pull: { permissions: permission } },
+            { new: true }
+        ).select('-password');
+        return user;
+    }
+
     async getUserHistory(id: string, filters: { page: number; limit: number }) {
         const { page, limit } = filters;
         const user = await _User.findById(id).select('loginHistory');
-        
+
         if (!user) return null;
 
         const history = user.loginHistory || [];
         const total = history.length;
         const skip = (page - 1) * limit;
-        
+
         return {
             history: history.slice(skip, skip + limit),
             pagination: {
@@ -133,7 +218,7 @@ export class UserManagementService {
         const active = await _User.countDocuments({ status: 'active' });
         const banned = await _User.countDocuments({ status: 'banned' });
         const suspended = await _User.countDocuments({ status: 'suspended' });
-        
+
         const byRole = await _User.aggregate([
             { $group: { _id: '$role', count: { $sum: 1 } } }
         ]);
@@ -149,7 +234,7 @@ export class UserManagementService {
 }
 
 export class PostManagementService {
-    
+
     async getPosts(filters: {
         page: number;
         limit: number;
@@ -159,7 +244,7 @@ export class PostManagementService {
     }) {
         const { page, limit, status, visibility, search } = filters;
         const query: any = {};
-        
+
         if (status) query.status = status;
         if (visibility) query.visibility = visibility;
         if (search) {
@@ -179,8 +264,6 @@ export class PostManagementService {
             .lean();
 
         const total = await _Post.countDocuments(query);
-
-        // Add counts for likes, comments, and reports
         const postsWithCounts = await Promise.all(
             posts.map(async (post: any) => {
                 const reportCount = await _Report.countDocuments({
@@ -245,7 +328,7 @@ export class PostManagementService {
 }
 
 export class CommentManagementService {
-    
+
     async getComments(filters: {
         page: number;
         limit: number;
@@ -255,7 +338,7 @@ export class CommentManagementService {
         try {
             const { page, limit, visibility, search } = filters;
             const query: any = {};
-            
+
             if (visibility) query.visibility = visibility;
             if (search) {
                 query.content = { $regex: search, $options: 'i' };
@@ -272,7 +355,7 @@ export class CommentManagementService {
 
             const total = await _Comment.countDocuments(query);
 
-            console.log ("comments found: ", comments.length)
+            console.log("comments found: ", comments.length)
 
             return {
                 comments,
@@ -298,7 +381,7 @@ export class CommentManagementService {
 
     async updateCommentVisibility(id: string, visibility: string) {
 
-        console.log ("Updating comment visibility: ", id, visibility)
+        console.log("Updating comment visibility: ", id, visibility)
 
         const comment = await _Comment.findByIdAndUpdate(
             id,
@@ -315,11 +398,11 @@ export class CommentManagementService {
 }
 
 export class BannedWordService {
-    
+
     async getBannedWords(filters: { page: number; limit: number; category?: string }) {
         const { page, limit, category } = filters;
         const query: any = { isActive: true };
-        
+
         if (category) query.category = category;
 
         const skip = (page - 1) * limit;
@@ -358,7 +441,7 @@ export class BannedWordService {
 }
 
 export class MediaManagementService {
-    
+
     async getMedia(filters: {
         page: number;
         limit: number;
@@ -367,7 +450,7 @@ export class MediaManagementService {
     }) {
         const { page, limit, type, status } = filters;
         const query: any = {};
-        
+
         if (type) query.type = type;
         if (status) query.status = status;
 
@@ -395,11 +478,11 @@ export class MediaManagementService {
         const totalImages = await _Media.countDocuments({ type: 'image' });
         const totalVideos = await _Media.countDocuments({ type: 'video' });
         const blockedMedia = await _Media.countDocuments({ status: 'blocked' });
-        
+
         const sizeResult = await _Media.aggregate([
             { $group: { _id: null, totalSize: { $sum: '$size' } } }
         ]);
-        
+
         const totalSize = sizeResult.length > 0 ? sizeResult[0].totalSize : 0;
 
         return {
@@ -417,7 +500,7 @@ export class MediaManagementService {
 }
 
 export class ReportManagementService {
-    
+
     async getReports(filters: {
         page: number;
         limit: number;
@@ -426,7 +509,7 @@ export class ReportManagementService {
     }) {
         const { page, limit, status, reason } = filters;
         const query: any = {};
-        
+
         if (status) query.status = status;
         if (reason) query.reason = reason;
 
@@ -539,7 +622,7 @@ export class ReportManagementService {
         const pending = await _Report.countDocuments({ status: 'pending' });
         const approved = await _Report.countDocuments({ status: 'approved' });
         const rejected = await _Report.countDocuments({ status: 'rejected' });
-        
+
         const byReason = await _Report.aggregate([
             { $group: { _id: '$reason', count: { $sum: 1 } } }
         ]);
@@ -555,14 +638,14 @@ export class ReportManagementService {
 }
 
 export class AnalyticsService {
-    
+
     async getOverview() {
         const totalUsers = await _User.countDocuments();
         const totalPosts = await _Post.countDocuments();
-        
+
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        
+
         const newUsersToday = await _User.countDocuments({
             createdAt: { $gte: today }
         });
@@ -708,7 +791,7 @@ export class AnalyticsService {
 }
 
 export class BroadcastService {
-    
+
     async getBroadcasts(filters: { page: number; limit: number }) {
         const { page, limit } = filters;
         const skip = (page - 1) * limit;
@@ -745,7 +828,7 @@ export class BroadcastService {
         sentBy: Types.ObjectId;
     }) {
         const userCount = await _User.countDocuments({ status: 'active' });
-        
+
         const broadcast = await _Broadcast.create({
             ...data,
             recipientCount: userCount,
@@ -760,11 +843,11 @@ export class BroadcastService {
 }
 
 export class BannerService {
-    
+
     async getBanners(filters: { page: number; limit: number; active?: boolean }) {
         const { page, limit, active } = filters;
         const query: any = {};
-        
+
         if (active !== undefined) query.active = active;
 
         const skip = (page - 1) * limit;
@@ -812,7 +895,7 @@ export class BannerService {
     async toggleBanner(id: string) {
         const banner = await _Banner.findById(id);
         if (!banner) return null;
-        
+
         banner.active = !banner.active;
         await banner.save();
         return banner;
@@ -820,22 +903,22 @@ export class BannerService {
 }
 
 export class SettingsService {
-    
+
     async getSettings() {
         let settings = await _Settings.findOne();
-        
+
         if (!settings) {
             settings = await _Settings.create({
                 contactEmail: 'admin@example.com'
             });
         }
-        
+
         return settings;
     }
 
     async updateSettings(data: any, updatedBy: Types.ObjectId) {
         let settings = await _Settings.findOne();
-        
+
         if (!settings) {
             settings = await _Settings.create({
                 ...data,
@@ -845,7 +928,7 @@ export class SettingsService {
             Object.assign(settings, data, { updatedBy });
             await settings.save();
         }
-        
+
         return settings;
     }
 }

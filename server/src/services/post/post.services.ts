@@ -418,13 +418,27 @@ export class PostService {
     }
 
     async hiddenPost(postId: string, accountId: string) {
-        const post = await _Post.deleteOne({ _id: postId, artistId: accountId });
+        const post = await _Post.findOne({ _id: postId });
+        if (!post) throw new ErrorApi(404, "Post not found");
 
-        if (!post.deletedCount) {
-            throw new ErrorApi(404, 'Delete post failed - Post not found or unauthorized');
+        // This is user deleting their own post probably?
+        await _Post.deleteById(postId);
+        return true;
+    }
+
+    async setPostVisibility(postId: string, visible: boolean) {
+        const post = await _Post.findOne({ _id: postId });
+        if (!post) throw new ErrorApi(404, "Post not found");
+
+
+        if (visible) {
+            // Unhide -> restore
+            await _Post.restore({ _id: postId });
+        } else {
+            // Hide -> soft delete
+            await _Post.deleteById(postId);
         }
-
-        return { success: true };
+        return true;
     }
 
     async reactPost(userId: string, postID: string) {

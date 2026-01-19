@@ -9,11 +9,19 @@ const router = Router();
 router.use(authenticateMiddleware);
 router.use(checkPermisson(Permission.MANAGER_USER));
 
+// Permission management routes
+router.get('/permissions', adminController.getAvailablePermissions);
+
 router.get('/users', adminController.getUsers);
+router.post('/users', adminController.createUser);
 router.get('/users/stats', adminController.getUserStats);
 router.get('/users/:id', adminController.getUserById);
 router.put('/users/:id/role', adminController.updateUserRole);
 router.put('/users/:id/status', adminController.updateUserStatus);
+router.get('/users/:id/permissions', adminController.getUserPermissions);
+router.put('/users/:id/permissions', adminController.updateUserPermissions);
+router.post('/users/:id/permissions', adminController.addUserPermission);
+router.delete('/users/:id/permissions/:permission', adminController.removeUserPermission);
 router.delete('/users/:id', adminController.deleteUser);
 router.get('/users/:id/history', adminController.getUserHistory);
 router.get('/users/:id/activities', adminController.getUserActivities);

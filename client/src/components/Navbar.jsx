@@ -24,6 +24,8 @@ import { isLoggedIn, logoutUser } from "../helpers/authHelper"
 import UserAvatar from "./UserAvatar"
 import HorizontalStack from "./util/HorizontalStack"
 import { subscribeForemessage } from "../helpers/messaging_getToken"
+
+import { MdAdminPanelSettings } from "react-icons/md"
 // socket events handled in NotificationProvider
 import { markAsRead, markAllAsRead as markAllAsReadAPI } from "../api-axios/notification"
 import { useNotification } from "./views/NotificationProvider"
@@ -242,7 +244,11 @@ const Navbar = () => {
           </IconButton>
           {user ? (
             <>
-
+              {(user.user?.role === 'admin' || user.user?.role === 'moderator' || user.user?.permissions?.includes('view_admin_panel')) && (
+                <IconButton component={Link} to={"/admin/users"} title="Admin Panel">
+                  <MdAdminPanelSettings />
+                </IconButton>
+              )}
               <IconButton component={Link} to={"/messenger"}>
                 <Badge badgeContent={unreadMsgCount > 0 ? unreadMsgCount : 0} color="error" max={99}>
                   <AiFillMessage />

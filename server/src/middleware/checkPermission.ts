@@ -8,15 +8,25 @@ import { ErrorApi } from "./error";
 
 const checkPermisson = (requiredPermission: Permission) => {
     return (req: Request, res: Response, next: NextFunction) => {
-        const { role } = req.user as IUser
-        console.log("day la role ", role)
-        if (!role) return next(new ErrorApi(401, "Unauthorized"))
+        const user = req.user as IUser;
+        console.log("day la role ", user.role);
 
-        const permission = role_permission[role] || []
-        if (!permission.includes(requiredPermission)) {
-            return next(new ErrorApi(404, "Forbiden role"))
+        if (!user.role) return next(new ErrorApi(401, "Unauthorized"));
+
+        let userPermissions: string[] = [];
+
+        if (user.permissions && user.permissions.length > 0) {
+            userPermissions = user.permissions;
+        } else {
+            userPermissions = role_permission[user.role] || [];
         }
-        next()
+
+        console.log("User permissions: ", userPermissions);
+
+        if (!userPermissions.includes(requiredPermission)) {
+            return next(new ErrorApi(403, "Forbidden - Insufficient permissions"));
+        }
+        next();
     }
 }
 

@@ -50,6 +50,41 @@ class AdminController {
         }
     }
 
+    async createUser(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { name, email, password, role, status } = req.body;
+            const admin = req.user as IUser;
+
+            if (!name || !email || !password || !role) {
+                throw new ErrorApi(400, 'Name, email, password and role are required');
+            }
+
+            const user = await this.userService.createUser({
+                name, email, password, role, status
+            });
+
+            await this.auditLogService.createLog({
+                action: 'CREATE_USER',
+                admin: admin._id,
+                target: 'user',
+                targetUser: user._id,
+                targetId: user._id,
+                reason: `Created new user: ${email}`,
+                ipAddress: req.ip,
+                userAgent: req.headers['user-agent'],
+                severity: 'medium'
+            });
+
+            res.json({
+                status: 201,
+                message: 'User created successfully',
+                data: user
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
     async getUserById(req: Request, res: Response, next: NextFunction) {
         try {
             const { id } = req.params;
@@ -219,6 +254,147 @@ class AdminController {
         }
     }
 
+    // Permission management methods
+    async getAvailablePermissions(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { getAllPermissions } = await import('../enums/role-permission.map');
+            const permissions = getAllPermissions();
+
+            res.json({
+                status: 200,
+                data: permissions
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async getUserPermissions(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+            const result = await this.userService.getUserPermissions(id);
+
+            if (!result) {
+                throw new ErrorApi(404, 'User not found');
+            }
+
+            res.json({
+                status: 200,
+                data: result
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async updateUserPermissions(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+            const { permissions } = req.body;
+            const admin = req.user as IUser;
+
+            if (!Array.isArray(permissions)) {
+                throw new ErrorApi(400, 'Permissions must be an array');
+            }
+
+            const user = await this.userService.updateUserPermissions(id, permissions);
+
+            if (!user) {
+                throw new ErrorApi(404, 'User not found');
+            }
+
+            await this.auditLogService.createLog({
+                action: 'UPDATE_USER_PERMISSIONS',
+                admin: admin._id,
+                target: 'user',
+                targetUser: user._id,
+                targetId: user._id,
+                reason: `Updated permissions: ${permissions.join(', ')}`,
+                ipAddress: req.ip,
+                userAgent: req.headers['user-agent'],
+                severity: 'medium'
+            });
+
+            res.json({
+                status: 200,
+                message: 'User permissions updated successfully',
+                data: user
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async addUserPermission(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+            const { permission } = req.body;
+            const admin = req.user as IUser;
+
+            if (!permission) {
+                throw new ErrorApi(400, 'Permission is required');
+            }
+
+            const user = await this.userService.addUserPermission(id, permission);
+
+            if (!user) {
+                throw new ErrorApi(404, 'User not found');
+            }
+
+            await this.auditLogService.createLog({
+                action: 'ADD_USER_PERMISSION',
+                admin: admin._id,
+                target: 'user',
+                targetUser: user._id,
+                targetId: user._id,
+                reason: `Added permission: ${permission}`,
+                ipAddress: req.ip,
+                userAgent: req.headers['user-agent'],
+                severity: 'medium'
+            });
+
+            res.json({
+                status: 200,
+                message: 'Permission added successfully',
+                data: user
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async removeUserPermission(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id, permission } = req.params;
+            const admin = req.user as IUser;
+
+            const user = await this.userService.removeUserPermission(id, permission);
+
+            if (!user) {
+                throw new ErrorApi(404, 'User not found');
+            }
+
+            await this.auditLogService.createLog({
+                action: 'REMOVE_USER_PERMISSION',
+                admin: admin._id,
+                target: 'user',
+                targetUser: user._id,
+                targetId: user._id,
+                reason: `Removed permission: ${permission}`,
+                ipAddress: req.ip,
+                userAgent: req.headers['user-agent'],
+                severity: 'medium'
+            });
+
+            res.json({
+                status: 200,
+                message: 'Permission removed successfully',
+                data: user
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
 
     async getPosts(req: Request, res: Response, next: NextFunction) {
         try {
@@ -345,13 +521,13 @@ class AdminController {
             const visibility = req.query.visibility as string;
             const search = req.query.search as string;
 
-            console.log ("visibility ", visibility)
+            console.log("visibility ", visibility)
 
             const result = await this.commentService.getComments({
                 page, limit, visibility, search
             });
 
-            console.log ("result ", result)
+            console.log("result ", result)
 
             res.json({
                 status: 200,
