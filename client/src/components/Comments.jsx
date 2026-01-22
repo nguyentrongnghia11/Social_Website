@@ -27,7 +27,7 @@ const Comments = () => {
     }
   }
 
-  console.log (comments)
+  console.log(comments)
 
 
   useEffect(() => {
@@ -111,17 +111,18 @@ const Comments = () => {
 
       {comments.length > 0 ? (
         <Box pb={4}>
-          {comments.map((comment, i) => (
-
-            <Comment
-              addComment={addComment}
-              removeComment={removeComment}
-              editComment={editComment}
-              comment={comment}
-              key={comment._id}
-              depth={0}
-            />
-          )
+          {comments.map((comment, i) => {
+            return comment.isToxic === "clean" && (
+              <Comment
+                addComment={addComment}
+                removeComment={removeComment}
+                editComment={editComment}
+                comment={comment}
+                key={comment._id}
+                depth={0}
+              />
+            )
+          }
           )}
           {loading && <Loading />}
         </Box>

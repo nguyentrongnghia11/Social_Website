@@ -27,17 +27,14 @@ const Comment = (props) => {
   // const [comment, setComment] = useState(commentData);
   const user = isLoggedIn();
   const isAuthor = user && user.userId === comment.userId?._id;
-  const isModerator = user && (user.user?.role === 'admin' || user.user?.role === 'moderator' || user.user?.permissions?.includes('hide_comment'));
+  const isModerator = user && (user.user?.role === 'admin' || user.user?.role === 'moderator' || user.user?.permissions?.includes('manage_content'));
   const [loading, setLoading] = useState(false);
   const [menuAnchorEl, setMenuAnchorEl] = useState(null);
   const menuOpen = Boolean(menuAnchorEl);
   const navigate = useNavigate();
   const param = useParams()
 
-  console.log("user ne cu ", user)
-
-
-
+  console.log("Comment ne cha ", comment)
 
   const handleSetReplying = useCallback(() => {
     if (isLoggedIn()) {
@@ -262,16 +259,19 @@ const Comment = (props) => {
             )}
             {comment.children && (
               <Box sx={{ pt: theme.spacing(2) }}>
-                {comment.children.map((reply, i) => (
-                  <Comment
-                    key={reply._id}
-                    comment={reply}
-                    depth={depth + 1}
-                    addComment={addComment}
-                    removeComment={removeComment}
-                    editComment={editComment}
-                  />
-                ))}
+                {comment.children.map((reply, i) => {
+                  console.log("Day la reply ", reply)
+                  return reply.isToxic === "clean" && (
+                    <Comment
+                      key={reply._id}
+                      comment={reply}
+                      depth={depth + 1}
+                      addComment={addComment}
+                      removeComment={removeComment}
+                      editComment={editComment}
+                    />
+                  )
+                })}
               </Box>
             )}
           </Box>

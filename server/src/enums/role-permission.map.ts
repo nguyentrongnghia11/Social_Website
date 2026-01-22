@@ -18,6 +18,7 @@ export const role_permission: Record<Role, Permission[]> = {
         Permission.DELETE_ANY_COMMENT,
         Permission.BAN_USER_COMMENT,
         Permission.BAN_USER_POST,
+        Permission.MANAGE_CONTENT,
         Permission.MANAGER_USER,
         Permission.VIEW_ADMIN_PANEL,
     ],
@@ -42,6 +43,7 @@ export const role_permission: Record<Role, Permission[]> = {
         Permission.DELETE_ANY_COMMENT,
         Permission.BAN_USER_COMMENT,
         Permission.BAN_USER_POST,
+        Permission.MANAGE_CONTENT,
     ]
 }
 

@@ -8,7 +8,6 @@ import passport from 'passport';
 import { authenticateMiddleware } from '../middleware/verifyToken'
 import commentController from '../controller/commentController';
 import multer from 'multer';
-//import {Multer} from 'multer'
 
 import path from 'path';
 import { limiter } from '../middleware/checkRatelimt';
@@ -44,6 +43,7 @@ router.post("/grant-permission", authenticateMiddleware, post.grantPermissionUpl
 router.post("/:id/grant-permission", authenticateMiddleware, post.grantPermissionForUpdatePost)
 router.post("/save/media", authenticateMiddleware, post.updateFile)
 router.delete("/:id/hidden", passport.authenticate(['jwt', 'oauth2'], { failureRedirect: '/' }), post.hiddenPost)
+router.get("/:id/similar", authenticateMiddleware, post.getSimilarPosts)
 router.get("/:id", authenticateMiddleware, post.getPost)
 router.delete("/:id", passport.authenticate(['jwt', 'oauth2'], { failureRedirect: '/' }), post.removePost)
 // router.patch("/:id", passport.authenticate(['jwt', 'oauth2'], { failureRedirect: '/' }), post.moderationPost)

@@ -1,4 +1,4 @@
-import { Container, Stack , Box} from "@mui/material";
+import { Container, Stack, Box } from "@mui/material";
 import React, { useEffect, useState } from "react";
 import GoBack from "../GoBack";
 import GridLayout from "../GridLayout";
@@ -12,6 +12,7 @@ import Comments from "../Comments";
 import ErrorAlert from "../ErrorAlert";
 import { isLoggedIn } from "../../helpers/authHelper";
 import { getALlPosts, getPost } from "../../api-axios/posts.";
+import SimilarPosts from "../SimilarPosts";
 
 const PostView = () => {
   const params = useParams();
@@ -27,7 +28,7 @@ const PostView = () => {
     try {
       const response = await getPost(params.id);
       console.log('Get post response:', response);
-      
+
       if (response.status !== 200) {
         setError(response.message || 'Không thể tải bài viết');
       } else {
@@ -56,6 +57,7 @@ const PostView = () => {
         <Stack spacing={2}>
           <PostCard post={post} key={post._id} />
           <Comments />
+          <SimilarPosts postId={post._id} />
         </Stack>
       ) : (
         error && <ErrorAlert error={error} />

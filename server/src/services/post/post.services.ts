@@ -12,25 +12,21 @@ import { handleNotification } from '../notification/notification.services';
 import _User from '../../models/user';
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
+import { encodePost } from '../ai/ai.service';
 
-// Helper function to convert S3 URL to presigned URL
 const getPresignedUrl = async (url: string): Promise<string> => {
     if (!url) return url;
-
-    // Only process S3 URLs (amazonaws.com)
     if (url.includes('amazonaws.com')) {
         try {
             const match = url.match(/amazonaws\.com\/(.+)$/);
             if (match) {
                 const key = match[1];
-                return await S3Service.getSignedUrl(key, 86400); // 24 hours
+                return await S3Service.getSignedUrl(key, 86400);
             }
         } catch (error) {
             console.error('Error generating presigned URL:', error);
         }
     }
-
-    // Return original URL if not S3 or if error
     return url;
 };
 
@@ -86,7 +82,7 @@ export class PostService {
             title,
             artistId: userId,
             content,
-        });
+        }) as any;
 
         if (files.length > 0) {
             const listPath = {
@@ -96,6 +92,10 @@ export class PostService {
             };
             await uploadProducer(JSON.stringify(listPath));
         }
+
+        encodePost(newPost._id.toString(), newPost.content).catch(err =>
+            console.error('Failed to queue post for encoding:', err)
+        );
 
         return newPost;
     }
@@ -1023,6 +1023,186 @@ export class PostService {
         ]);
 
         return listPost;
+    }
+
+    async getSimilarPosts(postId: string, limit: number = 5, userId?: string) {
+        // Get current post with embedding
+        const currentPost = await _Post.findById(postId).select('embedding content title');
+
+        if (!currentPost) {
+            throw new ErrorApi(404, "Post not found");
+        }
+
+        // If no embedding, fallback to recent posts
+        if (!currentPost.embedding || currentPost.embedding.length === 0) {
+            console.log('No embedding found for post, returning recent posts');
+            return await this.getAllPost(1, limit, 'latest', userId);
+        }
+
+        try {
+            // Direct query approach - calculate similarity in Node.js
+            const postsWithEmbeddings = await _Post.find({
+                _id: { $ne: new Types.ObjectId(postId) },
+                embedding: { $exists: true, $ne: [] }
+            }).select('_id embedding').lean();
+
+            if (postsWithEmbeddings.length === 0) {
+                console.log('No other posts with embeddings, returning recent posts');
+                return await this.getAllPost(1, limit, 'latest', userId);
+            }
+
+            // Filter valid 384-dim embeddings
+            const validPosts = postsWithEmbeddings.filter(p =>
+                Array.isArray(p.embedding) && p.embedding.length === 384
+            );
+
+            if (validPosts.length === 0) {
+                console.log('No valid 384-dim embeddings, returning recent posts');
+                return await this.getAllPost(1, limit, 'latest', userId);
+            }
+
+            // Calculate cosine similarity
+            const similarities = validPosts.map(post => {
+                const similarity = this.cosineSimilarity(
+                    currentPost.embedding as number[],
+                    post.embedding as number[]
+                );
+                return { postId: post._id, similarity };
+            });
+
+            // Sort and get top N
+            similarities.sort((a, b) => b.similarity - a.similarity);
+            const topSimilar = similarities.slice(0, limit);
+
+            if (topSimilar.length === 0) {
+                return await this.getAllPost(1, limit, 'latest', userId);
+            }
+
+            // Fetch full post details
+            const similarPostIds = topSimilar.map(s => s.postId);
+            const similarPosts = await _Post.aggregate([
+                { $match: { _id: { $in: similarPostIds } } },
+                { $addFields: { likeCount: { $size: { $ifNull: ['$react', []] } } } },
+                {
+                    $lookup: {
+                        from: 'users',
+                        localField: 'artistId',
+                        foreignField: '_id',
+                        as: 'author'
+                    }
+                },
+                {
+                    $unwind: {
+                        path: '$author',
+                        preserveNullAndEmptyArrays: true
+                    }
+                },
+                {
+                    $lookup: {
+                        from: 'users',
+                        localField: 'react',
+                        foreignField: '_id',
+                        as: 'reactUsers'
+                    }
+                },
+                {
+                    $lookup: {
+                        from: 'comments',
+                        localField: '_id',
+                        foreignField: 'postId',
+                        as: 'comments'
+                    }
+                },
+                {
+                    $lookup: {
+                        from: 'files',
+                        localField: '_id',
+                        foreignField: 'postId',
+                        as: 'files'
+                    }
+                },
+                { $addFields: { commentCount: { $size: { $ifNull: ['$comments', []] } } } },
+                {
+                    $project: {
+                        title: 1,
+                        content: 1,
+                        likeCount: 1,
+                        commentCount: 1,
+                        createdAt: 1,
+                        updatedAt: 1,
+                        status: 1,
+                        react: 1,
+                        reactUsers: { _id: 1, name: 1 },
+                        files: 1,
+                        imgUrl: {
+                            $map: {
+                                input: {
+                                    $filter: {
+                                        input: '$files',
+                                        as: 'file',
+                                        cond: { $eq: ['$$file.resource_type', 'image'] }
+                                    }
+                                },
+                                as: 'img',
+                                in: '$$img.secure_url'
+                            }
+                        },
+                        videoUrl: {
+                            $map: {
+                                input: {
+                                    $filter: {
+                                        input: '$files',
+                                        as: 'file',
+                                        cond: { $eq: ['$$file.resource_type', 'video'] }
+                                    }
+                                },
+                                as: 'video',
+                                in: '$$video.secure_url'
+                            }
+                        },
+                        author: {
+                            _id: '$author._id',
+                            name: '$author.name',
+                            avatar: '$author.avatar',
+                            email: '$author.email'
+                        }
+                    }
+                }
+            ]);
+
+            // Sort by original similarity order
+            const orderedPosts = similarPostIds.map((id: any) =>
+                similarPosts.find((p: any) => p._id.toString() === id.toString())
+            ).filter((p: any) => p);
+
+            console.log(`✅ Found ${orderedPosts.length} similar posts for ${postId}`);
+            return await addStandardPostFields(orderedPosts, userId);
+
+        } catch (error) {
+            console.error('Error getting similar posts:', error);
+            // Fallback to recent posts on error
+            return await this.getAllPost(1, limit, 'latest', userId);
+        }
+    }
+
+    // Helper function to calculate cosine similarity
+    private cosineSimilarity(vec1: number[], vec2: number[]): number {
+        if (!vec1 || !vec2 || vec1.length !== vec2.length) {
+            return 0;
+        }
+
+        let dotProduct = 0;
+        let norm1 = 0;
+        let norm2 = 0;
+
+        for (let i = 0; i < vec1.length; i++) {
+            dotProduct += vec1[i] * vec2[i];
+            norm1 += vec1[i] * vec1[i];
+            norm2 += vec2[i] * vec2[i];
+        }
+
+        const denominator = Math.sqrt(norm1) * Math.sqrt(norm2);
+        return denominator === 0 ? 0 : dotProduct / denominator;
     }
 }
 

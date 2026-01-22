@@ -328,6 +328,24 @@ class PostController {
         }
     }
 
+    async getSimilarPosts(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+            const limit = parseInt(req.query.limit as string) || 5;
+            const user = req.user as IUser;
+
+            const result = await postService.getSimilarPosts(id, limit, user?._id?.toString());
+
+            return res.status(200).json({
+                status: 200,
+                message: 'Get similar posts success',
+                result
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
     async searchPost(req: Request, res: Response, next: NextFunction) {
         try {
             const keyword = req.query.q as string;

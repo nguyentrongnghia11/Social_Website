@@ -14,6 +14,7 @@ export enum Permission {
     DELETE_ANY_COMMENT = "delete_any_comment",
     BAN_USER_COMMENT = "ban_user_comment",
     BAN_USER_POST = "ban_user_post",
+    MANAGE_CONTENT = "manage_content",
 
     // Admin permissions - full control
     MANAGER_USER = "manage_users",

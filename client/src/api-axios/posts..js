@@ -157,6 +157,16 @@ const unhideComment = async (commentId) => {
     return res.data;
 };
 
+const getSimilarPosts = async (postId, limit = 5) => {
+    try {
+        const data = await instance.get(`/post/${postId}/similar?limit=${limit}`);
+        return data.data;
+    } catch (error) {
+        console.error('Error fetching similar posts:', error);
+        return { result: [] };
+    }
+}
+
 
 export {
     getALlPosts,
@@ -178,5 +188,6 @@ export {
     hidePost,
     unhidePost,
     hideComment,
-    unhideComment
+    unhideComment,
+    getSimilarPosts
 }

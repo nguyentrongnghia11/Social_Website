@@ -43,7 +43,7 @@ const PostCard = (props) => {
   );
 
   const isAdmin = user && (user.isAdmin || user.user?.isAdmin);
-  const isModerator = user && (user.user?.role === 'admin' || user.user?.role === 'moderator' || user.user?.permissions?.includes('hide_post'));
+  const isModerator = user && (user.user?.role === 'admin' || user.user?.role === 'moderator' || user.user?.permissions?.includes('manage_content'));
 
   const theme = useTheme()
   const iconColor = theme.palette.primary.main

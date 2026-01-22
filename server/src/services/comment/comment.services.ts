@@ -91,7 +91,7 @@ export class CommentService {
 
     async getComment(postId: string) {
         const comments = await _Comment.findWithDeleted({ postId })
-            .select('_id content userId parentID createdAt')
+            .select('_id content userId parentID createdAt isToxic')
             .lean();
 
         const tree = this.buildTree(comments);
