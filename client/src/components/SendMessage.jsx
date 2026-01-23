@@ -20,7 +20,7 @@ const SendMessage = (props) => {
       setUploading(true)
       try {
         let mediaFiles = []
-        
+
         // Upload files nếu có
         if (selectedFiles.length > 0) {
           // Xác định fileType từ file đầu tiên
@@ -39,12 +39,12 @@ const SendMessage = (props) => {
             selectedFiles.length,
             fileType
           )
-          
+
           // signature.data.presignedUrls is an array of presigned URL objects
           for (let i = 0; i < selectedFiles.length; i++) {
             const file = selectedFiles[i]
             const presignedUrl = signature.data.presignedUrls[i]
-            
+
             const result = await uploadToS3(file, presignedUrl)
             mediaFiles.push({
               url: result.url,
@@ -56,7 +56,7 @@ const SendMessage = (props) => {
           }
           console.log('☁️ [SendMessage] Uploaded files to S3:', mediaFiles)
         }
-        
+
         console.log('📤 [SendMessage] Calling onSendMessage with:', { content: content.trim(), mediaFiles })
         // Clear typing indicator when sending message
         props.onSendMessage(content.trim(), mediaFiles)

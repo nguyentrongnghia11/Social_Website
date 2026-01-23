@@ -35,7 +35,7 @@ export class S3Service {
                 Bucket: BUCKET_NAME,
                 Key: fullKey,
                 Body: fileBuffer,
-                ContentType: contentType,
+                ContentType: contentType
             }
         });
 

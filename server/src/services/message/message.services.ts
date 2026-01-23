@@ -319,7 +319,7 @@ export class MessageService {
             ]
         });
 
-        console.log ('Calculated total unread count from DB:', totalUnreadCount);
+        console.log('Calculated total unread count from DB:', totalUnreadCount);
         await redisClient.set(`unread-count:${userId}`, totalUnreadCount.toString());
 
         return { totalUnreadCount };
@@ -409,10 +409,10 @@ export class MessageService {
                 const fileBuffer = fs.readFileSync(file.path);
                 const ext = path.extname(file.originalname);
                 const fileName = `${uuidv4()}${ext}`;
-                
+
                 // Determine content type
                 const contentType = file.mimetype || 'application/octet-stream';
-                
+
                 // Upload to S3
                 const uploadResult = await S3Service.uploadFile(
                     fileBuffer,
@@ -426,6 +426,7 @@ export class MessageService {
                 mediaFiles.push({
                     url: uploadResult.url,
                     type: fileType,
+                    resourceType: fileType,
                     size: file.size,
                     filename: file.originalname
                 });
@@ -437,7 +438,7 @@ export class MessageService {
                     size: file.size,
                     uploadedBy: new Types.ObjectId(senderId)
                 });
-                
+
                 // Clean up local file
                 fs.unlinkSync(file.path);
             }
@@ -488,20 +489,20 @@ export class MessageService {
         }
 
         const folder = 'messages';
-        
+
         // Generate presigned URLs for multiple files
         const presignedUrls = [];
-        
+
         for (let i = 0; i < fileCount; i++) {
             const fileKey = `${folder}/${conversationId}/${uuidv4()}`;
             const contentType = fileType === 'image' ? 'image/*' : 'video/*';
-            
+
             const presignedData = await S3Service.getPresignedUploadUrl(
                 fileKey,
                 contentType,
                 3600 // 1 hour expiration
             );
-            
+
             presignedUrls.push({
                 uploadUrl: presignedData.url,
                 key: presignedData.key,
@@ -534,7 +535,7 @@ export class MessageService {
 
         // Update content type based on media
         if (mediaFiles.length > 0) {
-            const hasVideo = mediaFiles.some(f => f.type === 'video');
+            const hasVideo = mediaFiles.some(f => f.type === 'video' || f.resourceType === 'video');
             message.contentType = hasVideo ? 'video' : 'image';
         }
 

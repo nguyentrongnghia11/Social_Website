@@ -12,10 +12,10 @@ const Message = (props) => {
   const [openImageModal, setOpenImageModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
 
-  console.log('🎨 Message component rendering with:', { 
-    content: message?.content, 
+  console.log('🎨 Message component rendering with:', {
+    content: message?.content,
     mediaFiles: message?.mediaFiles,
-    mediaFilesLength: message?.mediaFiles?.length 
+    mediaFilesLength: message?.mediaFiles?.length
   });
 
   const handleImageClick = (imageUrl) => {
@@ -42,9 +42,13 @@ const Message = (props) => {
   };
 
   const renderMediaFile = (file, index) => {
+
+    console.log(".file", file.resourceType)
     const isImage = file.resourceType === 'image';
     const isVideo = file.resourceType === 'video';
     const isAudio = file.resourceType === 'audio';
+
+    console.log(".file", file.url)
 
     if (isImage) {
       return (
@@ -58,8 +62,8 @@ const Message = (props) => {
             overflow: 'hidden',
             maxWidth: '300px',
             mt: 1,
-            '&:hover .image-overlay': { 
-              opacity: 1 
+            '&:hover .image-overlay': {
+              opacity: 1
             },
             '&:hover': {
               boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
@@ -243,7 +247,6 @@ const Message = (props) => {
         </Card>
       </div>
 
-      {/* Image Modal */}
       <Dialog
         open={openImageModal}
         onClose={handleCloseModal}
