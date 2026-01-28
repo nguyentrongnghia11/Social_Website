@@ -3,7 +3,7 @@ import { Schema, Document, model, Types } from 'mongoose';
 export interface IBanner extends Document {
     _id: Types.ObjectId;
     title: string;
-    position: 'top' | 'bottom' | 'sidebar' | 'popup';
+    position: 'top' | 'bottom' | 'left' | 'right' | 'sidebar' | 'popup';
     imageUrl: string;
     link?: string;
     active: boolean;
@@ -20,7 +20,7 @@ const bannerSchema = new Schema<IBanner>({
     },
     position: {
         type: String,
-        enum: ['top', 'bottom', 'sidebar', 'popup'],
+        enum: ['top', 'bottom', 'left', 'right', 'sidebar', 'popup'],
         required: true
     },
     imageUrl: {

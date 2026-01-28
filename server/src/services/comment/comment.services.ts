@@ -7,12 +7,13 @@ import _User from '../../models/user';
 import { Types } from 'mongoose';
 
 export class CommentService {
-    async createComment(postId: string, content: string, userId: string, parentID?: string) {
+    async createComment(postId: string, content: string, userId: string, parentID?: string, imageUrl?: string) {
         const newComment = await _Comment.create({
             postId,
             content,
             userId,
             parentID,
+            imageUrl,
             path: "abc"
         });
 
@@ -91,7 +92,7 @@ export class CommentService {
 
     async getComment(postId: string) {
         const comments = await _Comment.findWithDeleted({ postId })
-            .select('_id content userId parentID createdAt isToxic')
+            .select('_id content imageUrl userId parentID createdAt isToxic')
             .lean();
 
         const tree = this.buildTree(comments);

@@ -30,6 +30,7 @@ import { BiTrash } from "react-icons/bi"
 import UserLikePreview from "./UserLikePreview"
 import { ZoomIn, Close, ExpandMore, MoreVert } from "@mui/icons-material"
 import HTMLContent from "./HTMLContent"
+import ImageLightbox from "./ImageLightbox"
 
 const PostCard = (props) => {
   const { preview, removePost } = props
@@ -612,37 +613,12 @@ const PostCard = (props) => {
         </Box>
       </Card>
 
-      <Dialog
+      {/* Image Lightbox */}
+      <ImageLightbox
         open={imageDialogOpen}
+        imageUrl={selectedImage}
         onClose={handleCloseImageDialog}
-        maxWidth="lg"
-        fullWidth
-        PaperProps={{
-          sx: {
-            backgroundColor: "rgba(0, 0, 0, 0.9)",
-            boxShadow: "none",
-          },
-        }}
-      >
-        <DialogActions sx={{ position: "absolute", top: 0, right: 0, zIndex: 1 }}>
-          <IconButton onClick={handleCloseImageDialog} sx={{ color: "white" }}>
-            <Close />
-          </IconButton>
-        </DialogActions>
-        <DialogContent sx={{ p: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          {selectedImage && (
-            <img
-              src={selectedImage || "/placeholder.svg"}
-              alt="Enlarged view"
-              style={{
-                maxWidth: "100%",
-                maxHeight: "90vh",
-                objectFit: "contain",
-              }}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      />
     </>
   )
 }

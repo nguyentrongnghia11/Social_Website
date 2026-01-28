@@ -1,17 +1,54 @@
 import { NextFunction, Request, Response } from 'express';
 import { IUser } from '../models/user';
 import commentService from '../services/comment/comment.services';
+import { ErrorApi } from '../middleware/error';
 
 class CommentController {
+    async uploadCommentImage(req: Request, res: Response, next: NextFunction) {
+        try {
+            const file = req.file;
+
+            if (!file) {
+                throw new ErrorApi(400, 'No image file provided');
+            }
+
+            // Generate unique filename
+            const timestamp = Date.now();
+            const randomString = Math.random().toString(36).substring(7);
+            const fileExtension = file.originalname.split('.').pop();
+            const fileName = `comment_${timestamp}_${randomString}.${fileExtension}`;
+
+            // Upload to S3
+            const { uploadToS3 } = await import('../services/storage/s3.service');
+            const result = await uploadToS3(
+                file.buffer,
+                fileName,
+                file.mimetype,
+                'comments'
+            );
+
+            res.json({
+                status: 200,
+                message: 'Comment image uploaded successfully',
+                data: {
+                    url: result.url,
+                    key: result.key
+                }
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
     async createComment(req: Request, res: Response, next: NextFunction) {
         try {
             const { id } = req.params;
-            const { content, parentID } = req.body;
+            const { content, parentID, imageUrl } = req.body;
             const u = req.user as IUser;
 
             console.log('Creating comment for post:', id, 'by user:', u._id);
 
-            const newComment = await commentService.createComment(id, content, u._id.toString(), parentID);
+            const newComment = await commentService.createComment(id, content, u._id.toString(), parentID, imageUrl);
 
             return res.json({
                 status: 200,

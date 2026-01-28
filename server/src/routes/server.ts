@@ -7,6 +7,7 @@ import routerNotification from './notification'
 import routerGroup from './group'
 import routerCall from './call'
 import routerAdmin from './admin'
+import routerBanner from './banner'
 import { limiter } from '../middleware/checkRatelimt'
 import { slowdown } from '../middleware/slowdown'
 
@@ -26,7 +27,10 @@ const routerMain = (app: any) => {
     app.use('/api/call', routerCall)
 
     app.use('/api/notifications', routerNotification)
-    
+
+    // Public banner route
+    app.use('/api', routerBanner)
+
     // Admin routes
     app.use('/api/admin', routerAdmin)
 

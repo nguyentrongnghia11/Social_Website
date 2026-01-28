@@ -13,6 +13,7 @@ import {
   MenuItem,
   Divider,
   ListItemIcon,
+  Container,
 } from "@mui/material"
 import { Box } from "@mui/system"
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react"
@@ -193,98 +194,119 @@ const Navbar = () => {
 
   return (
     <Stack mb={2}>
-      <Stack
-        direction="row"
-        alignItems="center"
-        justifyContent="space-between"
-        sx={{
-          pt: 2,
-          pb: 0,
-        }}
-        spacing={!mobile ? 2 : 0}
-      >
-        <HorizontalStack>
-          <AiFillFileText
-            size={33}
-            color={theme.palette.primary.main}
-            onClick={() => navigate("/")}
-            style={{ cursor: "pointer" }}
-          />
-          <Typography
-            sx={{ display: mobile ? "none" : "block", cursor: "pointer" }}
-            variant={navbarWidth ? "h6" : "h4"}
-            mr={1}
-            color={theme.palette.primary.main}
-            onClick={() => navigate("/")}
-          >
-            MindShare
-          </Typography>
-        </HorizontalStack>
-
-        {!navbarWidth && (
-          <Box component="form" onSubmit={handleSubmit}>
-            <TextField
-              size="small"
-              label="Search for posts..."
-              sx={{ flexGrow: 1, maxWidth: 300 }}
-              onChange={handleChange}
-              value={search}
+      <Container maxWidth="xl">
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+          sx={{
+            pt: 2,
+            pb: 0,
+          }}
+          spacing={!mobile ? 2 : 0}
+        >
+          <HorizontalStack spacing={1} alignItems="center">
+            <img
+              src="/logo.png"
+              alt="JustVibing Logo"
+              style={{
+                height: 50,
+                width: 50,
+                cursor: "pointer",
+                objectFit: "cover",
+                borderRadius: "12px",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                transition: "transform 0.2s ease, box-shadow 0.2s ease"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "scale(1.05)"
+                e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.2)"
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "scale(1)"
+                e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)"
+              }}
+              onClick={() => navigate("/")}
             />
+            <Typography
+              sx={{
+                cursor: "pointer",
+                fontWeight: 700,
+                fontSize: navbarWidth ? "1.25rem" : "1.75rem",
+                letterSpacing: "-0.5px",
+                color: "#1a237e",
+              }}
+              onClick={() => navigate("/")}
+            >
+              JustVibing
+            </Typography>
+          </HorizontalStack>
+
+          {!navbarWidth && (
+            <Box component="form" onSubmit={handleSubmit}>
+              <TextField
+                size="small"
+                label="Search for posts..."
+                sx={{ flexGrow: 1, maxWidth: 300 }}
+                onChange={handleChange}
+                value={search}
+              />
+            </Box>
+          )}
+
+          <HorizontalStack>
+            {mobile && (
+              <IconButton onClick={handleSearchIcon}>
+                <AiOutlineSearch />
+              </IconButton>
+            )}
+            <IconButton component={Link} to={"/"}>
+              <AiFillHome />
+            </IconButton>
+            {user ? (
+              <>
+                {(user.user?.role === 'admin' || user.user?.role === 'moderator' || user.user?.permissions?.includes('view_admin_panel')) && (
+                  <IconButton component={Link} to={"/admin/users"} title="Admin Panel">
+                    <MdAdminPanelSettings />
+                  </IconButton>
+                )}
+                <IconButton component={Link} to={"/messenger"}>
+                  <Badge badgeContent={unreadMsgCount > 0 ? unreadMsgCount : 0} color="error" max={99}>
+                    <AiFillMessage />
+                  </Badge>
+                </IconButton>
+
+                {/* Notification Bell */}
+                <IconButton onClick={handleNotificationClick}>
+                  <Badge badgeContent={unreadCount > 0 ? unreadCount : 0} color="error" max={99}>
+                    {unreadCount > 0 ? <AiFillBell style={{ color: theme.palette.primary.main }} /> : <AiOutlineBell />}
+                  </Badge>
+                </IconButton>
+
+                <IconButton component={Link} to={"/users/" + username}>
+                  <UserAvatar width={30} height={30} username={user.username} />
+                </IconButton>
+                <Button onClick={handleLogout}>Logout</Button>
+              </>
+            ) : (
+              <>
+                <Button variant="text" sx={{ minWidth: 80 }} onClick={() => navigate("/signup")}>
+                  Sign Up
+                </Button>
+                <Button variant="text" sx={{ minWidth: 65 }} onClick={() => navigate("/login")}>
+                  Login
+                </Button>
+              </>
+            )}
+          </HorizontalStack>
+        </Stack>
+
+        {navbarWidth && searchIcon && (
+          <Box component="form" onSubmit={handleSubmit} mt={2}>
+            <TextField size="small" label="Search for posts..." fullWidth onChange={handleChange} value={search} />
           </Box>
         )}
-
-        <HorizontalStack>
-          {mobile && (
-            <IconButton onClick={handleSearchIcon}>
-              <AiOutlineSearch />
-            </IconButton>
-          )}
-          <IconButton component={Link} to={"/"}>
-            <AiFillHome />
-          </IconButton>
-          {user ? (
-            <>
-              {(user.user?.role === 'admin' || user.user?.role === 'moderator' || user.user?.permissions?.includes('view_admin_panel')) && (
-                <IconButton component={Link} to={"/admin/users"} title="Admin Panel">
-                  <MdAdminPanelSettings />
-                </IconButton>
-              )}
-              <IconButton component={Link} to={"/messenger"}>
-                <Badge badgeContent={unreadMsgCount > 0 ? unreadMsgCount : 0} color="error" max={99}>
-                  <AiFillMessage />
-                </Badge>
-              </IconButton>
-
-              {/* Notification Bell */}
-              <IconButton onClick={handleNotificationClick}>
-                <Badge badgeContent={unreadCount > 0 ? unreadCount : 0} color="error" max={99}>
-                  {unreadCount > 0 ? <AiFillBell style={{ color: theme.palette.primary.main }} /> : <AiOutlineBell />}
-                </Badge>
-              </IconButton>
-
-              <IconButton component={Link} to={"/users/" + username}>
-                <UserAvatar width={30} height={30} username={user.username} />
-              </IconButton>
-              <Button onClick={handleLogout}>Logout</Button>
-            </>
-          ) : (
-            <>
-              <Button variant="text" sx={{ minWidth: 80 }} onClick={() => navigate("/signup")}>
-                Sign Up
-              </Button>
-              <Button variant="text" sx={{ minWidth: 65 }} onClick={() => navigate("/login")}>
-                Login
-              </Button>
-            </>
-          )}
-        </HorizontalStack>
-      </Stack>
-
-      {navbarWidth && searchIcon && (
-        <Box component="form" onSubmit={handleSubmit} mt={2}>
-          <TextField size="small" label="Search for posts..." fullWidth onChange={handleChange} value={search} />
-        </Box>
-      )}
+      </Container>
 
       <Menu
         anchorEl={notificationAnchor}

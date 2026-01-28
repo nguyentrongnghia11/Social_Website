@@ -39,7 +39,7 @@ const LoginView = () => {
 
     if (data.status === 401) {
       setServerError(data.error);
-      console.log ('Error: ', data.error)
+      console.log('Error: ', data.error)
     } else if (data.data?.user?.status === 'banned') {
       setServerError("Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên.");
     } else {
@@ -59,7 +59,7 @@ const LoginView = () => {
       <Stack alignItems="center">
         <Typography variant="h2" color="text.secondary" sx={{ mb: 6 }}>
           <Link to="/" color="inherit" underline="none">
-            MindShare
+            JustVibing
           </Link>
         </Typography>
         <Typography variant="h5" gutterBottom>
@@ -95,9 +95,9 @@ const LoginView = () => {
           <Button type="submit" fullWidth variant="contained" sx={{ my: 2 }}>
             Login
           </Button>
-          
+
           <Divider sx={{ my: 2 }}>hoặc</Divider>
-          
+
           <Button
             fullWidth
             variant="outlined"

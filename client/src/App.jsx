@@ -45,6 +45,7 @@ import AdminUsersPage from "./components/admin/AdminUsersPage";
 import AdminContentPage from "./components/admin/AdminContentPage";
 import AdminReportsPage from "./components/admin/AdminReportsPage";
 import AdminAnalyticsPage from "./components/admin/AdminAnalyticsPage";
+import AdminBannersPage from "./components/admin/AdminBannersPage";
 import AdminSettingsPage from "./components/admin/AdminSettingsPage";
 import AdminSecurityPage from "./components/admin/AdminSecurityPage";
 import ServerDownPage from "./components/ServerDownPage";
@@ -62,6 +63,7 @@ function AppContent() {
           <Route path="users" element={<AdminUsersPage />} />
           <Route path="content" element={<AdminContentPage />} />
           <Route path="reports" element={<AdminReportsPage />} />
+          <Route path="banners" element={<AdminBannersPage />} />
           <Route path="analytics" element={<AdminAnalyticsPage />} />
           <Route path="settings" element={<AdminSettingsPage />} />
           <Route path="security" element={<AdminSecurityPage />} />
@@ -111,15 +113,15 @@ function App() {
 
   useEffect(() => {
     generateDeviceId();
-    
+
     // Validate session khi app khởi động
     const checkSession = async () => {
       const storedUser = isLoggedIn();
-      
+
       if (storedUser) {
         console.log('Validating stored session...');
         const validUser = await validateSession();
-        
+
         if (validUser) {
           console.log('Session is valid');
           setUser(validUser);
@@ -128,10 +130,10 @@ function App() {
           setUser(null);
         }
       }
-      
+
       setIsValidating(false);
     };
-    
+
     checkSession();
   }, []);
 

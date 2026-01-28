@@ -35,12 +35,12 @@ const SignupView = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const data = await signup(formData)
-    console.log (data)
+    console.log(data)
     if (data.status === 200) {
       navigate('/verify', { state: { user: formData } })
     }
     else if (data.status === 409) {
-      console.log ("da ton tai")
+      console.log("da ton tai")
       setServerError("Email đã được sử dụng")
     }
     else {
@@ -78,7 +78,7 @@ const SignupView = () => {
       <Stack alignItems="center">
         <Typography variant="h2" color="text.secondary" sx={{ mb: 6 }}>
           <Link to="/" color="inherit" underline="none">
-            MindShare
+            JustVibing
           </Link>
         </Typography>
         <Typography variant="h5" gutterBottom>

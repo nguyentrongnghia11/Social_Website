@@ -1137,6 +1137,53 @@ class AdminController {
         }
     }
 
+    async uploadBannerImage(req: Request, res: Response, next: NextFunction) {
+        try {
+            const admin = req.user as IUser;
+            const file = req.file;
+
+            if (!file) {
+                throw new ErrorApi(400, 'No image file provided');
+            }
+
+            // Generate unique filename
+            const timestamp = Date.now();
+            const randomString = Math.random().toString(36).substring(7);
+            const fileExtension = file.originalname.split('.').pop();
+            const fileName = `banner_${timestamp}_${randomString}.${fileExtension}`;
+
+            // Upload to S3
+            const { uploadToS3 } = await import('../services/storage/s3.service');
+            const result = await uploadToS3(
+                file.buffer,
+                fileName,
+                file.mimetype,
+                'banners'
+            );
+
+            await this.auditLogService.createLog({
+                action: 'UPLOAD_BANNER_IMAGE',
+                admin: admin._id,
+                target: 'banner',
+                ipAddress: req.ip,
+                userAgent: req.headers['user-agent'],
+                severity: 'low',
+                metadata: { fileName, fileSize: file.size }
+            });
+
+            res.json({
+                status: 200,
+                message: 'Banner image uploaded successfully',
+                data: {
+                    url: result.url,
+                    key: result.key
+                }
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
     async createBanner(req: Request, res: Response, next: NextFunction) {
         try {
             const { title, position, imageUrl, link, active } = req.body;

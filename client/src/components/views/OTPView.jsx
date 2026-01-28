@@ -41,7 +41,7 @@ const OTPView = () => {
     if (value && !/^\d+$/.test(value)) return
 
     const newOtp = [...otp]
-    
+
     if (value === '') {
       // Xóa giá trị
       newOtp[index] = ''
@@ -50,12 +50,12 @@ const OTPView = () => {
       // Nếu ô hiện tại đã có giá trị và đang nhập giá trị mới
       // Chỉ lấy ký tự cuối cùng
       const newChar = value.charAt(value.length - 1)
-      
+
       // Chỉ update nếu giá trị thực sự thay đổi
       if (newChar !== otp[index]) {
         newOtp[index] = newChar
         setOtp(newOtp)
-        
+
         // Chỉ focus sang ô tiếp theo nếu đang nhập vào ô trống hoặc ghi đè
         if (index < 5 && newChar) {
           // Sử dụng requestAnimationFrame để đảm bảo DOM đã update
@@ -131,10 +131,10 @@ const OTPView = () => {
       const respone = await verify(u)
 
       if (respone.status === 200) {
-        setSnackbar({ 
-          open: true, 
-          message: 'Đăng ký thành công! Chuyển đến trang đăng nhập...', 
-          severity: 'success' 
+        setSnackbar({
+          open: true,
+          message: 'Đăng ký thành công! Chuyển đến trang đăng nhập...',
+          severity: 'success'
         })
         setTimeout(() => {
           navigate("/login")
@@ -164,10 +164,10 @@ const OTPView = () => {
       const data = await signup(userRef.current)
 
       if (data.status === 200) {
-        setSnackbar({ 
-          open: true, 
-          message: 'Mã OTP mới đã được gửi!', 
-          severity: 'success' 
+        setSnackbar({
+          open: true,
+          message: 'Mã OTP mới đã được gửi!',
+          severity: 'success'
         })
       } else {
         setServerError(data.message || "Không thể gửi lại mã OTP")
@@ -183,7 +183,7 @@ const OTPView = () => {
       <Stack alignItems="center" spacing={3}>
         <Typography variant="h2" color="text.secondary" sx={{ mb: 2 }}>
           <Link to="/" color="inherit" underline="none">
-            MindShare
+            JustVibing
           </Link>
         </Typography>
 
@@ -289,8 +289,8 @@ const OTPView = () => {
         onClose={() => setSnackbar({ ...snackbar, open: false })}
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
       >
-        <Alert 
-          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
           sx={{ width: '100%' }}
         >

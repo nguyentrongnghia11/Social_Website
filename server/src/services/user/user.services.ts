@@ -663,8 +663,26 @@ export class UserService {
 
     async updateProfile(userId: string, data: { name?: string, biography?: string }) {
         const updateData: any = {};
-        if (data.name) updateData.name = data.name;
-        if (data.biography) updateData.biography = data.biography;
+
+        // Validate name
+        if (data.name !== undefined) {
+            const trimmedName = data.name.trim();
+            if (trimmedName.length === 0) {
+                throw new ErrorApi(400, 'Tên không được để trống');
+            }
+            if (trimmedName.length > 50) {
+                throw new ErrorApi(400, 'Tên không được vượt quá 50 ký tự');
+            }
+            updateData.name = trimmedName;
+        }
+
+        // Validate biography
+        if (data.biography !== undefined) {
+            if (data.biography.length > 500) {
+                throw new ErrorApi(400, 'Tiểu sử không được vượt quá 500 ký tự');
+            }
+            updateData.biography = data.biography;
+        }
 
         const user = await _User.findByIdAndUpdate(userId, updateData, { new: true })
             .select('name email role type imgUrl avt_url biography createdAt status')

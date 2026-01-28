@@ -29,7 +29,7 @@ import { Save, Refresh, Delete, Add, Edit, Security, Notifications, Storage, Spe
 
 const AdminSettings = () => {
   const [settings, setSettings] = useState({
-    siteName: "MindShare",
+    siteName: "JustVibing",
     siteDescription: "Nền tảng chia sẻ kiến thức và kết nối cộng đồng",
     allowRegistration: true,
     requireEmailVerification: true,

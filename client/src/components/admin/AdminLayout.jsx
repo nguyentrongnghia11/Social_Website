@@ -12,7 +12,8 @@ import {
   ExitToApp,
   Menu as MenuIcon,
   Notifications,
-  AccountCircle
+  AccountCircle,
+  ViewCarousel,
 } from '@mui/icons-material';
 import { AiFillFileText } from 'react-icons/ai';
 import { Box, IconButton, Badge, Menu, MenuItem, Avatar } from '@mui/material';
@@ -30,9 +31,8 @@ const AdminLayout = () => {
     { path: '/admin/users', icon: <People />, label: 'Quản lý Người dùng' },
     { path: '/admin/content', icon: <Article />, label: 'Quản lý Nội dung' },
     { path: '/admin/reports', icon: <Report />, label: 'Báo cáo Vi phạm' },
+    { path: '/admin/banners', icon: <ViewCarousel />, label: 'Quản lý Banner' },
     { path: '/admin/analytics', icon: <Analytics />, label: 'Thống kê & Phân tích' },
-    { path: '/admin/settings', icon: <Settings />, label: 'Cấu hình Hệ thống' },
-    { path: '/admin/security', icon: <Security />, label: 'Bảo mật & Logs' },
   ];
 
   const handleProfileMenuOpen = (event) => {
@@ -62,10 +62,10 @@ const AdminLayout = () => {
         {/* Left navbar links */}
         <ul className="navbar-nav">
           <li className="nav-item">
-            <a 
-              className="nav-link" 
+            <a
+              className="nav-link"
               data-widget="pushmenu"
-              role="button" 
+              role="button"
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
               style={{ cursor: 'pointer' }}
             >
@@ -90,7 +90,7 @@ const AdminLayout = () => {
 
           {/* User Menu */}
           <li className="nav-item dropdown">
-            <a 
+            <a
               className="nav-link"
               role="button"
               onClick={handleProfileMenuOpen}
@@ -166,7 +166,7 @@ const AdminLayout = () => {
 
       {/* Footer */}
       <footer className="main-footer">
-        <strong>Copyright &copy; 2024 MindShare.</strong> All rights reserved.
+        <strong>Copyright &copy; 2024 JustVibing.</strong> All rights reserved.
         <div className="float-right d-none d-sm-inline-block">
           <b>Version</b> 1.0.0
         </div>

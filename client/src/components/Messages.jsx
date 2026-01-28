@@ -90,7 +90,7 @@ const Messages = (props) => {
     if (conversation && conversation._id) {
       if (pageToFetch === 1) setLoading(true)
       else setLoadingMore(true)
-      
+
       const response = await getMessageOfUser(conversation._id, { page: pageToFetch, limit: 50 })
       if (response && response.data) {
         setDirection(response.data)
@@ -103,7 +103,7 @@ const Messages = (props) => {
       } else {
         setHasMore(false)
       }
-      
+
       if (pageToFetch === 1) setLoading(false)
       else setLoadingMore(false)
     } else {
@@ -158,12 +158,12 @@ const Messages = (props) => {
   }, []);
 
   const handleSendMessage = useCallback(async (content, mediaFiles = []) => {
-    console.log('🚀 [Messages.handleSendMessage] Called with:', { 
-      content, 
-      mediaFiles, 
-      mediaFilesLength: mediaFiles.length 
+    console.log('🚀 [Messages.handleSendMessage] Called with:', {
+      content,
+      mediaFiles,
+      mediaFilesLength: mediaFiles.length
     });
-    
+
     if (!props.conservant) {
       console.error('Cannot send message - no conservant');
       return;
@@ -178,7 +178,7 @@ const Messages = (props) => {
 
       // Determine type and prepare data
       const isGroup = props.conservant.isGroup === true;
-      
+
       if (isGroup) {
         // Create group conversation
         const eventData = {
@@ -230,8 +230,8 @@ const Messages = (props) => {
     if (conversation.type === "group") {
       receiverId = conversation.groupId?._id || '';
     } else {
-      receiverId = (conversation.senderId?._id === user?._id) 
-        ? conversation.receiverId?._id 
+      receiverId = (conversation.senderId?._id === user?._id)
+        ? conversation.receiverId?._id
         : conversation.senderId?._id;
     }
 
@@ -256,7 +256,7 @@ const Messages = (props) => {
     try {
       console.log('📨 Received message:', content)
       console.log('📎 MediaFiles in received message:', content.msg.mediaFiles)
-      
+
       // Chỉ xử lý message nếu thuộc về cuộc trò chuyện hiện tại
       if (conservantRef.current && conservantRef.current.conversationId !== content.msg.conversationId) {
         console.log('⏭️ Message belongs to different conversation, skipping display');
@@ -273,9 +273,9 @@ const Messages = (props) => {
         return;
       }
 
-      const newMessage = { 
-        direction: "to", 
-        content: content.msg.content, 
+      const newMessage = {
+        direction: "to",
+        content: content.msg.content,
         senderId: content.msg.senderId,
         mediaFiles: content.msg.mediaFiles || []
       }
@@ -356,8 +356,8 @@ const Messages = (props) => {
       // If current conservant is in draft mode (no conversationId), update it
       if (props.conservant && !props.conservant.conversationId) {
         // Check if this conversation is for current conservant
-        const isForCurrentConservant = 
-          (fullConversation.type === 'group' && props.conservant.isGroup && 
+        const isForCurrentConservant =
+          (fullConversation.type === 'group' && props.conservant.isGroup &&
             fullConversation.groupId?.name === props.conservant.name) ||
           (fullConversation.type === 'user' && (
             fullConversation.receiverId?._id === props.conservant._id ||
@@ -379,13 +379,13 @@ const Messages = (props) => {
       props.setConversations(prev => {
         // Remove temporary conversations
         const filtered = prev.filter(c => !c._isTemporary);
-        
+
         // Check if conversation already exists
         const alreadyExists = filtered.some(c => c._id === conversationId);
         if (alreadyExists) {
           return filtered;
         }
-        
+
         // Add new conversation
         return [fullConversation, ...filtered];
       });
@@ -396,16 +396,16 @@ const Messages = (props) => {
 
   const handleSendListenerKeyBoard = useCallback((e) => {
     if (!conversation || !conversation._id) return;
-    
-    const isTemporary = conversation.new === true || 
-                        conversation._id?.startsWith('tmp-') ||
-                        conversation._id === null;
+
+    const isTemporary = conversation.new === true ||
+      conversation._id?.startsWith('tmp-') ||
+      conversation._id === null;
     if (isTemporary) return;
 
-    const receiverId = (conversation.type === "group") 
-      ? conversation.groupId?._id 
-      : (conversation.senderId._id === user?._id) 
-        ? conversation.receiverId._id 
+    const receiverId = (conversation.type === "group")
+      ? conversation.groupId?._id
+      : (conversation.senderId._id === user?._id)
+        ? conversation.receiverId._id
         : conversation.senderId._id;
 
     const isTyping = e.target.value && e.target.value.trim().length > 0;
@@ -815,8 +815,8 @@ const Messages = (props) => {
   ) : (
     <Stack sx={{ height: "100%" }} justifyContent="center" alignItems="center" spacing={2}>
       <AiFillMessage size={80} />
-      <Typography variant="h5">MindShare Messenger</Typography>
-      <Typography color="text.secondary">Privately message other users on MindShare</Typography>
+      <Typography variant="h5">JustVibing Messenger</Typography>
+      <Typography color="text.secondary">Privately message other users on JustVibing</Typography>
     </Stack>
   )
 }

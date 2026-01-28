@@ -15,6 +15,7 @@ import { MdCancel, MdVisibility, MdVisibilityOff } from "react-icons/md";
 import { BiReply, BiTrash } from "react-icons/bi";
 import { BsReply, BsReplyFill } from "react-icons/bs";
 import moment from "moment";
+import ImageLightbox from "./ImageLightbox";
 
 const Comment = (props) => {
   const theme = useTheme();
@@ -24,6 +25,7 @@ const Comment = (props) => {
   const [minimised, setMinimised] = useState(depth % 4 === 3);
   const [replying, setReplying] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   // const [comment, setComment] = useState(commentData);
   const user = isLoggedIn();
   const isAuthor = user && user.userId === comment.userId?._id;
@@ -239,7 +241,26 @@ const Comment = (props) => {
         {!minimised && (
           <Box sx={{ mt: 1 }} overflow="hidden">
             {!editing ? (
-              <Markdown content={comment.deleted ? "Comment was deleted" : comment.content} />
+              <>
+                <Markdown content={comment.deleted ? "Comment was deleted" : comment.content} />
+                {comment.imageUrl && !comment.deleted && (
+                  <Box sx={{ mt: 2 }}>
+                    <img
+                      src={comment.imageUrl}
+                      alt="Comment attachment"
+                      style={{
+                        maxWidth: '100%',
+                        maxHeight: 100,
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        display: 'block',
+                      }}
+                      onClick={() => setLightboxOpen(true)}
+                      title="Click to view full size"
+                    />
+                  </Box>
+                )}
+              </>
             ) : (
               <ContentUpdateEditor
                 handleSubmit={handleSubmit2}
@@ -277,6 +298,13 @@ const Comment = (props) => {
           </Box>
         )}
       </Box>
+
+      {/* Image Lightbox Modal */}
+      <ImageLightbox
+        open={lightboxOpen}
+        imageUrl={comment.imageUrl}
+        onClose={() => setLightboxOpen(false)}
+      />
     </Box>
   );
 };

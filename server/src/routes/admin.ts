@@ -1,10 +1,25 @@
 import { Router } from 'express';
+import multer from 'multer';
 import adminController from '../controller/adminController';
 import { authenticateMiddleware } from '../middleware/verifyToken';
 import { checkPermisson } from '../middleware/checkPermission';
 import { Permission } from '../enums/permission.enum';
 
 const router = Router();
+
+// Configure multer for memory storage (for S3 upload)
+const storage = multer.memoryStorage();
+const upload = multer({
+    storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only image files are allowed'));
+        }
+    }
+});
 
 router.use(authenticateMiddleware);
 router.use(checkPermisson(Permission.MANAGER_USER));
@@ -63,6 +78,9 @@ router.get('/analytics/realtime', adminController.getRealtimeStats);
 router.get('/broadcasts', adminController.getBroadcasts);
 router.get('/broadcasts/:id', adminController.getBroadcastById);
 router.post('/broadcasts', adminController.createBroadcast);
+
+// Banner image upload endpoint
+router.post('/banners/upload', upload.single('image'), adminController.uploadBannerImage);
 
 router.get('/banners', adminController.getBanners);
 router.post('/banners', adminController.createBanner);

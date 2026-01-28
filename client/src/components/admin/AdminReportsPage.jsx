@@ -73,7 +73,7 @@ const AdminReportsPage = () => {
       setLoading(false);
     }
   };
-     
+
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -108,30 +108,48 @@ const AdminReportsPage = () => {
     setOpenViewDialog(true);
   };
 
-  const handleApproveReport = (reportId) => {
-    setReports(reports.map(report =>
-      report.id === reportId ? { ...report, status: 'approved' } : report
-    ));
-    setOpenViewDialog(false);
+  const handleApproveReport = async (reportId) => {
+    try {
+      await approveReport(reportId);
+      setSnackbar({ open: true, message: 'Đã phê duyệt báo cáo', severity: 'success' });
+      loadReports();
+      setOpenViewDialog(false);
+    } catch (err) {
+      setSnackbar({ open: true, message: err.response?.data?.message || 'Lỗi khi phê duyệt', severity: 'error' });
+    }
   };
 
-  const handleRejectReport = (reportId) => {
-    setReports(reports.map(report =>
-      report.id === reportId ? { ...report, status: 'rejected' } : report
-    ));
-    setOpenViewDialog(false);
+  const handleRejectReport = async (reportId) => {
+    try {
+      await rejectReport(reportId);
+      setSnackbar({ open: true, message: 'Đã từ chối báo cáo', severity: 'success' });
+      loadReports();
+      setOpenViewDialog(false);
+    } catch (err) {
+      setSnackbar({ open: true, message: err.response?.data?.message || 'Lỗi khi từ chối', severity: 'error' });
+    }
   };
 
-  const handleDeleteContent = (reportId) => {
-    // Implement delete content logic
-    handleApproveReport(reportId);
-    alert('Nội dung đã bị xóa');
+  const handleDeleteContent = async (reportId) => {
+    try {
+      await deleteReportedContent(reportId);
+      setSnackbar({ open: true, message: 'Đã xóa nội dung vi phạm', severity: 'success' });
+      loadReports();
+      setOpenViewDialog(false);
+    } catch (err) {
+      setSnackbar({ open: true, message: err.response?.data?.message || 'Lỗi khi xóa nội dung', severity: 'error' });
+    }
   };
 
-  const handleBanUser = (reportId, reportedUser) => {
-    // Implement ban user logic
-    handleApproveReport(reportId);
-    alert(`Người dùng ${reportedUser} đã bị khóa`);
+  const handleBanUser = async (reportId) => {
+    try {
+      await banReportedUser(reportId);
+      setSnackbar({ open: true, message: 'Đã khóa người dùng vi phạm', severity: 'success' });
+      loadReports();
+      setOpenViewDialog(false);
+    } catch (err) {
+      setSnackbar({ open: true, message: err.response?.data?.message || 'Lỗi khi khóa người dùng', severity: 'error' });
+    }
   };
 
   const getStatusColor = (status) => {
@@ -172,10 +190,11 @@ const AdminReportsPage = () => {
   };
 
   const filteredReports = reports.filter(report => {
-    const matchSearch = 
-      report.contentTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      report.reporter.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      report.reportedUser.toLowerCase().includes(searchTerm.toLowerCase());
+    const reporterName = report.reportedBy?.name || '';
+    const targetUserName = report.targetUser?.name || '';
+    const matchSearch =
+      reporterName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      targetUserName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchStatus = filterStatus === 'all' || report.status === filterStatus;
     const matchReason = filterReason === 'all' || report.reason === filterReason;
     return matchSearch && matchStatus && matchReason;
@@ -276,10 +295,10 @@ const AdminReportsPage = () => {
                 {filteredReports
                   .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                   .map((report) => (
-                    <TableRow key={report.id} hover>
+                    <TableRow key={report._id} hover>
                       <TableCell>
                         <Chip
-                          label={report.reportType}
+                          label={report.targetType}
                           size="small"
                           color="primary"
                           variant="outlined"
@@ -287,32 +306,32 @@ const AdminReportsPage = () => {
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" noWrap sx={{ maxWidth: 200 }}>
-                          {report.contentTitle}
+                          {report.targetId?.toString().substring(0, 8)}...
                         </Typography>
                       </TableCell>
                       <TableCell>
                         <Box display="flex" alignItems="center" gap={1}>
                           <Avatar sx={{ width: 32, height: 32 }}>
-                            {report.reporter[0]}
+                            {report.reportedBy?.name?.[0] || 'U'}
                           </Avatar>
                           <Typography variant="body2">
-                            {report.reporter}
+                            {report.reportedBy?.name || 'Unknown'}
                           </Typography>
                         </Box>
                       </TableCell>
-                      <TableCell>{report.reportedUser}</TableCell>
+                      <TableCell>{report.targetUser?.name || 'Unknown'}</TableCell>
                       <TableCell>
                         <Chip
-                          label={reportReasons[report.reason]}
+                          label={reportReasons[report.reason] || report.reason}
                           size="small"
                           color={getReasonColor(report.reason)}
                         />
                       </TableCell>
                       <TableCell>
                         <Chip
-                          label={report.priority}
+                          label={report.status === 'pending' ? 'high' : 'low'}
                           size="small"
-                          color={getPriorityColor(report.priority)}
+                          color={report.status === 'pending' ? 'error' : 'info'}
                         />
                       </TableCell>
                       <TableCell>
@@ -324,7 +343,7 @@ const AdminReportsPage = () => {
                       </TableCell>
                       <TableCell>
                         <Typography variant="caption">
-                          {report.createdAt}
+                          {new Date(report.createdAt).toLocaleDateString('vi-VN')}
                         </Typography>
                       </TableCell>
                       <TableCell>
@@ -342,7 +361,7 @@ const AdminReportsPage = () => {
                               <IconButton
                                 size="small"
                                 color="success"
-                                onClick={() => handleApproveReport(report.id)}
+                                onClick={() => handleApproveReport(report._id)}
                                 title="Phê duyệt"
                               >
                                 <CheckCircle fontSize="small" />
@@ -350,7 +369,7 @@ const AdminReportsPage = () => {
                               <IconButton
                                 size="small"
                                 color="error"
-                                onClick={() => handleRejectReport(report.id)}
+                                onClick={() => handleRejectReport(report._id)}
                                 title="Từ chối"
                               >
                                 <Cancel fontSize="small" />
@@ -373,7 +392,7 @@ const AdminReportsPage = () => {
             onRowsPerPageChange={handleChangeRowsPerPage}
             rowsPerPageOptions={[5, 10, 25, 50]}
             labelRowsPerPage="Số dòng mỗi trang:"
-            labelDisplayedRows={({ from, to, count }) => 
+            labelDisplayedRows={({ from, to, count }) =>
               `${from}–${to} của ${count !== -1 ? count : `nhiều hơn ${to}`}`
             }
             sx={{
@@ -404,15 +423,15 @@ const AdminReportsPage = () => {
                       Nội dung bị báo cáo
                     </Typography>
                     <Typography variant="h6" gutterBottom>
-                      {selectedReport.contentTitle}
+                      {selectedReport.targetType === 'post' ? 'Bài viết' : selectedReport.targetType === 'comment' ? 'Bình luận' : 'Người dùng'}
                     </Typography>
                     <Chip
-                      label={`Type: ${selectedReport.reportType}`}
+                      label={`Loại: ${selectedReport.targetType}`}
                       size="small"
                       sx={{ mr: 1 }}
                     />
                     <Chip
-                      label={`ID: ${selectedReport.contentId}`}
+                      label={`ID: ${selectedReport.targetId?.toString().substring(0, 12)}...`}
                       size="small"
                     />
                   </Paper>
@@ -423,9 +442,9 @@ const AdminReportsPage = () => {
                     Người báo cáo
                   </Typography>
                   <Box display="flex" alignItems="center" gap={1} mt={1}>
-                    <Avatar>{selectedReport.reporter[0]}</Avatar>
+                    <Avatar>{selectedReport.reportedBy?.name?.[0] || 'U'}</Avatar>
                     <Typography variant="body1">
-                      {selectedReport.reporter}
+                      {selectedReport.reportedBy?.name || 'Unknown'}
                     </Typography>
                   </Box>
                 </Grid>
@@ -435,7 +454,7 @@ const AdminReportsPage = () => {
                     Người bị báo cáo
                   </Typography>
                   <Typography variant="body1" mt={1}>
-                    {selectedReport.reportedUser}
+                    {selectedReport.targetUser?.name || 'Unknown'}
                   </Typography>
                 </Grid>
 
@@ -491,7 +510,7 @@ const AdminReportsPage = () => {
               <Button
                 variant="outlined"
                 color="error"
-                onClick={() => handleRejectReport(selectedReport.id)}
+                onClick={() => handleRejectReport(selectedReport._id)}
               >
                 Từ chối báo cáo
               </Button>
@@ -499,7 +518,7 @@ const AdminReportsPage = () => {
                 variant="contained"
                 color="warning"
                 startIcon={<Delete />}
-                onClick={() => handleDeleteContent(selectedReport.id)}
+                onClick={() => handleDeleteContent(selectedReport._id)}
               >
                 Xóa nội dung
               </Button>
@@ -507,7 +526,7 @@ const AdminReportsPage = () => {
                 variant="contained"
                 color="error"
                 startIcon={<Block />}
-                onClick={() => handleBanUser(selectedReport.id, selectedReport.reportedUser)}
+                onClick={() => handleBanUser(selectedReport._id)}
               >
                 Khóa người dùng
               </Button>
@@ -515,6 +534,18 @@ const AdminReportsPage = () => {
           )}
         </DialogActions>
       </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

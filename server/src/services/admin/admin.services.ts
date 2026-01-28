@@ -658,16 +658,57 @@ export class AnalyticsService {
             createdAt: { $gte: today }
         });
 
+        // Get active users (logged in within last 7 days)
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const activeUsers = await _User.countDocuments({
+            lastLoginAt: { $gte: sevenDaysAgo }
+        });
+
+        // Calculate engagement percentage
+        const engagement = totalUsers > 0 ? Math.round((activeUsers / totalUsers) * 100) : 0;
+
+        // Get weekly data for charts (last 7 days)
+        const weeklyUserGrowth = await _User.aggregate([
+            {
+                $match: { createdAt: { $gte: sevenDaysAgo } }
+            },
+            {
+                $group: {
+                    _id: {
+                        $dateToString: { format: '%Y-%m-%d', date: '$createdAt' }
+                    },
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { _id: 1 } }
+        ]);
+
+        const weeklyPostGrowth = await _Post.aggregate([
+            {
+                $match: { createdAt: { $gte: sevenDaysAgo } }
+            },
+            {
+                $group: {
+                    _id: {
+                        $dateToString: { format: '%Y-%m-%d', date: '$createdAt' }
+                    },
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { _id: 1 } }
+        ]);
+
         return {
             totalUsers,
             newUsersToday,
             totalPosts,
             postsToday,
             commentsToday,
-            engagement: {
-                posts: postsToday,
-                comments: commentsToday
-            }
+            activeUsers,
+            engagement,
+            weeklyUserGrowth,
+            weeklyPostGrowth
         };
     }
 

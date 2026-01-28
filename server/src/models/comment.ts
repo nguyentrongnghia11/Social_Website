@@ -10,11 +10,12 @@ export interface IComment {
     _id: Types.ObjectId;
     postId: Types.ObjectId | string;
     content: string;
+    imageUrl?: string;
     userId: Types.ObjectId | string;
     parentID: Types.ObjectId | null;
     path: string;
     isDelete: boolean;
-    isToxic: boolean;
+    isToxic: string;
 }
 
 export type ICommentDocument = IComment & Document & SoftDeleteDocument;
@@ -33,6 +34,10 @@ const commentSchema = new Schema<ICommentDocument, ICommentModel>({
         type: String,
         required: true
     },
+    imageUrl: {
+        type: String,
+        required: false
+    },
     userId: {
         type: Schema.Types.ObjectId,
         required: true,
@@ -47,8 +52,8 @@ const commentSchema = new Schema<ICommentDocument, ICommentModel>({
         required: true
     },
     isToxic: {
-        type: Boolean,
-        default: false
+        type: String,
+        default: "clean"
     }
 
 }, {

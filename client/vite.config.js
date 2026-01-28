@@ -2,26 +2,22 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     react({
-      // Enable Fast Refresh
-      fastRefresh: true,
-      // Support for Emotion CSS-in-JS
       jsxImportSource: '@emotion/react',
       babel: {
         plugins: ['@emotion/babel-plugin'],
       },
     }),
   ],
-  
+
   esbuild: {
     loader: 'jsx',
     include: /src\/.*\.jsx?$/,
     exclude: [],
   },
-  
+
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
