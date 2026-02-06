@@ -16,13 +16,13 @@ import { createClient } from 'redis';
 import dotenv from 'dotenv'
 import { cors_conf } from './utils/cors-config';
 import { errorHandling } from './middleware/handleError';
+import { startWorkers } from '../workers/startWorker';
 
 dotenv.config()
 
 
 // run workers
-uploadWorker()
-sendOtpWorker()
+startWorkers()
 
 // init
 const app = express();
@@ -76,12 +76,12 @@ app.use(errorHandling)
 const PORT = process.env.PORT || 8000;
 
 server.listen(PORT, () => {
-  console.log(`🚀 Server is running on port ${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
 }).on('error', (error: any) => {
   if (error.code === 'EADDRINUSE') {
-    console.error(`❌ Port ${PORT} is already in use`);
+    console.error(` Port ${PORT} is already in use`);
   } else {
-    console.error('❌ Server error:', error);
+    console.error('Server error:', error);
   }
   process.exit(1);
 });

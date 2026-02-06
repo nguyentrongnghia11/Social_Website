@@ -14,22 +14,16 @@ export const sendOtpWorker = async () => {
         await channel.assertQueue(queueName, { messageTtl: 60000 })
         await channel.bindQueue(queueName, exchangeName, "SEND-OTP")
 
-        console.log('OTP Worker started and listening for messages...');
-
         channel.consume(queueName, async (msg) => {
             if (msg?.content) {
                 try {
                     const { OTP, email } = JSON.parse(msg?.content.toString());
-                    console.log(`📧 Sending OTP to: ${email}`);
-
-                    // Save OTP to database
                     const otp = new _Otp({
                         email,
                         otp: parseInt(OTP)
                     })
                     await otp.save();
 
-                    // Create mail transporter
                     const trans = nodeMailer.createTransport({
                         host: "smtp.gmail.com",
                         port: 587,
@@ -40,7 +34,6 @@ export const sendOtpWorker = async () => {
                         }
                     })
 
-                    // HTML template for OTP email
                     const htmlTemplate = `
                         <!DOCTYPE html>
                         <html>
@@ -69,7 +62,6 @@ export const sendOtpWorker = async () => {
                         </html>
                     `;
 
-                    // Send email
                     const info = await trans.sendMail({
                         from: `"Nghiahoasi Company" <${process.env.EMAIL}>`,
                         to: email,
@@ -78,14 +70,13 @@ export const sendOtpWorker = async () => {
                         html: htmlTemplate,
                     });
 
-                    console.log(`✅ OTP sent successfully to ${email}. Message ID: ${info.messageId}`);
+                    console.log(`otp sent successfully to ${email}. Message ID: ${info.messageId}`);
                 } catch (error) {
-                    console.error('❌ Error processing OTP message:', error);
+                    console.error('error processing OTP message:', error);
                 }
             }
         }, { noAck: true })
     } catch (error) {
-        console.error('❌ Failed to start OTP worker:', error);
         throw error;
     }
 }
