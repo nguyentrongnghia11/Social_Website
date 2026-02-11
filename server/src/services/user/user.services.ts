@@ -120,7 +120,6 @@ export class UserService {
         const { privateKey, publicKey } = generateKeyPair();
         const { accessToken, refreshToken } = generateToken(user, privateKey);
 
-        // Update token (critical - must wait)
         const token = await _Token.findOneAndUpdate(
             { email, device: deviceId },
             { refreshToken, publicKey, device: deviceId },

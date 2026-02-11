@@ -43,7 +43,7 @@ const LoginView = () => {
     } else if (data.data?.user?.status === 'banned') {
       setServerError("Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên.");
     } else {
-      console.log(data.data)
+      console.log("da set thanh cong ",data.data)
       await loginUser(data.data);
       navigate("/");
     }

@@ -28,7 +28,6 @@ export default defineConfig({
   server: {
     port: 3001,
     open: true,
-    // Proxy để kết nối với backend
     proxy: {
       '/api': {
         target: 'http://localhost:3000',

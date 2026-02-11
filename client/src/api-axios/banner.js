@@ -18,30 +18,30 @@ export const uploadBannerImage = async (file) => {
 
 // Get all banners
 export const getBanners = async (params) => {
-    return axios.get(`${API_URL}/admin/banners`, { params });
+    return instance.get(`/admin/banners`, { params });
 };
 
 // Create new banner
 export const createBanner = async (data) => {
-    return axios.post(`${API_URL}/admin/banners`, data);
+    return instance.post(`/admin/banners`, data);
 };
 
 // Update banner
 export const updateBanner = async (id, data) => {
-    return axios.put(`${API_URL}/admin/banners/${id}`, data);
+    return instance.put(`/admin/banners/${id}`, data);
 };
 
 // Delete banner
 export const deleteBanner = async (id) => {
-    return axios.delete(`${API_URL}/admin/banners/${id}`);
+    return instance.delete(`/admin/banners/${id}`);
 };
 
 // Toggle banner active status
 export const toggleBanner = async (id) => {
-    return axios.put(`${API_URL}/admin/banners/${id}/toggle`);
+    return instance.put(`/admin/banners/${id}/toggle`);
 };
 
 // Get active banners for public display
 export const getActiveBanners = async (position) => {
-    return axios.get(`${API_URL}/banners`, { params: { position } });
+    return instance.get(`/banners`, { params: { position } });
 };

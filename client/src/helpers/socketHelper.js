@@ -1,7 +1,7 @@
 import { io } from "socket.io-client";
 import { isLoggedIn } from "./authHelper";
 
-const URL = process.env.REACT_APP_SERVER_URL || "http://localhost:3000";
+const URL = "http://18.136.198.73" || "http://localhost:3000";
 
 export let socket = null;
 let serverDownCallback = null;

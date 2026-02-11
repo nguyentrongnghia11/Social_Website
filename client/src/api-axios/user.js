@@ -3,15 +3,13 @@ import { v4 as uuidv4 } from "uuid"
 
 const loginWithGoogle = async () => {
     try {
-        // Ensure device ID is set
         let deviceId = localStorage.getItem("deviceId");
         if (!deviceId) {
             deviceId = uuidv4();
             localStorage.setItem("deviceId", deviceId);
         }
 
-        // Redirect to backend Google OAuth endpoint with deviceId as query parameter
-        window.location.href = `http://localhost:3000/v1/google?deviceId=${deviceId}`;
+        window.location.href = `http://18.136.198.73/v1/google?deviceId=${deviceId}`;
     } catch (error) {
         console.error('Google login error:', error);
         return { status: 500, error: "Đăng nhập Google thất bại!" };
@@ -20,7 +18,6 @@ const loginWithGoogle = async () => {
 
 const login = async (formData) => {
     try {
-        // deviceId is now automatically added via axios interceptor in headers
         const loginResponse = await instance.post("/auth/v1/login", formData);
         console.log("Login response::::", loginResponse)
 

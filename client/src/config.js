@@ -10,10 +10,9 @@ let BASE_URL = "https://socialmediaappserver-e2ws.onrender.com/";
 
 // Auto detect API URL based on hostname
 const getApiUrl = () => {
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        return 'http://localhost:3000';
-    }
-    return `http://192.168.0.3:3000`;
+    return `http://18.136.198.73`;
+    // return `http://localhost:3000`;
+
 };
 
 const URL = getApiUrl();
