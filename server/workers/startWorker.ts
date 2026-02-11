@@ -10,7 +10,7 @@ export async function startWorkers() {
         await detectToxicWorker();
         await encodePostWorker();
 
-        console.log('All workers started successfully');
+        console.log('Start workers successfully');
     } catch (error) {
         console.error('Failed to start workers:', error);
         process.exit(1);
