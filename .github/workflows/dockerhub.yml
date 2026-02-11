@@ -26,12 +26,17 @@ jobs:
           context: ./server
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/social_website-server:latest
+  
 
   deploy:
     needs: build-and-push
     if: github.event_name == 'push' 
     runs-on: ubuntu-latest
     steps:
+      - name: Debug SSH Key
+        run: |
+            echo "${{ secrets.SSH_PRIVATE_KEY }}" > test.pem
+            cat test.pem
       - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:

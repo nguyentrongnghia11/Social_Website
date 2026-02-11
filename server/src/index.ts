@@ -20,6 +20,8 @@ import { startWorkers } from '../workers/startWorker';
 
 dotenv.config()
 
+console.log ("Test cicd")
+
 
 // run workers
 startWorkers()
