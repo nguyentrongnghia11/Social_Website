@@ -44,7 +44,7 @@ router.post("/:id/grant-permission", authenticateMiddleware, post.grantPermissio
 router.post("/save/media", authenticateMiddleware, post.updateFile)
 router.delete("/:id/hidden", passport.authenticate(['jwt', 'oauth2'], { failureRedirect: '/' }), post.hiddenPost)
 router.get("/:id/similar", authenticateMiddleware, post.getSimilarPosts)
-router.get("/:id", authenticateMiddleware, post.getPost)
+router.get("/:id", post.getPost)
 router.delete("/:id", passport.authenticate(['jwt', 'oauth2'], { failureRedirect: '/' }), post.removePost)
 // router.patch("/:id", passport.authenticate(['jwt', 'oauth2'], { failureRedirect: '/' }), post.moderationPost)
 router.patch("/:id", authenticateMiddleware, validateUpdatePost, post.updatePost)
