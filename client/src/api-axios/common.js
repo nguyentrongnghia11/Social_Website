@@ -51,7 +51,6 @@ instance.interceptors.response.use(
                     }
                 );
                 if (res.status === 200) {
-                    // Reconnect socket với token mới
                     console.log('Token refreshed, reconnecting socket...');
                     disconnectSocket();
                     initiateSocketConnection();
