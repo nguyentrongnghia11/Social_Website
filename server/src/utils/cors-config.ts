@@ -1,7 +1,7 @@
 export const cors_conf = {
     origin: [
         'http://localhost:3001',  
-        'https://social-website-llf9.vercel.app/',
+        'https://justvibing.vercel.app/',
         'https://justvibing.com/'
     ],
     credentials: true,
