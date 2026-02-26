@@ -32,9 +32,9 @@ instance.interceptors.response.use(
             originalRequest._retry = true;
             const deviceId = localStorage.getItem("deviceId");
             if (!deviceId) {
-                localStorage.clear();
                 if (!window.location.pathname.includes('/login')) {
-                    window.location.href = '/login';
+                    localStorage.clear();
+                    window.location.replace('/login');
                 }
                 return Promise.reject(error);
             }
@@ -55,13 +55,12 @@ instance.interceptors.response.use(
                     console.log('Token refreshed, reconnecting socket...');
                     disconnectSocket();
                     initiateSocketConnection();
-                    // Retry original request với instance
                     return instance(originalRequest);
                 }
             } catch (refreshError) {
-                localStorage.clear();
                 if (!window.location.pathname.includes('/login')) {
-                    window.location.href = '/login';
+                    localStorage.clear();
+                    window.location.replace('/login');
                 }
                 return Promise.reject(refreshError);
             }
