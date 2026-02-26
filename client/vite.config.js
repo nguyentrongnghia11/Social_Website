@@ -42,7 +42,7 @@ export default defineConfig({
   },
 
   build: {
-    outDir: 'build',
+    outDir: 'dist',
     sourcemap: true,
     // Tối ưu chunk splitting
     rollupOptions: {
