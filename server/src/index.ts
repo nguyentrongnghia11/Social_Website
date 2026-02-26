@@ -20,7 +20,7 @@ import { startWorkers } from '../workers/startWorker';
 
 dotenv.config()
 
-console.log ("Test cicd 2")
+console.log ("Starting JustVibing Server...")
 
 
 // run workers
