@@ -1,8 +1,8 @@
 export const cors_conf = {
     origin: [
-        'http://172.17.208.1:3001',      // Local development
-        'http://192.168.0.3:3001',       // Mobile access (WiFi)
-        'http://localhost:3001',         // Localhost
+        'http://localhost:3001',  
+        'https://social-website-llf9.vercel.app/',
+        'https://justvibing.com/'
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
