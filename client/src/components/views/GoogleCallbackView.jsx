@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Container, Typography, CircularProgress, Stack } from "@mui/material";
 import { loginUser } from "../../helpers/authHelper";
 import ErrorAlert from "../ErrorAlert";
+import { BASE_URL } from "../../config";
 
 const GoogleCallbackView = () => {
     const navigate = useNavigate();
@@ -13,7 +14,7 @@ const GoogleCallbackView = () => {
         const handleCallback = async () => {
             try {
                 if (searchParams.get('success') === 'true') {
-                    const response = await fetch('http://localhost:3000/v1/user/me', {
+                    const response = await fetch(`${BASE_URL}/v1/user/me`, {
                         credentials: 'include',
                      
                     });

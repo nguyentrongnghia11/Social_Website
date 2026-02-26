@@ -12,7 +12,7 @@ export async function startWorkers() {
 
 
 
-        console.log('Start workers successfullyy');
+        console.log('Start workers successfullyyyy');
     } catch (error) {
         console.error('Failed to start workers:', error);
         process.exit(1);

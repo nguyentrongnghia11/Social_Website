@@ -1,4 +1,4 @@
-import { instance } from "../config"
+import { BASE_URL, instance } from "../config"
 import { v4 as uuidv4 } from "uuid"
 
 const loginWithGoogle = async () => {
@@ -9,7 +9,7 @@ const loginWithGoogle = async () => {
             localStorage.setItem("deviceId", deviceId);
         }
 
-        window.location.href = `http://18.136.198.73/v1/google?deviceId=${deviceId}`;
+        window.location.href = `${BASE_URL}/v1/google?deviceId=${deviceId}`;
     } catch (error) {
         console.error('Google login error:', error);
         return { status: 500, error: "Đăng nhập Google thất bại!" };

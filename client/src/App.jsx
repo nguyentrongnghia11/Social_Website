@@ -50,6 +50,7 @@ import AdminSettingsPage from "./components/admin/AdminSettingsPage";
 import AdminSecurityPage from "./components/admin/AdminSecurityPage";
 import ServerDownPage from "./components/ServerDownPage";
 
+
 function AppContent() {
   const { activeCall, endCall } = useVideoCall();
 

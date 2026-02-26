@@ -39,7 +39,6 @@ instance.interceptors.response.use(
                 return Promise.reject(error);
             }
             try {
-                // Tạo request mới với axios để tránh trigger interceptor
                 const res = await axios.post(
                     `${instance.defaults.baseURL}auth/v1/refresh`,
                     {},

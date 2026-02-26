@@ -47,7 +47,6 @@ jobs:
             cd /home/ubuntu/backend
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
-            docker compose pull
-            
-            docker compose up -d --force-recreate social_server
+            docker compose pull server
+            docker compose up -d --force-recreate server
             docker image prune -f

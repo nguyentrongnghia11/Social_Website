@@ -23,6 +23,7 @@ export const authenticateMiddleware = (req: Request, res: Response, next: NextFu
 const stragyVerifyLocal = () => {
     const opts: any = {}
     const cookieExtractor = function (req: Request, res: Response) {
+        console.log ('Extracting token from cookies:', req?.cookies?.['accessToken']);
         return req?.cookies?.['accessToken'] || null;
     };
     

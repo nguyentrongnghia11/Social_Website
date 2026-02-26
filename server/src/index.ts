@@ -20,7 +20,7 @@ import { startWorkers } from '../workers/startWorker';
 
 dotenv.config()
 
-console.log ("Test cicd")
+console.log ("Test cicd 2")
 
 
 // run workers
@@ -29,6 +29,8 @@ startWorkers()
 // init
 const app = express();
 const server = http.createServer(app);
+app.set('trust proxy', 1); 
+
 
 // middleware 
 app.use(express.json());

@@ -1,15 +1,15 @@
 import { io } from "socket.io-client";
 import { isLoggedIn } from "./authHelper";
-
-const URL = "http://18.136.198.73" || "http://localhost:3000";
+import { BASE_URL } from "../config";
 
 export let socket = null;
 let serverDownCallback = null;
 let reconnectAttempts = 0;
 const MAX_ATTEMPTS_BEFORE_DOWN = 5;
 
-// Callbacks để notify components khi socket state thay đổi
 const connectionCallbacks = new Set();
+
+console.log ("Base url in socketHelper:", BASE_URL);
 
 export const onSocketConnectionChange = (callback) => {
   connectionCallbacks.add(callback);
@@ -41,7 +41,7 @@ export const initiateSocketConnection = () => {
 
   const deviceId = localStorage.getItem('deviceId');
 
-  socket = io(URL, {
+  socket = io(BASE_URL, {
     withCredentials: true,
     extraHeaders: { 'x-device-id': deviceId },
     reconnection: true,
@@ -51,35 +51,29 @@ export const initiateSocketConnection = () => {
     timeout: 20000,
   });
 
-  // Connection success
   socket.on('connect', () => {
     console.log('✅ Socket connected:', socket.id);
     reconnectAttempts = 0;
     notifyConnectionChange(true);
   });
 
-  // Connection error
   socket.on('connect_error', (error) => {
     console.error('❌ Socket connection error:', error.message);
   });
 
-  // Disconnected
   socket.on('disconnect', (reason) => {
     console.log('⚠️ Socket disconnected:', reason);
     notifyConnectionChange(false);
   });
 
-  // Disconnected
   socket.on('disconnect', (reason) => {
     console.log('⚠️ Socket disconnected:', reason);
   });
 
-  // Track reconnection attempts
   socket.on('reconnect_attempt', (attempt) => {
     reconnectAttempts = attempt;
     console.log('Reconnect attempt:', attempt);
 
-    // After MAX_ATTEMPTS, consider server down
     if (attempt >= MAX_ATTEMPTS_BEFORE_DOWN && serverDownCallback) {
       console.log('Server appears to be down');
       serverDownCallback();
