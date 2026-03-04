@@ -93,20 +93,38 @@ export class CallService {
 
     // WebRTC Call Methods
     async initiateCall(callerId: string, receiverId: string, conversationId: string, callType: 'audio' | 'video') {
-        const call = await _Call.create({
-            callerId,
-            receiverId,
-            conversationId,
-            callType,
-            status: 'calling'
-        });
+        try {
+            console.log('[CallService] Initiating call:', { callerId, receiverId, conversationId, callType });
 
-        const populatedCall = await _Call.findById(call._id)
-            .populate('callerId', 'name email avatar')
-            .populate('receiverId', 'name email avatar')
-            .lean();
+            const call = await _Call.create({
+                callerId,
+                receiverId,
+                conversationId,
+                callType,
+                status: 'calling'
+            });
 
-        return populatedCall;
+            console.log('[CallService] Call created in DB:', call._id);
+
+            const populatedCall = await _Call.findById(call._id)
+                .populate('callerId', 'name email avatar')
+                .populate('receiverId', 'name email avatar')
+                .lean();
+
+            console.log('[CallService] Call populated successfully');
+
+            return populatedCall;
+        } catch (error: any) {
+            console.error('[CallService] Error creating call:', {
+                error: error.message,
+                code: error.code,
+                name: error.name,
+                callerId,
+                receiverId,
+                conversationId
+            });
+            throw error;
+        }
     }
 
     async acceptCall(callId: string, userId: string) {

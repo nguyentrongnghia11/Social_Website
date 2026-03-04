@@ -36,7 +36,8 @@ import { isLoggedIn, validateSession } from "./helpers/authHelper";
 import { NotificationProvider } from "./components/views/NotificationProvider";
 import { generateDeviceId } from "./helpers/initDevice";
 import AdminPage from "./components/views/DashBoardView";
-import { VideoCallProvider, useVideoCall } from "./components/util/VideoCallContext";
+import { useVideoCall } from "./components/util/VideoCallContext";
+import { useVideoCallManager } from "./hooks/useVideoCallManager";
 import IncomingCallModal from "./components/IncomingCallModal";
 import VideoCall from "./components/VideoCall";
 import AdminLayout from "./components/admin/AdminLayout";
@@ -52,6 +53,9 @@ import ServerDownPage from "./components/ServerDownPage";
 
 
 function AppContent() {
+  // Initialize video call manager (WebRTC logic)
+  useVideoCallManager();
+  
   const { activeCall, endCall } = useVideoCall();
 
   return (
@@ -178,9 +182,7 @@ function App() {
       >
         <CssBaseline />
         <NotificationProvider>
-          <VideoCallProvider>
-            <AppContent />
-          </VideoCallProvider>
+          <AppContent />
         </NotificationProvider>
       </BrowserRouter>
     </ThemeProvider>

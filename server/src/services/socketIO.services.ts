@@ -8,6 +8,7 @@ import _Call from '../models/call';
 import groupService from "../services/group/group.services";
 import callService from "./call/call.services";
 import { sendMessageNotification, sendGroupMessageNotification } from './notification/notification.services';
+import { Types } from 'mongoose';
 
 declare module "socket.io" {
     interface Socket {
@@ -500,32 +501,58 @@ export const socketioService = async (socket: Socket) => {
         try {
             const { callerId, receiverId, conversationId, callType, callerName, callerAvatar } = data;
 
+            console.log('[Call-Initiate] Received data:', { 
+                callerId, 
+                receiverId, 
+                conversationId, 
+                callType,
+                callerName,
+                callerAvatar 
+            });
+
             // Validate required fields
             if (!callerId || !receiverId || !conversationId || !callType) {
-                console.error('Missing for call-initiate');
+                console.error('[Call-Initiate] Missing required fields:', { callerId, receiverId, conversationId, callType });
                 socket.emit('call-error', { message: 'Missing required fields' });
                 return;
             }
 
             // Validate callType
             if (!['audio', 'video'].includes(callType)) {
-                console.error('Invalid call type:', callType);
+                console.error('[Call-Initiate] Invalid call type:', callType);
                 socket.emit('call-error', { message: 'Invalid call type' });
                 return;
             }
 
-            console.log('[Call-Initiate] Starting call:', { callerId, receiverId, callType });
+            // Validate ObjectIds
+            if (!Types.ObjectId.isValid(callerId)) {
+                console.error('[Call-Initiate] Invalid callerId:', callerId);
+                socket.emit('call-error', { message: 'Invalid caller ID' });
+                return;
+            }
+            if (!Types.ObjectId.isValid(receiverId)) {
+                console.error('[Call-Initiate] Invalid receiverId:', receiverId);
+                socket.emit('call-error', { message: 'Invalid receiver ID' });
+                return;
+            }
+            if (!Types.ObjectId.isValid(conversationId)) {
+                console.error('[Call-Initiate] Invalid conversationId:', conversationId);
+                socket.emit('call-error', { message: 'Invalid conversation ID' });
+                return;
+            }
+
+            console.log('[Call-Initiate] Starting call with validated IDs');
             
             const call = await callService.initiateCall(callerId, receiverId, conversationId, callType);
 
             if (!call) {
-                console.error('Failed to create call in database');
+                console.error('[Call-Initiate] Failed to create call in database');
                 socket.emit('call-error', { message: 'Failed to initiate call' });
                 return;
             }
 
             const callId = call._id.toString();
-            console.log('[Call-Initiate] Call created:', callId);
+            console.log('[Call-Initiate] Call created successfully:', callId);
 
             // Check if receiver is online
             const receiverSocketIds = await checkUserOnline(receiverId);
@@ -595,9 +622,22 @@ export const socketioService = async (socket: Socket) => {
 
             console.log('✅ [Call-Initiate] Complete');
 
-        } catch (error) {
-            console.error('Error initiating call:', error);
-            socket.emit('call-error', { message: 'Failed to initiate call' });
+        } catch (error: any) {
+            console.error('❌ [Call-Initiate] Error initiating call:', {
+                error: error.message,
+                stack: error.stack,
+                data: {
+                    callerId: data.callerId,
+                    receiverId: data.receiverId,
+                    conversationId: data.conversationId,
+                    callType: data.callType
+                }
+            });
+            
+            const errorMessage = error.message || 'Failed to initiate call';
+            socket.emit('call-error', { 
+                message: `Failed to initiate call: ${errorMessage}` 
+            });
         }
     });
 
@@ -700,7 +740,10 @@ export const socketioService = async (socket: Socket) => {
                         candidate
                     });
                 });
+                console.log ('[Call-ICE-Candidate] Forwarded ICE candidate to:', targetUserId);
             }
+
+            
 
         } catch (error) {
             console.error('Error handling ICE candidate:', error);

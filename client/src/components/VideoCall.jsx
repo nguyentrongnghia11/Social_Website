@@ -22,11 +22,7 @@ const VideoCall = ({ onCallEnd }) => {
     callStatus,
     localStream,
     remoteStream,
-    isMuted,
-    isVideoOff,
     endCall,
-    toggleMute,
-    toggleVideo,
   } = useVideoCall();
 
   const localVideoRef = useRef(null);
@@ -38,22 +34,37 @@ const VideoCall = ({ onCallEnd }) => {
     console.log('🎥 [VideoCall] Local stream effect:', { 
       hasStream: !!localStream, 
       hasRef: !!localVideoRef.current, 
-      callType: activeCall?.callType, 
-      isVideoOff 
+      callType: activeCall?.callType
     });
     
-    if (localStream && localVideoRef.current && activeCall?.callType === 'video' && !isVideoOff) {
-      console.log('✅ Setting local video srcObject');
-      try {
-        localVideoRef.current.srcObject = localStream;
-        // Force play
-        localVideoRef.current.play().catch(err => {
-          console.warn('⚠️ Local video autoplay blocked:', err);
-        });
-      } catch (error) {
-        console.error('❌ Error setting local video:', error);
+    if (!localStream || activeCall?.callType !== 'video') return;
+    
+    const setupLocalVideo = async () => {
+      // Wait for ref to be available
+      let retries = 0;
+      while (retries < 10) {
+        if (localVideoRef.current) {
+          console.log('✅ Setting local video srcObject');
+          try {
+            localVideoRef.current.srcObject = localStream;
+            await localVideoRef.current.play();
+            console.log('✅ Local video playing');
+            return;
+          } catch (err) {
+            console.warn('⚠️ Local video autoplay blocked:', err.message);
+            return; // Not critical for local video
+          }
+        }
+        
+        console.log('⏳ Waiting for local video ref...', retries);
+        await new Promise(resolve => setTimeout(resolve, 50));
+        retries++;
       }
-    }
+      
+      console.error('❌ Failed to get local video ref after retries');
+    };
+    
+    setupLocalVideo();
 
     // Cleanup
     return () => {
@@ -63,7 +74,7 @@ const VideoCall = ({ onCallEnd }) => {
         localVideoRef.current.srcObject = null;
       }
     };
-  }, [localStream, activeCall?.callType, isVideoOff]);
+  }, [localStream, activeCall?.callType]);
 
   // Set remote stream
   useEffect(() => {
@@ -78,27 +89,22 @@ const VideoCall = ({ onCallEnd }) => {
     if (!remoteStream) return;
 
     const setupRemoteMedia = async () => {
-      try {
+      // Wait for ref to be available
+      let retries = 0;
+      while (retries < 10) {
         if (activeCall?.callType === 'video' && remoteVideoRef.current) {
           console.log('✅ Setting remote video srcObject');
           remoteVideoRef.current.srcObject = remoteStream;
           
-          // Try to play with retry
           try {
             await remoteVideoRef.current.play();
-            console.log('✅ Remote video playing');
+            console.log('✅ Remote video playing successfully');
+            return;
           } catch (err) {
-            console.warn('⚠️ Remote video play failed, retrying...', err);
-            // Retry after a short delay
-            setTimeout(async () => {
-              try {
-                await remoteVideoRef.current.play();
-                console.log('✅ Remote video playing (retry)');
-              } catch (retryErr) {
-                console.error('❌ Remote video play retry failed:', retryErr);
-              }
-            }, 500);
+            console.warn('⚠️ Remote video play failed:', err.message);
+            // Browsers may block autoplay, try user gesture later
           }
+          return;
         } else if (activeCall?.callType === 'audio' && remoteAudioRef.current) {
           console.log('✅ Setting remote audio srcObject');
           remoteAudioRef.current.srcObject = remoteStream;
@@ -109,10 +115,16 @@ const VideoCall = ({ onCallEnd }) => {
           } catch (err) {
             console.error('❌ Remote audio play error:', err);
           }
+          return;
         }
-      } catch (error) {
-        console.error('❌ Error setting remote media:', error);
+        
+        // Ref not ready, wait and retry
+        console.log('⏳ Waiting for video ref...', retries);
+        await new Promise(resolve => setTimeout(resolve, 50));
+        retries++;
       }
+      
+      console.error('❌ Failed to get video ref after retries');
     };
 
     setupRemoteMedia();
@@ -194,21 +206,24 @@ const VideoCall = ({ onCallEnd }) => {
             bgcolor: '#000',
           }}
         >
-          {remoteStream && activeCall.callType === 'video' ? (
-            <video
-              ref={remoteVideoRef}
-              autoPlay
-              playsInline
-              webkit-playsinline="true"
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                backgroundColor: '#000',
-              }}
-            />
-          ) : (
-            <Box sx={{ textAlign: 'center' }}>
+          {/* Remote video - always render but hide when no stream */}
+          <video
+            ref={remoteVideoRef}
+            autoPlay
+            playsInline
+            webkit-playsinline="true"
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              backgroundColor: '#000',
+              display: (remoteStream && activeCall.callType === 'video') ? 'block' : 'none',
+            }}
+          />
+          
+          {/* Show avatar when no video */}
+          {(!remoteStream || activeCall.callType === 'audio') && (
+            <Box sx={{ textAlign: 'center', position: 'absolute' }}>
               <Avatar
                 src={activeCall.receiverAvatar}
                 sx={{ width: 120, height: 120, margin: '0 auto', mb: 2 }}
@@ -228,8 +243,8 @@ const VideoCall = ({ onCallEnd }) => {
           )}
         </Box>
 
-        {/* Local video (picture-in-picture) */}
-        {activeCall.callType === 'video' && localStream && !isVideoOff && (
+        {/* Local video (picture-in-picture) - always render for video calls */}
+        {activeCall.callType === 'video' && (
           <Paper
             elevation={4}
             sx={{
@@ -241,6 +256,7 @@ const VideoCall = ({ onCallEnd }) => {
               overflow: 'hidden',
               borderRadius: 2,
               bgcolor: '#000',
+              display: localStream ? 'block' : 'none',
             }}
           >
             <video
@@ -280,57 +296,21 @@ const VideoCall = ({ onCallEnd }) => {
           gap: 2,
         }}
       >
-        <Stack direction="row" spacing={2}>
-          {/* Mute button */}
-          <IconButton
-            onClick={toggleMute}
-            sx={{
-              bgcolor: isMuted ? '#f44336' : 'rgba(255,255,255,0.2)',
-              color: 'white',
-              width: 56,
-              height: 56,
-              '&:hover': {
-                bgcolor: isMuted ? '#d32f2f' : 'rgba(255,255,255,0.3)',
-              },
-            }}
-          >
-            {isMuted ? <MicOff /> : <Mic />}
-          </IconButton>
-
-          {/* End call button */}
-          <IconButton
-            onClick={handleEndCall}
-            sx={{
-              bgcolor: '#f44336',
-              color: 'white',
-              width: 64,
-              height: 64,
-              '&:hover': {
-                bgcolor: '#d32f2f',
-              },
-            }}
-          >
-            <CallEnd />
-          </IconButton>
-
-          {/* Video toggle button */}
-          {activeCall.callType === 'video' && (
-            <IconButton
-              onClick={toggleVideo}
-              sx={{
-                bgcolor: isVideoOff ? '#f44336' : 'rgba(255,255,255,0.2)',
-                color: 'white',
-                width: 56,
-                height: 56,
-                '&:hover': {
-                  bgcolor: isVideoOff ? '#d32f2f' : 'rgba(255,255,255,0.3)',
-                },
-              }}
-            >
-              {isVideoOff ? <VideocamOff /> : <Videocam />}
-            </IconButton>
-          )}
-        </Stack>
+        {/* End call button only */}
+        <IconButton
+          onClick={handleEndCall}
+          sx={{
+            bgcolor: '#f44336',
+            color: 'white',
+            width: 64,
+            height: 64,
+            '&:hover': {
+              bgcolor: '#d32f2f',
+            },
+          }}
+        >
+          <CallEnd />
+        </IconButton>
       </Box>
     </Box>
   );
