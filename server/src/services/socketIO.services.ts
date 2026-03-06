@@ -516,32 +516,6 @@ export const socketioService = async (socket: Socket) => {
                 socket.emit('call-error', { message: 'Missing required fields' });
                 return;
             }
-
-            // Validate callType
-            if (!['audio', 'video'].includes(callType)) {
-                console.error('[Call-Initiate] Invalid call type:', callType);
-                socket.emit('call-error', { message: 'Invalid call type' });
-                return;
-            }
-
-            // Validate ObjectIds
-            if (!Types.ObjectId.isValid(callerId)) {
-                console.error('[Call-Initiate] Invalid callerId:', callerId);
-                socket.emit('call-error', { message: 'Invalid caller ID' });
-                return;
-            }
-            if (!Types.ObjectId.isValid(receiverId)) {
-                console.error('[Call-Initiate] Invalid receiverId:', receiverId);
-                socket.emit('call-error', { message: 'Invalid receiver ID' });
-                return;
-            }
-            if (!Types.ObjectId.isValid(conversationId)) {
-                console.error('[Call-Initiate] Invalid conversationId:', conversationId);
-                socket.emit('call-error', { message: 'Invalid conversation ID' });
-                return;
-            }
-
-            console.log('[Call-Initiate] Starting call with validated IDs');
             
             const call = await callService.initiateCall(callerId, receiverId, conversationId, callType);
 
@@ -620,7 +594,7 @@ export const socketioService = async (socket: Socket) => {
                 callType
             });
 
-            console.log('✅ [Call-Initiate] Complete');
+            console.log('Call-Initiate Complete');
 
         } catch (error: any) {
             console.error('❌ [Call-Initiate] Error initiating call:', {
