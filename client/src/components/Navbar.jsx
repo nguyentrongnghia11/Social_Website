@@ -24,14 +24,11 @@ import { Link, useNavigate } from "react-router-dom"
 import { isLoggedIn, logoutUser } from "../helpers/authHelper"
 import UserAvatar from "./UserAvatar"
 import HorizontalStack from "./util/HorizontalStack"
-import { subscribeForemessage } from "../helpers/messaging_getToken"
-
 import { MdAdminPanelSettings } from "react-icons/md"
 // socket events handled in NotificationProvider
 import { markAsRead, markAllAsRead as markAllAsReadAPI } from "../api-axios/notification"
 import { useNotification } from "./views/NotificationProvider"
-import { onEvent, offEvent } from "../helpers/socketHelper"
-import { getTotalUnreadCount } from "../api-axios/messages"
+import useNotificationStore from "../stores/useNotificationStore"
 
 
 const Navbar = () => {
@@ -49,23 +46,11 @@ const Navbar = () => {
   const [displayLimit, setDisplayLimit] = useState(10)
   const notificationScrollRef = useRef(null)
 
-  const [unreadMsgCount, setUnreadMsgCount] = useState(0);
+  const unreadMsgCount = useNotificationStore((state) => state.unreadMsgCount);
+
   useEffect(() => {
-    const fetchUnreadCount = async () => {
-      try {
-        const response = await getTotalUnreadCount();
-        console.log('Fetched total unread count:', response);
-
-        if (response?.data?.totalUnreadCount !== undefined) {
-          setUnreadMsgCount(response.data.totalUnreadCount);
-        }
-      } catch (error) {
-        console.error('Failed to fetch unread message count:', error);
-      }
-    };
-
     if (user) {
-      fetchUnreadCount();
+      useNotificationStore.getState().fetchUnreadMsgCount();
     }
   }, [user]);
 
@@ -74,36 +59,6 @@ const Navbar = () => {
     window.addEventListener("resize", updateDimensions)
     return () => window.removeEventListener("resize", updateDimensions)
   }, [])
-
-  useEffect(() => {
-    if (!user) return
-    subscribeForemessage()
-    const handleNewMessage = (data) => {
-      console.log('📩 New chat message in Navbar:', data);
-      // Only increment if the message is not from current user
-      const currentUserId = user?.user?._id || user?._id;
-      if (data?.msg?.senderId !== currentUserId && data?.msg?.senderId?._id !== currentUserId) {
-        setUnreadMsgCount(prev => prev + 1);
-      }
-    };
-
-    const handleMessageRead = () => {
-      setUnreadMsgCount(prev => Math.max(0, prev - 1));
-    };
-
-    const handleAllMessagesRead = () => {
-      setUnreadMsgCount(0);
-    };
-    onEvent('chat', handleNewMessage);
-    onEvent('message:read', handleMessageRead);
-    onEvent('messages:all-read', handleAllMessagesRead);
-
-    return () => {
-      offEvent('chat', handleNewMessage);
-      offEvent('message:read', handleMessageRead);
-      offEvent('messages:all-read', handleAllMessagesRead);
-    };
-  }, [user])
 
   const mobile = width < 500
   const navbarWidth = width < 600

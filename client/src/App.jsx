@@ -155,9 +155,6 @@ function App() {
     return (
       <ThemeProvider theme={theme}>
         <CssBaseline />
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-          <div>Đang kiểm tra phiên đăng nhập...</div>
-        </div>
       </ThemeProvider>
     );
   }

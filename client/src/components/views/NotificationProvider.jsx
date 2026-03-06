@@ -1,128 +1,40 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useEffect, useRef } from "react";
 import { Snackbar, Alert, Button } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle } from '@mui/icons-material'
 import { onEvent, offEvent, initiateSocketConnection, socket } from "../../helpers/socketHelper";
 import { isLoggedIn } from "../../helpers/authHelper";
-import { getNotifications, markAsRead as markAsReadAPI } from "../../api-axios/notification";
+import { getNotifications } from "../../api-axios/notification";
+import useNotificationStore from "../../stores/useNotificationStore";
+import { subscribeForemessage } from "../../helpers/messaging_getToken";
 
 const NotificationContext = createContext();
 export const useNotification = () => useContext(NotificationContext);
 
 export const NotificationProvider = ({ children }) => {
-    const [open, setOpen] = useState(false);
-    const [message, setMessage] = useState("");
-    const [link, setLink] = useState("");
-    const [notifications, setNotifications] = useState([]);
-    const [unreadCount, setUnreadCount] = useState(0);
     const navigate = useNavigate();
-
-    const showNotification = ({ message = "Posted successfully", link = "123" }) => {
-        setMessage(message);
-        setLink(link);
-        setOpen(true);
-        try {
-            const audio = new Audio('/notification-sound.mp3');
-            audio.volume = 0.3;
-            audio.play().catch(() => {
-            });
-        } catch (error) {
-        }
-    };
+    const notificationListenersRegistered = useRef(false);
+    
+    const notifications = useNotificationStore((state) => state.notifications);
+    const unreadCount = useNotificationStore((state) => state.unreadCount);
+    const snackbar = useNotificationStore((state) => state.snackbar);
 
     const handleClose = (event, reason) => {
         if (reason === "clickaway") return;
-        setOpen(false);
-        setLink(null);
+        useNotificationStore.getState().hideSnackbar();
+        useNotificationStore.getState().clearSnackbarLink();
     };
 
     const handleGo = () => {
-        if (link) navigate(link);
-        setOpen(false);
-        setLink(null);
-    };
-
-    const handleDisplayStatusUploadPost = (content) => {
-        if (content) {
-            showNotification({ message: "Posted successfully!", link: `/posts/${content.postId}` })
-        }
-    }
-
-    const addNotification = (notification) => {
-        setNotifications((prev) => [notification, ...prev].slice(0, 50));
-        if (!notification.read) setUnreadCount((prev) => prev + 1);
-    };
-
-    const markAsRead = async (notificationId) => {
-        try {
-            const user = isLoggedIn();
-            const reciveId = user?.user?._id || user?._id;
-
-            await markAsReadAPI(notificationId, reciveId);
-
-            setNotifications((prev) => prev.map(n => n._id === notificationId ? { ...n, read: true } : n));
-            setUnreadCount((prev) => Math.max(0, prev - 1));
-        } catch (error) {
-            console.error('Failed to mark notification as read:', error);
-        }
-    };
-
-    const markAllAsRead = () => {
-        setNotifications((prev) => prev.map(n => ({ ...n, read: true })));
-        setUnreadCount(0);
-    };
-
-    const handleLikeNotification = (notification) => {
-        addNotification(notification);
-        showNotification({
-            message: notification.message || "Someone liked your post",
-            link: notification.link
-        });
-    };
-
-    const handleFollowNotification = (notification) => {
-        addNotification(notification);
-        showNotification({
-            message: notification.message || "You have a new follower",
-            link: notification.link
-        });
-    };
-
-    const handleCommentNotification = (notification) => {
-        addNotification(notification);
-        showNotification({
-            message: notification.message || "New comment on your post",
-            link: notification.link
-        });
-    };
-
-    const handleMessageNotification = (notification) => {
-        addNotification(notification);
-        showNotification({
-            message: notification.message || "You have a new message",
-            link: notification.link
-        });
-    };
-
-    const handleInviteNotification = (notification) => {
-        addNotification(notification);
-        showNotification({
-            message: notification.message || "You have a new invitation",
-            link: notification.link
-        });
-    };
-
-    const handleLoginNotification = (notification) => {
-        addNotification(notification);
-        showNotification({
-            message: notification.message || "New login detected",
-            link: null
-        });
+        const { snackbar } = useNotificationStore.getState();
+        if (snackbar.link) navigate(snackbar.link);
+        useNotificationStore.getState().hideSnackbar();
+        useNotificationStore.getState().clearSnackbarLink();
     };
 
     useEffect(() => {
         const user = isLoggedIn();
-        if (!user) {
+        if (!user || notificationListenersRegistered.current) {
             return;
         }
 
@@ -131,22 +43,96 @@ export const NotificationProvider = ({ children }) => {
             console.warn('Failed to initialize socket connection');
             return;
         }
-
         (async () => {
             try {
                 const resp = await getNotifications();
                 const payload = resp.data?.data;
                 if (Array.isArray(payload) && payload.length > 0) {
                     const notificationData = payload[0];
-                    setNotifications(notificationData.list || []);
+                    useNotificationStore.getState().setNotifications(notificationData.list || []);
                     console.log("notificationData ", Number(notificationData?.totalUnread?.[0]?.count) || 0);
-                    setUnreadCount(Number(notificationData?.totalUnread?.[0]?.count) || 0);
                 }
             } catch (err) {
                 console.error('Failed to load initial notifications', err);
             }
         })();
+        const handleDisplayStatusUploadPost = (content) => {
+            if (content) {
+                useNotificationStore.getState().showSnackbar({ 
+                    message: "Posted successfully!", 
+                    link: `/posts/${content.postId}` 
+                });
+            }
+        };
 
+        const handleLikeNotification = (notification) => {
+            useNotificationStore.getState().addNotification(notification);
+            useNotificationStore.getState().showSnackbar({
+                message: notification.message || "Someone liked your post",
+                link: notification.link
+            });
+        };
+
+        const handleFollowNotification = (notification) => {
+            useNotificationStore.getState().addNotification(notification);
+            useNotificationStore.getState().showSnackbar({
+                message: notification.message || "You have a new follower",
+                link: notification.link
+            });
+        };
+
+        const handleCommentNotification = (notification) => {
+            useNotificationStore.getState().addNotification(notification);
+            useNotificationStore.getState().showSnackbar({
+                message: notification.message || "New comment on your post",
+                link: notification.link
+            });
+        };
+
+        const handleMessageNotification = (notification) => {
+            useNotificationStore.getState().addNotification(notification);
+            useNotificationStore.getState().showSnackbar({
+                message: notification.message || "You have a new message",
+                link: notification.link
+            });
+        };
+
+        const handleInviteNotification = (notification) => {
+            useNotificationStore.getState().addNotification(notification);
+            useNotificationStore.getState().showSnackbar({
+                message: notification.message || "You have a new invitation",
+                link: notification.link
+            });
+        };
+
+        const handleLoginNotification = (notification) => {
+            useNotificationStore.getState().addNotification(notification);
+            useNotificationStore.getState().showSnackbar({
+                message: notification.message || "New login detected",
+                link: null
+            });
+        };
+
+        const currentUserId = user?.user?._id || user?._id;
+
+        const handleNewMessage = (data) => {
+            const senderId = data?.msg?.senderId?._id || data?.msg?.senderId;
+            if (senderId !== currentUserId) {
+                useNotificationStore.getState().incrementUnreadMsgCount();
+            }
+        };
+
+        const handleMessageRead = () => {
+            useNotificationStore.getState().decrementUnreadMsgCount();
+        };
+
+        const handleAllMessagesRead = () => {
+            useNotificationStore.getState().resetUnreadMsgCount();
+        };
+
+        subscribeForemessage();
+
+        // Register socket event listeners
         onEvent("post:uploaded", handleDisplayStatusUploadPost);
         onEvent("like", handleLikeNotification);
         onEvent("follow", handleFollowNotification);
@@ -154,6 +140,13 @@ export const NotificationProvider = ({ children }) => {
         onEvent("message", handleMessageNotification);
         onEvent("invite", handleInviteNotification);
         onEvent("login", handleLoginNotification);
+        
+        // Message count listeners
+        onEvent('chat', handleNewMessage);
+        onEvent('message:read', handleMessageRead);
+        onEvent('messages:all-read', handleAllMessagesRead);
+        
+        notificationListenersRegistered.current = true;
 
         return () => {
             offEvent("post:uploaded", handleDisplayStatusUploadPost);
@@ -163,17 +156,33 @@ export const NotificationProvider = ({ children }) => {
             offEvent("message", handleMessageNotification);
             offEvent("invite", handleInviteNotification);
             offEvent("login", handleLoginNotification);
+            
+            // Cleanup message listeners
+            offEvent('chat', handleNewMessage);
+            offEvent('message:read', handleMessageRead);
+            offEvent('messages:all-read', handleAllMessagesRead);
+            
+            notificationListenersRegistered.current = false;
         }
-    }, [socket])
+    }, [])
 
 
     return (
-        <NotificationContext.Provider value={{ showNotification, notifications, unreadCount, addNotification, markAsRead, markAllAsRead }}>
+        <NotificationContext.Provider value={{ 
+            showNotification: (...args) => useNotificationStore.getState().showSnackbar(...args),
+            notifications, 
+            unreadCount, 
+            addNotification: (...args) => useNotificationStore.getState().addNotification(...args),
+            markAsRead: (...args) => useNotificationStore.getState().markAsRead(...args),
+            markAllAsRead: () => useNotificationStore.getState().markAllAsRead()
+        }}>
             {children}
             <Snackbar
-                open={open}
-                autoHideDuration={5000}
+                open={snackbar.open}
+                autoHideDuration={8000}
+                onClose={handleClose}
                 anchorOrigin={{ vertical: "top", horizontal: "right" }}
+                disableWindowBlurListener
                 sx={{
                     right: '24px !important',
                     left: 'auto !important',
@@ -184,7 +193,7 @@ export const NotificationProvider = ({ children }) => {
                     severity="success"
                     icon={<CheckCircle sx={{ color: '#10b981', fontSize: 20 }} />}
                     action={
-                        link && (
+                        snackbar.link && (
                             <Button
                                 color="inherit"
                                 size="small"
@@ -225,7 +234,7 @@ export const NotificationProvider = ({ children }) => {
                         }
                     }}
                 >
-                    {message || "Posted successfully"}
+                    {snackbar.message || "Posted successfully"}
                 </Alert>
             </Snackbar>
         </NotificationContext.Provider>
