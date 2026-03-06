@@ -37,7 +37,7 @@ const useVideoCallStore = create(
             },
 
             handleCallInitiated: ({ callId, conversationId }) => {
-                console.log('📞 Call initiated:', callId);
+                console.log('Call initiated:', callId);
                 const { activeCall } = get();
                 if (activeCall) {
                     set({ activeCall: { ...activeCall, callId, conversationId } });
@@ -45,7 +45,7 @@ const useVideoCallStore = create(
             },
 
             handleCallOffer: ({ callId, offer }) => {
-                console.log('📨 Received offer');
+                console.log('Received offer');
                 const { incomingCall, activeCall } = get();
                 
                 if (incomingCall?.callId === callId) {
@@ -56,23 +56,22 @@ const useVideoCallStore = create(
             },
 
             handleCallAnswer: ({ answer }) => {
-                console.log('✅ [STORE] Received answer socket event');
-                console.log('📋 Answer SDP preview:', answer?.sdp?.substring(0, 100));
+                console.log('Received answer socket event');
                 const { activeCall } = get();
                 if (activeCall) {
-                    console.log('📋 Current activeCall:', activeCall.callId, 'isInitiator:', activeCall.isInitiator);
+                    console.log('Current activeCall:', activeCall.callId, 'isInitiator:', activeCall.isInitiator);
                     set({ 
                         activeCall: { ...activeCall, answer },
                         callStatus: 'active'
                     });
-                    console.log('✅ Answer stored in activeCall');
+                    console.log('Answer stored in activeCall');
                 } else {
-                    console.warn('⚠️ No activeCall when receiving answer');
+                    console.warn('No activeCall when receiving answer');
                 }
             },
 
             handleIceCandidate: ({ callId, candidate }) => {
-                console.log('🧊 ICE candidate');
+                console.log('ICE candidate');
                 const { activeCall } = get();
                 if (activeCall?.callId === callId) {
                     set({
@@ -86,7 +85,7 @@ const useVideoCallStore = create(
             },
 
             handleCallEnded: () => {
-                console.log('📴 Call ended');
+                console.log('Call ended');
                 set({
                     callStatus: 'idle',
                     activeCall: null,
@@ -95,7 +94,7 @@ const useVideoCallStore = create(
             },
 
             handleCallRejected: ({ reason }) => {
-                console.log('🚫 Call rejected');
+                console.log('Call rejected');
                 set({
                     callStatus: 'idle',
                     activeCall: null,
@@ -204,7 +203,6 @@ const useVideoCallStore = create(
                 });
             },
 
-            // ============= RESET STATE =============
             resetCallState: () => {
                 set({
                     incomingCall: null,
