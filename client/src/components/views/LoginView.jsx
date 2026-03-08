@@ -17,6 +17,7 @@ import ErrorAlert from "../ErrorAlert";
 import { loginUser } from "../../helpers/authHelper";
 import Copyright from "../Copyright";
 import GoogleIcon from '@mui/icons-material/Google';
+import useNotificationStore from "../../stores/useNotificationStore";
 
 const LoginView = () => {
   const navigate = useNavigate();
@@ -45,6 +46,7 @@ const LoginView = () => {
     } else {
       console.log("da set thanh cong ",data.data)
       await loginUser(data.data);
+      useNotificationStore.getState().triggerAuthChange();
       navigate("/");
     }
     // navigate("/");

@@ -25,11 +25,15 @@ import {
   Campaign as CampaignIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import { useNotification } from './views/NotificationProvider';
+import useNotificationStore from '../stores/useNotificationStore';
 
 const NotificationBadge = () => {
   const [anchorEl, setAnchorEl] = useState(null);
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotification();
+  
+  // Zustand store selectors
+  const notifications = useNotificationStore((state) => state.notifications);
+  const unreadCount = useNotificationStore((state) => state.unreadCount);
+  
   const navigate = useNavigate();
 
   const open = Boolean(anchorEl);
@@ -43,7 +47,9 @@ const NotificationBadge = () => {
 
   const handleNotificationClick = (notification) => {
     console.log('Notification clicked:', notification);
-    if (!notification.read) markAsRead(notification._id);
+    if (!notification.read) {
+      useNotificationStore.getState().markAsRead(notification._id);
+    }
 
     if (notification.link) {
       navigate(notification.link);
@@ -53,8 +59,7 @@ const NotificationBadge = () => {
   };
 
   const handleMarkAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    setUnreadCount(0);
+    useNotificationStore.getState().markAllAsRead();
   };
 
   const getNotificationIcon = (type) => {

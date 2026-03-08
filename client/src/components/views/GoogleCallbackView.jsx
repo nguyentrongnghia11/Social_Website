@@ -4,6 +4,7 @@ import { Container, Typography, CircularProgress, Stack } from "@mui/material";
 import { loginUser } from "../../helpers/authHelper";
 import ErrorAlert from "../ErrorAlert";
 import { BASE_URL } from "../../config";
+import useNotificationStore from "../../stores/useNotificationStore";
 
 const GoogleCallbackView = () => {
     const navigate = useNavigate();
@@ -46,6 +47,7 @@ const GoogleCallbackView = () => {
                     };
 
                     await loginUser(loginData);
+                    useNotificationStore.getState().triggerAuthChange();
                     navigate("/");
                 } else {
                     // Check for error parameter

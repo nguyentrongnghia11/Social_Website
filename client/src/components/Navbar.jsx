@@ -25,9 +25,7 @@ import { isLoggedIn, logoutUser } from "../helpers/authHelper"
 import UserAvatar from "./UserAvatar"
 import HorizontalStack from "./util/HorizontalStack"
 import { MdAdminPanelSettings } from "react-icons/md"
-// socket events handled in NotificationProvider
 import { markAsRead, markAllAsRead as markAllAsReadAPI } from "../api-axios/notification"
-import { useNotification } from "./views/NotificationProvider"
 import useNotificationStore from "../stores/useNotificationStore"
 
 
@@ -39,13 +37,15 @@ const Navbar = () => {
   const [search, setSearch] = useState("")
   const [searchIcon, setSearchIcon] = useState(false)
   const [width, setWindowWidth] = useState(0)
-  const { notifications, unreadCount, markAsRead: providerMarkAsRead, markAllAsRead: providerMarkAllAsRead } = useNotification();
   const [notificationAnchor, setNotificationAnchor] = useState(null)
   const notificationOpen = Boolean(notificationAnchor)
   const [showAllNotifications, setShowAllNotifications] = useState(false)
   const [displayLimit, setDisplayLimit] = useState(10)
   const notificationScrollRef = useRef(null)
 
+  // Zustand store selectors
+  const notifications = useNotificationStore((state) => state.notifications);
+  const unreadCount = useNotificationStore((state) => state.unreadCount);
   const unreadMsgCount = useNotificationStore((state) => state.unreadMsgCount);
 
   useEffect(() => {
@@ -92,25 +92,27 @@ const Navbar = () => {
       const user = isLoggedIn();
       const reciveId = user?.user?._id || user?._id;
       await markAsRead(notificationId, reciveId)
-      providerMarkAsRead(notificationId)
+      useNotificationStore.getState().markAsRead(notificationId)
     } catch (error) {
       console.error("Error marking notification as read:", error)
     }
-  }, [providerMarkAsRead]);
+  }, []);
 
-  const markAllAsRead = useCallback(async () => {
+  const markAllAsReadHandler = useCallback(async () => {
     try {
       const currentUser = isLoggedIn();
       const receiverId = currentUser?.user?._id || currentUser?._id;
       await markAllAsReadAPI(receiverId)
-      providerMarkAllAsRead()
+      useNotificationStore.getState().markAllAsRead()
     } catch (error) {
       console.error("Error marking all notifications as read:", error)
     }
-  }, [providerMarkAllAsRead]);
+  }, []);
 
   const handleLogout = useCallback(async (e) => {
-    logoutUser()
+    await logoutUser()
+    useNotificationStore.getState().clearAll()
+    useNotificationStore.getState().triggerAuthChange()
     navigate("/login")
   }, [navigate]);
 
@@ -296,7 +298,7 @@ const Navbar = () => {
               Thông báo
             </Typography>
             {unreadCount > 0 && (
-              <Button size="small" onClick={markAllAsRead} sx={{ fontSize: "0.75rem" }}>
+              <Button size="small" onClick={markAllAsReadHandler} sx={{ fontSize: "0.75rem" }}>
                 Đánh dấu tất cả đã đọc
               </Button>
             )}

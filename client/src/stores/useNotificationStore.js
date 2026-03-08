@@ -7,6 +7,9 @@ import { isLoggedIn } from '../helpers/authHelper';
 const useNotificationStore = create(
     devtools(
         (set, get) => ({
+            // Auth trigger for socket listeners
+            authTrigger: Date.now(),
+            
             // Notification State
             notifications: [],
             unreadCount: 0,
@@ -163,6 +166,9 @@ const useNotificationStore = create(
                     activeConversation: null 
                 });
             },
+
+            // Trigger auth change (call after login/logout)
+            triggerAuthChange: () => set({ authTrigger: Date.now() }),
         }),
         { name: 'NotificationStore' }
     )
