@@ -33,10 +33,12 @@ import { io } from "socket.io-client";
 import './api-axios/common'
 import OTPView from "./components/views/OTPView";
 import { isLoggedIn, validateSession } from "./helpers/authHelper";
-import { NotificationProvider } from "./components/views/NotificationProvider";
 import { generateDeviceId } from "./helpers/initDevice";
 import AdminPage from "./components/views/DashBoardView";
-import { VideoCallProvider, useVideoCall } from "./components/util/VideoCallContext";
+import { useVideoCall } from "./components/util/VideoCallContext";
+import { useVideoCallManager } from "./hooks/useVideoCallManager";
+import { useSocketListeners } from "./hooks/useSocketListeners";
+import NotificationSnackbar from "./components/NotificationSnackbar";
 import IncomingCallModal from "./components/IncomingCallModal";
 import VideoCall from "./components/VideoCall";
 import AdminLayout from "./components/admin/AdminLayout";
@@ -52,6 +54,12 @@ import ServerDownPage from "./components/ServerDownPage";
 
 
 function AppContent() {
+  // Initialize socket event listeners
+  useSocketListeners();
+  
+  // Initialize video call manager (WebRTC logic)
+  useVideoCallManager();
+  
   const { activeCall, endCall } = useVideoCall();
 
   return (
@@ -95,12 +103,14 @@ function AppContent() {
         {/* <Route path="/server-down" element={<ServerDownPage />} /> */}
       </Routes>
 
-      {/* Incoming call modal */}
       <IncomingCallModal />
 
       {/* Active video call */}
       {console.log('AppContent: activeCall =', activeCall)}
       {activeCall && <VideoCall onCallEnd={endCall} />}
+      
+      {/* Notification Snackbar */}
+      <NotificationSnackbar />
     </>
   );
 }
@@ -151,9 +161,6 @@ function App() {
     return (
       <ThemeProvider theme={theme}>
         <CssBaseline />
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-          <div>Đang kiểm tra phiên đăng nhập...</div>
-        </div>
       </ThemeProvider>
     );
   }
@@ -177,11 +184,7 @@ function App() {
         }}
       >
         <CssBaseline />
-        <NotificationProvider>
-          <VideoCallProvider>
-            <AppContent />
-          </VideoCallProvider>
-        </NotificationProvider>
+        <AppContent />
       </BrowserRouter>
     </ThemeProvider>
   );

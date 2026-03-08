@@ -12,11 +12,6 @@ const Message = (props) => {
   const [openImageModal, setOpenImageModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
 
-  console.log('🎨 Message component rendering with:', {
-    content: message?.content,
-    mediaFiles: message?.mediaFiles,
-    mediaFilesLength: message?.mediaFiles?.length
-  });
 
   const handleImageClick = (imageUrl) => {
     setSelectedImage(imageUrl);
@@ -42,13 +37,10 @@ const Message = (props) => {
   };
 
   const renderMediaFile = (file, index) => {
-
-    console.log(".file", file.resourceType)
     const isImage = file.resourceType === 'image';
     const isVideo = file.resourceType === 'video';
     const isAudio = file.resourceType === 'audio';
 
-    console.log(".file", file.url)
 
     if (isImage) {
       return (

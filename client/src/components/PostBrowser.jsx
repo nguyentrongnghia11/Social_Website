@@ -13,7 +13,6 @@ import HorizontalStack from "./util/HorizontalStack";
 import { getALlPosts, searchPosts } from "../api-axios/posts.";
 import CommentBrowser from "./CommentBrowser";
 import { emitEvent, onEvent, offEvent } from "../helpers/socketHelper";
-import { useNotification } from "./views/NotificationProvider";
 
 const PostBrowser = (props) => {
   const [posts, setPosts] = useState([]);

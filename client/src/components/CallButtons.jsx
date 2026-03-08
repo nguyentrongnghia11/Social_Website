@@ -3,7 +3,9 @@ import { IconButton, Tooltip, Stack } from '@mui/material';
 import { Call, Videocam } from '@mui/icons-material';
 import { useVideoCall } from './util/VideoCallContext';
 
-const CallButtons = ({ receiverId, receiverName, receiverAvatar, conversationId }) => {
+const CallButtons = ({ receiverId, receiverName, receiverAvatar= '', conversationId }) => {
+
+  console.log ("check data in button ", receiverId, receiverName, receiverAvatar, conversationId);
   const { startCall, callStatus } = useVideoCall();
 
   const handleVideoCall = async () => {
@@ -35,7 +37,7 @@ const CallButtons = ({ receiverId, receiverName, receiverAvatar, conversationId 
       return;
     }
 
-    console.log('📞 Bắt đầu cuộc gọi video:', { receiverId, conversationId });
+    console.log('📞 Bắt đầu cuộc gọi video:', { receiverId, receiverName, receiverAvatar, conversationId});
     startCall(receiverId, receiverName, receiverAvatar, conversationId, 'video');
   };
 
