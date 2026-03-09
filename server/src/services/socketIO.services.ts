@@ -1,5 +1,6 @@
 import _Conversation from '../models/conversation';
 import _Message from '../models/message';
+import _User from '../models/user';
 import redisClient from '../databases/connectRedis';
 import { Socket } from 'socket.io';
 import _Notifycation from '../models/notification';
@@ -49,12 +50,22 @@ const emitToOnlineUsers = async (socket: Socket, userIds: string[], event: strin
 
 const incrementUnreadCounts = async (conversationId: string, memberIds: string[], senderId: string) => {
     const pipeline = redisClient.multi();
-    memberIds.forEach(memberId => {
-        if (memberId !== senderId) {
-            pipeline.incr(`${KEY_UNREAD_COUNT}${memberId}:${conversationId}`);
-        }
+    const recipientIds = memberIds.filter(memberId => memberId !== senderId);
+    
+    // Increment Redis counters for per-conversation unread counts
+    recipientIds.forEach(memberId => {
+        pipeline.incr(`${KEY_UNREAD_COUNT}${memberId}:${conversationId}`);
     });
     await pipeline.exec();
+    
+    // Increment total unread count in User model and Redis total unread cache
+    await Promise.all(recipientIds.map(async (memberId) => {
+        // Increment in database
+        await _User.findByIdAndUpdate(memberId, { $inc: { totalUnreadCount: 1 } });
+        
+        // Increment Redis total unread cache
+        await redisClient.incr(`unread-count:${memberId}`);
+    }));
 }
 
 const handleExistingConversation = async (socket: Socket, msg: any, conversation: any) => {

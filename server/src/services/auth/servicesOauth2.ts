@@ -54,8 +54,6 @@ const config = (app: Express): void => {
     },
         async (accessToken: string, refreshToken: string, params: any, profile: any, cb: any) => {
             try {
-                console.log('OAuth2 callback - Access token:', accessToken);
-
                 const res = await axios.get<GoogleUserInfo>('https://www.googleapis.com/oauth2/v2/userinfo', {
                     headers: {
                         Authorization: `Bearer ${accessToken}`

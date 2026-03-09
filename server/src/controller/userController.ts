@@ -67,14 +67,12 @@ class UserController {
 
             const result = await userService.signin(email, password, deviceId, ip, userAgent);
 
-            // Lấy unreadCount từ Redis
-            const unreadCount = await redisClient.get(`unread-count:${result.user._id}`);
 
             setCookie(res, result.accessToken, result.refreshToken);
             return res.status(200).json({
                 message: "login success",
                 result: {
-                    user: { ...result.user, unreadCount: parseInt(unreadCount || '0') },
+                    user: result.user,
                 },
                 refreshToken: result.refreshToken
             });
@@ -130,9 +128,6 @@ class UserController {
                 status: result.user.status,
                 deviceId: deviceId
             };
-
-            console.log('📤 Redirecting to frontend with userData:', userData);
-
             return res.redirect(`${frontendUrl}/auth/callback?success=true&user=${encodeURIComponent(JSON.stringify(userData))}`);
         } catch (error) {
             console.error('Google callback error:', error);
@@ -442,16 +437,6 @@ class UserController {
         }
     }
 
-    async getUnreadCount(req: Request, res: Response, next: NextFunction) {
-        try {
-            const user = req.user as IUser;
-            const redisClient = (await import('../databases/connectRedis')).default;
-            const count = await redisClient.get(`unread-count:${user._id}`);
-            res.json({ unreadCount: parseInt(count || '0') });
-        } catch (error) {
-            next(error);
-        }
-    }
 
     async validateToken(req: Request, res: Response, next: NextFunction) {
         try {

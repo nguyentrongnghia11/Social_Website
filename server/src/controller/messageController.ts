@@ -120,6 +120,9 @@ const getTotalUnreadCount = async (req: Request, res: Response, next: NextFuncti
     try {
         const user = req.user as IUser;
         const result = await messageService.getTotalUnreadCount(user._id.toString());
+        
+        console.log("unread count ", result);
+
         return res.status(200).json({
             message: 'Total unread message count',
             data: result

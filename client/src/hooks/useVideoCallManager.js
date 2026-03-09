@@ -3,17 +3,6 @@ import { onEvent, offEvent, emitEvent, getSocket, onSocketConnectionChange } fro
 import useVideoCallStore from '../stores/useVideoCallStore';
 import { webRTCManager } from '../managers/WebRTCManager';
 
-/**
- * Simplified Video Call Manager Hook
- * 
- * Chỉ còn xử lý:
- * 1. Ringtone (cần Web Audio API trong browser context)
- * 2. Socket event registration (cần React lifecycle)
- * 3. Cleanup khi component unmount
- * 
- * TẤT CẢ LOGIC WEBRTC đã được chuyển sang WebRTCManager và 
- * được gọi trực tiếp từ Zustand Store - KHÔNG CẦN useEffect!
- */
 export const useVideoCallManager = () => {
   const {
     incomingCall,
@@ -164,7 +153,6 @@ export const useVideoCallManager = () => {
     };
   }, [activeCall]);
 
-  // Return store values và WebRTC manager (for debugging)
   return {
     incomingCall,
     activeCall,

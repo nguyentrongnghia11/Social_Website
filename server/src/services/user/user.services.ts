@@ -115,7 +115,6 @@ export class UserService {
             status: u.status
         };
 
-        console.log('🔐 Signin: Generating tokens for:', { userId: u._id, email: u.email, deviceId });
 
         const { privateKey, publicKey } = generateKeyPair();
         const { accessToken, refreshToken } = generateToken(user, privateKey);
@@ -126,7 +125,7 @@ export class UserService {
             { new: true, upsert: true, lean: true }
         );
 
-        _User.findByIdAndUpdate(
+        await _User.findByIdAndUpdate(
             u._id,
             {
                 $push: {
@@ -149,7 +148,6 @@ export class UserService {
             throw new ErrorApi(403, 'Login failed - Forbidden');
         }
 
-        // Cache user data (non-blocking)
         saveUserCache(user, publicKey).catch(err =>
             console.error('Cache save error:', err)
         );
@@ -172,8 +170,6 @@ export class UserService {
             groups: groups,
             status: googleUser.status
         };
-
-        console.log('🔐 Google Signin: Generating tokens for:', { userId: googleUser._id, email: googleUser.email, deviceId });
 
         const { privateKey, publicKey } = generateKeyPair();
         const { accessToken, refreshToken } = generateToken(user, privateKey);

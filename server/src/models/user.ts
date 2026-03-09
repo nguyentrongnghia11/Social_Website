@@ -31,6 +31,7 @@ export interface IUser extends Document {
         timestamp: Date;
     }>;
     lastLoginAt?: Date;
+    totalUnreadCount: number;
 }
 
 const userSchema = new Schema<IUser>({
@@ -116,6 +117,10 @@ const userSchema = new Schema<IUser>({
     ],
     lastLoginAt: {
         type: Date
+    },
+    totalUnreadCount: {
+        type: Number,
+        default: 0
     }
 }, { timestamps: true });
 
