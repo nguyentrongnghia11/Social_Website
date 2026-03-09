@@ -54,10 +54,7 @@ const PostBrowser = (props) => {
       page: newPage,
       sortBy,
     };
-
     let data;
-
-    // Nếu có profileUser và đang xem posts từ localStorage
     if (props.contentType === "posts" && props.profileUser?.userPosts) {
       // Sử dụng data từ localStorage
       const userPosts = props.profileUser.userPosts;
@@ -68,7 +65,6 @@ const PostBrowser = (props) => {
       return;
     }
 
-    // Nếu có profileUser và đang xem liked posts từ localStorage
     if (props.contentType === "liked" && props.profileUser?.likedPosts) {
       // Sử dụng data từ localStorage
       const likedPosts = props.profileUser.likedPosts;
@@ -109,7 +105,7 @@ const PostBrowser = (props) => {
 
   useEffect(() => {
     fetchPostss();
-  }, [sortBy, effect]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sortBy]); 
 
   useEffect(() => {
     setPosts([]);

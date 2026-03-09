@@ -32,7 +32,6 @@ const getTotalUnreadCount = async () => {
 const uploadToS3 = async (file, presignedData) => {
     console.log("Uploading file to S3 with presigned URL:", presignedData);
     
-    // Upload directly to S3 using presigned URL
     const response = await fetch(presignedData.uploadUrl, {
         method: 'PUT',
         body: file,

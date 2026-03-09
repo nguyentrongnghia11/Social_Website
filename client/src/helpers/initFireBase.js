@@ -1,12 +1,7 @@
-// Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getMessaging } from "firebase/messaging";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
     apiKey: "AIzaSyDEZ0A3F6Q07bulJtlmFRGXMpJ653auwZM",
     authDomain: "musicapp-ec944.firebaseapp.com",
@@ -33,15 +28,15 @@ try {
     
     if (isLocalhost || isSecure) {
       messaging = getMessaging(app);
-      console.log('✅ Firebase Messaging initialized');
+      console.log('Firebase Messaging initialized');
     } else {
-      console.warn('⚠️ Firebase Messaging requires HTTPS or localhost');
+      console.warn('Firebase Messaging requires HTTPS or localhost');
     }
   } else {
-    console.warn('⚠️ Service Worker not supported in this browser');
+    console.warn('Service Worker not supported in this browser');
   }
 } catch (error) {
-  console.warn('⚠️ Firebase Messaging initialization failed:', error.message);
+  console.warn('Firebase Messaging initialization failed:', error.message);
 }
 
 export { messaging };

@@ -33,7 +33,7 @@ const Navbar = () => {
   const navigate = useNavigate()
   const user = isLoggedIn()
   const theme = useTheme()
-  const username = user && isLoggedIn().user._id
+  const username = user && user.user._id
   const [search, setSearch] = useState("")
   const [searchIcon, setSearchIcon] = useState(false)
   const [width, setWindowWidth] = useState(0)
@@ -49,10 +49,12 @@ const Navbar = () => {
   const unreadMsgCount = useNotificationStore((state) => state.unreadMsgCount);
 
   useEffect(() => {
-    if (user) {
+    const u = isLoggedIn();
+    if (u) {
+      console.log("render lai")
       useNotificationStore.getState().fetchUnreadMsgCount();
     }
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     updateDimensions()

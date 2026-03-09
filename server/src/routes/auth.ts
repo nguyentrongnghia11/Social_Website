@@ -34,7 +34,7 @@ router.post('/v1/local', validateSignup, controller.signupWithLocal);
 router.delete('/v1/logout', authenticateMiddleware, controller.logout);
 router.get('/v1/role', authenticateMiddleware, controller.getRoleUser);
 router.get('/v1/auth/google/callback', passport.authenticate('oauth2', { failureRedirect: '/', session: false }), controller.googleCallback);
-router.get('/v1/unread-count', authenticateMiddleware, controller.getUnreadCount);
+
 router.patch('/v1/user/profile', authenticateMiddleware, controller.updateProfile);
 
 // Follow/Unfollow routes

@@ -2,6 +2,7 @@ import _Conversation from '../../models/conversation';
 import _Message, { IMediaFile } from '../../models/message';
 import _Call from '../../models/call';
 import _Media from '../../models/media';
+import _User from '../../models/user';
 import { Types } from 'mongoose';
 import { ErrorApi } from '../../middleware/error';
 import redisClient from '../../databases/connectRedis';
@@ -214,20 +215,9 @@ export class MessageService {
             }
         ]);
 
-        // Get total unread count from Redis cache
-        let totalUnreadCount = 0;
-        const cachedCount = await redisClient.get(`unread-count:${userId}`);
-
-        if (cachedCount !== null) {
-            totalUnreadCount = parseInt(cachedCount);
-        } else {
-            totalUnreadCount = listConversation.reduce((total, conv) => total + (conv.unreadCount || 0), 0);
-            await redisClient.set(`unread-count:${userId}`, totalUnreadCount.toString());
-        }
 
         return {
-            conversations: listConversation,
-            totalUnreadCount
+            conversations: listConversation
         };
     }
 
@@ -260,6 +250,10 @@ export class MessageService {
         );
 
         if (unreadCount > 0) {
+            await _User.findByIdAndUpdate(userId, { 
+                $inc: { totalUnreadCount: -unreadCount } 
+            });
+            
             const currentCount = await redisClient.get(`unread-count:${userId}`);
             if (currentCount !== null) {
                 const newCount = Math.max(0, parseInt(currentCount) - unreadCount);
@@ -274,11 +268,21 @@ export class MessageService {
         if (!userId || !Types.ObjectId.isValid(userId)) {
             throw new ErrorApi(400, "Invalid user ID");
         }
+        
         const cachedCount = await redisClient.get(`unread-count:${userId}`);
-
         if (cachedCount !== null) {
+            console.log("Cache hit for unread count:", cachedCount);
             return { totalUnreadCount: parseInt(cachedCount) };
         }
+        
+        const user = await _User.findById(userId).select('totalUnreadCount').lean();
+        console.log("User totalUnreadCount from DB:", user?.totalUnreadCount);
+        if (user && typeof user.totalUnreadCount === 'number') {
+            await redisClient.set(`unread-count:${userId}`, user.totalUnreadCount.toString());
+            return { totalUnreadCount: user.totalUnreadCount };
+        }
+        // recovery
+        
         const userIdObj = new Types.ObjectId(userId);
         const totalUnreadCount = await _Message.countDocuments({
             conversationId: { $exists: true },
@@ -318,8 +322,7 @@ export class MessageService {
                 }
             ]
         });
-
-        console.log('Calculated total unread count from DB:', totalUnreadCount);
+        await _User.findByIdAndUpdate(userId, { totalUnreadCount });
         await redisClient.set(`unread-count:${userId}`, totalUnreadCount.toString());
 
         return { totalUnreadCount };

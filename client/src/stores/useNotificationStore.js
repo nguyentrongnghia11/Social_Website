@@ -123,7 +123,8 @@ const useNotificationStore = create(
             fetchUnreadMsgCount: async () => {
                 try {
                     const response = await getTotalUnreadCount();
-                    console.log('Fetched total unread count:', response);
+                    console.log('Fetched total unread count:', response?.data?.totalUnreadCount);
+
 
                     if (response?.data?.totalUnreadCount !== undefined) {
                         set({ unreadMsgCount: response.data.totalUnreadCount });
