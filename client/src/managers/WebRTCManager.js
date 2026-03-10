@@ -23,6 +23,7 @@ const ICE_SERVERS = {
         },
     ],
     iceCandidatePoolSize: 10,
+    iceTransportPolicy: 'relay',
 };
 
 class WebRTCManager {
