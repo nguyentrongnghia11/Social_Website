@@ -126,7 +126,7 @@ class WebRTCManager {
 
         // Handle remote tracks
         this.pc.ontrack = (event) => {
-            console.log('📥 ontrack event:', {
+            console.log('ontrack event:', {
                 streams: event.streams.length,
                 track: event.track.kind,
                 enabled: event.track.enabled

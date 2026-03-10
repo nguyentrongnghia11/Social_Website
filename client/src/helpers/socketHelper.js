@@ -86,22 +86,21 @@ export const initiateSocketConnection = () => {
 // Simple event listener
 export const onEvent = (event, callback) => {
   if (!socket) {
-    console.warn('❌ Socket not initialized for event:', event, '- Call initiateSocketConnection() first');
+    console.warn('Socket not initialized for event:', event, '- Call initiateSocketConnection() first');
     return false;
   }
   socket.on(event, callback);
-  console.log('📋 Registered event:', event);
+  console.log('Registered event:', event);
   return true;
 };
 
 // Simple event emitter
 export const emitEvent = (event, data) => {
   if (!socket?.connected) {
-    console.warn('❌ Cannot emit - socket not connected');
+    console.warn('Cannot emit - socket not connected');
     return false;
   }
   socket.emit(event, data);
-  console.log('📤 Emitted:', event);
   return true;
 };
 
@@ -122,15 +121,12 @@ export const disconnectSocket = () => {
   serverDownCallback = null;
 };
 
-// Check connection
 export const isSocketConnected = () => {
   return socket?.connected || false;
 };
 
-// Set server down callback (only one needed)
 export const onServerDown = (callback) => {
   serverDownCallback = callback;
 };
 
-// Get socket instance
 export const getSocket = () => socket;
