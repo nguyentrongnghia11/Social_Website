@@ -1,9 +1,3 @@
-/**
- * WebRTCManager - Pure JavaScript class for managing WebRTC connections
- * Completely independent from React - No hooks, no re-renders, no useEffect hell!
- * Handles all WebRTC signaling and connection logic instantly without React overhead
- */
-
 import { emitEvent } from '../helpers/socketHelper';
 
 const ICE_SERVERS = {
@@ -11,9 +5,24 @@ const ICE_SERVERS = {
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
         { urls: 'stun:stun2.l.google.com:19302' },
-        { urls: 'stun:stun3.l.google.com:19302' },
-        { urls: 'stun:stun4.l.google.com:19302' },
+        
+        {
+            urls: 'turn:openrelay.metered.ca:80',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
+        {
+            urls: 'turn:openrelay.metered.ca:443',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
+        {
+            urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
     ],
+    iceCandidatePoolSize: 10,
 };
 
 class WebRTCManager {
@@ -113,14 +122,24 @@ class WebRTCManager {
         // Handle ICE candidates
         this.pc.onicecandidate = (event) => {
             if (event.candidate && this.currentCallId) {
-                console.log('Sending ICE candidate:', event.candidate.type);
+                console.log('🧊 ICE candidate:', event.candidate.type, 
+                    'protocol:', event.candidate.protocol,
+                    '| Nếu thấy "relay" = TURN hoạt động ✅');
                 emitEvent('call-ice-candidate', {
                     callId: this.currentCallId,
                     targetUserId: this.activeCall.receiverId,
                     candidate: event.candidate,
                 });
             } else if (!event.candidate) {
-                console.log('ICE gathering complete');
+                console.log('✅ ICE gathering complete');
+            }
+        };
+
+        // ICE connection state - QUAN TRỌNG để debug
+        this.pc.oniceconnectionstatechange = () => {
+            console.log('🔌 ICE connection state:', this.pc.iceConnectionState);
+            if (this.pc.iceConnectionState === 'failed') {
+                console.error('❌ ICE failed - Kiểm tra xem có "relay" candidate ở trên không?');
             }
         };
 
