@@ -31,37 +31,28 @@ const VideoCall = ({ onCallEnd }) => {
 
   // Set local video stream
   useEffect(() => {
-    console.log('🎥 [VideoCall] Local stream effect:', { 
-      hasStream: !!localStream, 
-      hasRef: !!localVideoRef.current, 
-      callType: activeCall?.callType
-    });
-    
     if (!localStream || activeCall?.callType !== 'video') return;
     
     const setupLocalVideo = async () => {
-      // Wait for ref to be available
       let retries = 0;
       while (retries < 10) {
         if (localVideoRef.current) {
-          console.log('✅ Setting local video srcObject');
+          console.log('Setting local video srcObject');
           try {
             localVideoRef.current.srcObject = localStream;
             await localVideoRef.current.play();
-            console.log('✅ Local video playing');
+            console.log('Local video playing');
             return;
           } catch (err) {
-            console.warn('⚠️ Local video autoplay blocked:', err.message);
+            console.warn('Local video autoplay blocked:', err.message);
             return; // Not critical for local video
           }
-        }
-        
-        console.log('⏳ Waiting for local video ref...', retries);
+        }        
         await new Promise(resolve => setTimeout(resolve, 50));
         retries++;
       }
       
-      console.error('❌ Failed to get local video ref after retries');
+      console.error('Failed to get local video ref after retries');
     };
     
     setupLocalVideo();
@@ -69,7 +60,6 @@ const VideoCall = ({ onCallEnd }) => {
     // Cleanup
     return () => {
       if (localVideoRef.current) {
-        console.log('🧹 Cleaning up local video element');
         localVideoRef.current.pause();
         localVideoRef.current.srcObject = null;
       }
@@ -78,53 +68,41 @@ const VideoCall = ({ onCallEnd }) => {
 
   // Set remote stream
   useEffect(() => {
-    console.log('📺 [VideoCall] Remote stream effect:', { 
-      hasRemoteStream: !!remoteStream, 
-      callType: activeCall?.callType,
-      hasVideoRef: !!remoteVideoRef.current,
-      hasAudioRef: !!remoteAudioRef.current,
-      remoteStreamTracks: remoteStream?.getTracks().map(t => `${t.kind}:${t.enabled}`)
-    });
-    
     if (!remoteStream) return;
 
     const setupRemoteMedia = async () => {
-      // Wait for ref to be available
       let retries = 0;
       while (retries < 10) {
         if (activeCall?.callType === 'video' && remoteVideoRef.current) {
-          console.log('✅ Setting remote video srcObject');
+          console.log('Setting remote video srcObject');
           remoteVideoRef.current.srcObject = remoteStream;
           
           try {
             await remoteVideoRef.current.play();
-            console.log('✅ Remote video playing successfully');
+            console.log('Remote video playing successfully');
             return;
           } catch (err) {
-            console.warn('⚠️ Remote video play failed:', err.message);
-            // Browsers may block autoplay, try user gesture later
+            console.warn('Remote video play failed:', err.message);
           }
           return;
         } else if (activeCall?.callType === 'audio' && remoteAudioRef.current) {
-          console.log('✅ Setting remote audio srcObject');
+          console.log('Setting remote audio srcObject');
           remoteAudioRef.current.srcObject = remoteStream;
           
           try {
             await remoteAudioRef.current.play();
-            console.log('✅ Remote audio playing');
+            console.log('Remote audio playing');
           } catch (err) {
-            console.error('❌ Remote audio play error:', err);
+            console.error('Remote audio play error:', err);
           }
           return;
         }
-        
-        // Ref not ready, wait and retry
-        console.log('⏳ Waiting for video ref...', retries);
+        console.log('Waiting for video ref...', retries);
         await new Promise(resolve => setTimeout(resolve, 50));
         retries++;
       }
       
-      console.error('❌ Failed to get video ref after retries');
+      console.error('Failed to get video ref after retries');
     };
 
     setupRemoteMedia();
@@ -132,12 +110,10 @@ const VideoCall = ({ onCallEnd }) => {
     // Cleanup
     return () => {
       if (remoteVideoRef.current) {
-        console.log('🧹 Cleaning up remote video element');
         remoteVideoRef.current.pause();
         remoteVideoRef.current.srcObject = null;
       }
       if (remoteAudioRef.current) {
-        console.log('🧹 Cleaning up remote audio element');
         remoteAudioRef.current.pause();
         remoteAudioRef.current.srcObject = null;
       }
