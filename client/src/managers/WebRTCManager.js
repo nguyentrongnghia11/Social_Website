@@ -7,20 +7,10 @@ const ICE_SERVERS = {
         { urls: 'stun:stun2.l.google.com:19302' },
         { urls: 'stun:stun3.l.google.com:19302' },
         { urls: 'stun:stun4.l.google.com:19302' },
-        
-        // Free TURN servers - backup (thường không stable)
-        {
-            urls: 'turn:openrelay.metered.ca:80',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-        },
-        {
-            urls: 'turn:openrelay.metered.ca:443',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-        },
+
     ],
     iceCandidatePoolSize: 10,
+    iceTransportPolicy: 'relay', // Chỉ sử dụng TURN server để tăng khả năng kết nối qua NAT/firewall
 };
 
 class WebRTCManager {
@@ -106,9 +96,9 @@ class WebRTCManager {
 
         this.pc = new RTCPeerConnection(ICE_SERVERS);
 
-        console.log ("day la connect tion ", this.pc)
-        
-        
+        console.log("day la connect tion ", this.pc)
+
+
         if (this.localStream) {
             this.localStream.getTracks().forEach(track => {
                 const sender = this.pc.addTrack(track, this.localStream);
@@ -124,6 +114,11 @@ class WebRTCManager {
         // Handle ICE candidates
         this.pc.onicecandidate = (event) => {
             if (event.candidate && this.currentCallId) {
+                const c = event.candidate;
+                console.log(`🧊 ICE Candidate mới: Type: ${c.type} 
+                    Protocol: ${c.protocol} 
+                Address: ${c.address}:${c.port}
+                Candidate: ${c.candidate}`);
                 emitEvent('call-ice-candidate', {
                     callId: this.currentCallId,
                     targetUserId: this.activeCall.receiverId,
