@@ -105,6 +105,10 @@ class WebRTCManager {
         }
 
         this.pc = new RTCPeerConnection(ICE_SERVERS);
+
+        console.log ("day la connect tion ", this.pc)
+        
+        
         if (this.localStream) {
             this.localStream.getTracks().forEach(track => {
                 const sender = this.pc.addTrack(track, this.localStream);
@@ -120,9 +124,6 @@ class WebRTCManager {
         // Handle ICE candidates
         this.pc.onicecandidate = (event) => {
             if (event.candidate && this.currentCallId) {
-                console.log('🧊 ICE candidate:', event.candidate.type, 
-                    'protocol:', event.candidate.protocol,
-                    '| Nếu thấy "relay" = TURN hoạt động ✅');
                 emitEvent('call-ice-candidate', {
                     callId: this.currentCallId,
                     targetUserId: this.activeCall.receiverId,
@@ -200,7 +201,7 @@ class WebRTCManager {
                     break;
 
                 case 'failed':
-                    this.updateStatus('Kết nối thất bại');
+                    this.updateStatus('Kết nối thất bại 2');
                     this.handleConnectionFailure();
                     break;
 
