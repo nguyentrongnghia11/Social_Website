@@ -10,7 +10,6 @@ const ICE_SERVERS = {
 
     ],
     iceCandidatePoolSize: 10,
-    iceTransportPolicy: 'relay', // Chỉ sử dụng TURN server để tăng khả năng kết nối qua NAT/firewall
 };
 
 class WebRTCManager {
