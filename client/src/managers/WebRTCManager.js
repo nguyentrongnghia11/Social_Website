@@ -5,21 +5,21 @@ const ICE_SERVERS = {
         {
             urls: [
                 "stun:stun.l.google.com:19302",
-                "stun:stun1.l.google.com:19302"
+                "stun:47.129.30.150:3478"
             ]
         },
         {
             urls: [
-                "turn:openrelay.metered.ca:80",
-                "turn:openrelay.metered.ca:443",
-                "turn:openrelay.metered.ca:443?transport=tcp"
+                "turn:47.129.30.150:3478",
+                "turn:47.129.30.150:3478?transport=tcp"
             ],
-            username: "openrelayproject",
-            credential: "openrelayproject"
+            username: "admin",   
+            credential: "admin123" 
         }
     ],
     iceCandidatePoolSize: 10
 };
+
 
 class WebRTCManager {
     constructor() {
