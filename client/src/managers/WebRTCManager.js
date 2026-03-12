@@ -122,10 +122,7 @@ class WebRTCManager {
         this.pc.onicecandidate = (event) => {
             if (event.candidate && this.currentCallId) {
                 const c = event.candidate;
-                console.log(`🧊 ICE Candidate mới: Type: ${c.type} 
-                    Protocol: ${c.protocol} 
-                Address: ${c.address}:${c.port}
-                Candidate: ${c.candidate}`);
+                console.log(`🧊 ICE Candidate mới: Type: ${c.type} Protocol: ${c.protocol} Address: ${c.address}:${c.port} Candidate: ${c.candidate}`);
                 emitEvent('call-ice-candidate', {
                     callId: this.currentCallId,
                     targetUserId: this.activeCall.receiverId,
@@ -133,14 +130,6 @@ class WebRTCManager {
                 });
             } else if (!event.candidate) {
                 console.log('✅ ICE gathering complete');
-            }
-        };
-
-        // ICE connection state - QUAN TRỌNG để debug
-        this.pc.oniceconnectionstatechange = () => {
-            console.log('🔌 ICE connection state:', this.pc.iceConnectionState);
-            if (this.pc.iceConnectionState === 'failed') {
-                console.error('❌ ICE failed - Kiểm tra xem có "relay" candidate ở trên không?');
             }
         };
 
@@ -300,6 +289,7 @@ class WebRTCManager {
     }
 
     async addIceCandidate(candidate) {
+        console.log('Adding ICE candidate:', candidate);
         if (!this.pc) {
             console.error('No peer connection available');
             return;
@@ -309,8 +299,8 @@ class WebRTCManager {
 
         if (hasRemoteDesc) {
             try {
-                await this.pc.addIceCandidate(new RTCIceCandidate(candidate));
                 console.log('ICE candidate added');
+                await this.pc.addIceCandidate(new RTCIceCandidate(candidate));
             } catch (error) {
                 console.error('Error adding ICE candidate:', error);
             }
