@@ -48,6 +48,7 @@ import AdminContentPage from "./components/admin/AdminContentPage";
 import AdminReportsPage from "./components/admin/AdminReportsPage";
 import AdminAnalyticsPage from "./components/admin/AdminAnalyticsPage";
 import AdminBannersPage from "./components/admin/AdminBannersPage";
+import TurnServerTest from "./components/TurnServerTest";
 import AdminSettingsPage from "./components/admin/AdminSettingsPage";
 import AdminSecurityPage from "./components/admin/AdminSecurityPage";
 import ServerDownPage from "./components/ServerDownPage";
@@ -100,6 +101,7 @@ function AppContent() {
         <Route path="/signup" element={<SignupView />} />
         <Route path="/verify" element={<OTPView />} />
         <Route path="/auth/callback" element={<GoogleCallbackView />} />
+        <Route path="/turn" element={<TurnServerTest />}/>
         {/* <Route path="/server-down" element={<ServerDownPage />} /> */}
       </Routes>
 

@@ -16,7 +16,10 @@ const ICE_SERVERS = {
             username: "admin",   
             credential: "admin123" 
         }
-    ]
+    ],
+    // Force TURN for testing cross-network calls
+    // iceTransportPolicy: 'relay', // Uncomment to force TURN only
+    iceCandidatePoolSize: 10 // Pre-gather candidates
 };
 
 
@@ -122,12 +125,18 @@ class WebRTCManager {
         this.pc.onicecandidate = (event) => {
             if (event.candidate && this.currentCallId) {
                 const c = event.candidate;
-                console.log(`ICE Candidate mới: Type: ${c.type} Protocol: ${c.protocol} `);
-                emitEvent('call-ice-candidate', {
+                const relayInfo = c.relayProtocol ? ` via ${c.relayProtocol}` : '';
+                console.log(`🧪 ICE Candidate: ${c.type} (${c.protocol})${relayInfo} | Address: ${c.address || 'N/A'}`);
+                
+                const emitted = emitEvent('call-ice-candidate', {
                     callId: this.currentCallId,
                     targetUserId: this.activeCall.receiverId,
                     candidate: event.candidate,
                 });
+                
+                if (!emitted) {
+                    console.error(`❌ FAILED to send ${c.type} candidate - Socket disconnected!`);
+                }
             } else if (!event.candidate) {
                 console.log('✅ ICE gathering complete');
             }
@@ -176,7 +185,7 @@ class WebRTCManager {
         };
 
         // Handle ICE connection state changes
-        this.pc.oniceconnectionstatechange = () => {
+        this.pc.oniceconnectionstatechange = async () => {
             console.log('ICE connection state:', this.pc.iceConnectionState);
 
             switch (this.pc.iceConnectionState) {
@@ -184,15 +193,39 @@ class WebRTCManager {
                 case 'completed':
                     this.updateStatus('Đã kết nối');
                     this.reconnectionAttempt = 0;
+                    
+                    // Log which candidate pair was selected
+                    try {
+                        const stats = await this.pc.getStats();
+                        stats.forEach(report => {
+                            if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+                                console.log('🎯 Selected candidate pair:', {
+                                    local: report.localCandidateId,
+                                    remote: report.remoteCandidateId,
+                                    priority: report.priority
+                                });
+                            }
+                            if (report.type === 'local-candidate' && report.candidateType) {
+                                console.log(`📍 Local: ${report.candidateType} | ${report.ip || 'N/A'}:${report.port || 'N/A'}`);
+                            }
+                            if (report.type === 'remote-candidate' && report.candidateType) {
+                                console.log(`📍 Remote: ${report.candidateType} | ${report.ip || 'N/A'}:${report.port || 'N/A'}`);
+                            }
+                        });
+                    } catch (e) {
+                        console.warn('Could not get stats:', e.message);
+                    }
                     break;
 
                 case 'disconnected':
                     this.updateStatus('Mất kết nối');
+                    console.warn('⚠️ ICE disconnected - May be network issue');
                     this.handleReconnection();
                     break;
 
                 case 'failed':
-                    this.updateStatus('Kết nối thất bại 2');
+                    this.updateStatus('Kết nối thất bại - Có thể do NAT/Firewall');
+                    console.error('❌ ICE failed - TURN server may not be working!');
                     this.handleConnectionFailure();
                     break;
 
@@ -236,22 +269,27 @@ class WebRTCManager {
         }
 
         try {
+            console.log('📥 [RECEIVER] Received offer, setting remote description...');
             await this.pc.setRemoteDescription(new RTCSessionDescription(offer));
+            console.log('✅ [RECEIVER] Remote description (offer) set');
+            
             const answerDesc = await this.pc.createAnswer();
             await this.pc.setLocalDescription(answerDesc);
-            console.log('Set local description (answer) && remote (offer)');
+            console.log('✅ [RECEIVER] Local description (answer) set');
 
             emitEvent('call-answer', {
                 callId: this.currentCallId,
                 callerId: this.activeCall.receiverId,
                 answer: answerDesc,
             });
+            console.log('📤 [RECEIVER] Answer sent to caller');
 
             this.updateStatus('Đang kết nối...');
 
+            console.log(`📦 [RECEIVER] Processing ${this.iceCandidatesQueue.length} queued candidates...`);
             await this.processQueuedIceCandidates();
         } catch (error) {
-            console.error('Error handling offer:', error);
+            console.error('❌ [RECEIVER] Error handling offer:', error);
             this.updateStatus('Lỗi kết nối');
         }
     }
@@ -263,33 +301,41 @@ class WebRTCManager {
             return;
         }
 
+        console.log('📥 [CALLER] Received answer, current state:', this.pc.signalingState);
+        
         if (this.pc.signalingState !== 'have-local-offer') {
-            console.warn('Wrong signaling state:', this.pc.signalingState);
+            console.warn('⚠️ [CALLER] Wrong signaling state:', this.pc.signalingState);
             return;
         }
 
         if (this.processedAnswer) {
-            console.warn('Answer already processed');
+            console.warn('⚠️ [CALLER] Answer already processed');
             return;
         }
 
         try {
             this.processedAnswer = true;
+            console.log('⚙️ [CALLER] Setting remote description (answer)...');
             await this.pc.setRemoteDescription(new RTCSessionDescription(answer));
+            console.log('✅ [CALLER] Remote description (answer) set');
 
             this.updateStatus('Đang kết nối...');
 
             // Process queued ICE candidates
+            console.log(`📦 [CALLER] Processing ${this.iceCandidatesQueue.length} queued candidates...`);
             await this.processQueuedIceCandidates();
         } catch (error) {
-            console.error('❌ Error handling answer:', error);
+            console.error('❌ [CALLER] Error handling answer:', error);
             this.updateStatus('Lỗi kết nối');
             this.processedAnswer = false;
         }
     }
 
     async addIceCandidate(candidate) {
-        console.log('Adding ICE candidate:', candidate);
+        const type = candidate.type || 'unknown';
+        const address = candidate.address || 'N/A';
+        console.log(`📥 Received ICE candidate: ${type} | ${address}`);
+        
         if (!this.pc) {
             console.error('No peer connection available');
             return;
@@ -300,28 +346,36 @@ class WebRTCManager {
         if (hasRemoteDesc) {
             try {
                 await this.pc.addIceCandidate(new RTCIceCandidate(candidate));
-                console.log('ICE candidate added');
+                console.log(`✅ Added ${type} candidate`);
             } catch (error) {
-                console.error('Error adding ICE candidate:', error);
+                console.error(`❌ Error adding ${type} candidate:`, error.message);
             }
         } else {
-            console.log('Queueing ICE candidate (no remote description yet)');
+            console.log(`⏳ Queueing ${type} candidate (no remote description yet)`);
             this.iceCandidatesQueue.push(candidate);
         }
     }
 
     async processQueuedIceCandidates() {
+        if (this.iceCandidatesQueue.length === 0) {
+            console.log('No queued candidates to process');
+            return;
+        }
+        
+        console.log(`⚙️ Processing ${this.iceCandidatesQueue.length} queued candidates...`);
+        
         while (this.iceCandidatesQueue.length > 0) {
             const candidate = this.iceCandidatesQueue.shift();
+            const type = candidate.type || 'unknown';
             try {
-                console.log('Processing queued ICE candidate:', candidate);
                 await this.pc.addIceCandidate(new RTCIceCandidate(candidate));
+                console.log(`✅ Processed queued ${type} candidate`);
             } catch (error) {
-                console.error('Error adding queued ICE candidate:', error);
+                console.error(`❌ Error processing queued ${type} candidate:`, error.message);
             }
         }
 
-        console.log('candidates processed');
+        console.log('✅ All queued candidates processed');
     }
 
     handleReconnection() {
