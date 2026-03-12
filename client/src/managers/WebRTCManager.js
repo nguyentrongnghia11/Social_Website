@@ -331,10 +331,30 @@ class WebRTCManager {
         }
     }
 
+    // Helper to parse candidate info from candidate string
+    parseCandidateInfo(candidate) {
+        try {
+            // candidate.candidate is a string like: "candidate:842163049 1 udp 1677729535 192.168.1.1 50000 typ srflx..."
+            const candidateStr = candidate.candidate || '';
+            const parts = candidateStr.split(' ');
+            
+            // Find 'typ' keyword
+            const typIndex = parts.indexOf('typ');
+            const type = typIndex >= 0 && parts[typIndex + 1] ? parts[typIndex + 1] : 'unknown';
+            
+            // IP address is usually at index 4
+            const address = parts[4] || 'N/A';
+            const port = parts[5] || '';
+            
+            return { type, address, port, full: candidateStr.substring(0, 50) };
+        } catch (e) {
+            return { type: 'unknown', address: 'N/A', port: '', full: '' };
+        }
+    }
+
     async addIceCandidate(candidate) {
-        const type = candidate.type || 'unknown';
-        const address = candidate.address || 'N/A';
-        console.log(`📥 Received ICE candidate: ${type} | ${address}`);
+        const info = this.parseCandidateInfo(candidate);
+        console.log(`📥 Received ICE candidate: ${info.type} | ${info.address}:${info.port}`);
         
         if (!this.pc) {
             console.error('No peer connection available');
@@ -346,36 +366,44 @@ class WebRTCManager {
         if (hasRemoteDesc) {
             try {
                 await this.pc.addIceCandidate(new RTCIceCandidate(candidate));
-                console.log(`✅ Added ${type} candidate`);
+                console.log(`✅ Added ${info.type} candidate`);
             } catch (error) {
-                console.error(`❌ Error adding ${type} candidate:`, error.message);
+                console.error(`❌ Error adding ${info.type} candidate:`, error.message);
             }
         } else {
-            console.log(`⏳ Queueing ${type} candidate (no remote description yet)`);
+            console.log(`⏳ Queueing ${info.type} candidate (no remote description yet)`);
             this.iceCandidatesQueue.push(candidate);
         }
     }
 
     async processQueuedIceCandidates() {
+        // Wait a bit for more candidates to arrive
+        console.log(`⏳ Waiting 500ms for candidates to arrive...`);
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         if (this.iceCandidatesQueue.length === 0) {
-            console.log('No queued candidates to process');
+            console.log('⚠️ No queued candidates to process - this may cause connection issues!');
             return;
         }
         
         console.log(`⚙️ Processing ${this.iceCandidatesQueue.length} queued candidates...`);
         
+        const typeCounts = { host: 0, srflx: 0, relay: 0, unknown: 0 };
+        
         while (this.iceCandidatesQueue.length > 0) {
             const candidate = this.iceCandidatesQueue.shift();
-            const type = candidate.type || 'unknown';
+            const info = this.parseCandidateInfo(candidate);
+            typeCounts[info.type] = (typeCounts[info.type] || 0) + 1;
+            
             try {
                 await this.pc.addIceCandidate(new RTCIceCandidate(candidate));
-                console.log(`✅ Processed queued ${type} candidate`);
+                console.log(`✅ Processed queued ${info.type} candidate`);
             } catch (error) {
-                console.error(`❌ Error processing queued ${type} candidate:`, error.message);
+                console.error(`❌ Error processing queued ${info.type} candidate:`, error.message);
             }
         }
 
-        console.log('✅ All queued candidates processed');
+        console.log('✅ All queued candidates processed:', typeCounts);
     }
 
     handleReconnection() {
