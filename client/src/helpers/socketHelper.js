@@ -83,7 +83,6 @@ export const initiateSocketConnection = () => {
   return socket;
 };
 
-// Simple event listener
 export const onEvent = (event, callback) => {
   if (!socket) {
     console.warn('Socket not initialized for event:', event, '- Call initiateSocketConnection() first');
@@ -94,7 +93,6 @@ export const onEvent = (event, callback) => {
   return true;
 };
 
-// Simple event emitter
 export const emitEvent = (event, data) => {
   if (!socket?.connected) {
     console.warn('Cannot emit - socket not connected');
