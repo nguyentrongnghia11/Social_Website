@@ -463,7 +463,7 @@ const Messages = (props) => {
 
 
   useEffect(() => {
-    console.log('🔌 Registering socket events in messages');
+    // console.log('🔌 Registering socket events in messages');
 
     onEvent("chat", handleReceiveMessage);
     onEvent("chat-group", handleReceiveMessage);
