@@ -51,7 +51,6 @@ const Navbar = () => {
   useEffect(() => {
     const u = isLoggedIn();
     if (u) {
-      // console.log("render lai")
       useNotificationStore.getState().fetchUnreadMsgCount();
     }
   }, []);
