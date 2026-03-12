@@ -286,8 +286,9 @@ class WebRTCManager {
 
             this.updateStatus('Đang kết nối...');
 
-            console.log(`📦 [RECEIVER] Processing ${this.iceCandidatesQueue.length} queued candidates...`);
-            await this.processQueuedIceCandidates();
+            // DON'T process queue immediately - let candidates accumulate
+            // They will be processed when they arrive (remoteDescription is already set)
+            console.log('⏳ [RECEIVER] Waiting for caller\'s ICE candidates...');
         } catch (error) {
             console.error('❌ [RECEIVER] Error handling offer:', error);
             this.updateStatus('Lỗi kết nối');
@@ -321,9 +322,9 @@ class WebRTCManager {
 
             this.updateStatus('Đang kết nối...');
 
-            // Process queued ICE candidates
-            console.log(`📦 [CALLER] Processing ${this.iceCandidatesQueue.length} queued candidates...`);
-            await this.processQueuedIceCandidates();
+            // DON'T process queue immediately - let candidates accumulate
+            // They will be processed when they arrive (remoteDescription is already set)
+            console.log('⏳ [CALLER] Waiting for receiver\'s ICE candidates...');
         } catch (error) {
             console.error('❌ [CALLER] Error handling answer:', error);
             this.updateStatus('Lỗi kết nối');
@@ -366,24 +367,31 @@ class WebRTCManager {
         if (hasRemoteDesc) {
             try {
                 await this.pc.addIceCandidate(new RTCIceCandidate(candidate));
-                console.log(`✅ Added ${info.type} candidate`);
+                console.log(`✅ Added ${info.type} candidate directly`);
             } catch (error) {
                 console.error(`❌ Error adding ${info.type} candidate:`, error.message);
             }
         } else {
             console.log(`⏳ Queueing ${info.type} candidate (no remote description yet)`);
             this.iceCandidatesQueue.push(candidate);
+            
+            // If queue gets large, try processing (remote desc might be set now)
+            if (this.iceCandidatesQueue.length >= 5) {
+                console.log(`📦 Queue size: ${this.iceCandidatesQueue.length}, checking if we can process...`);
+                await this.processQueuedIceCandidates();
+            }
         }
     }
 
     async processQueuedIceCandidates() {
-        // Wait a bit for more candidates to arrive
-        console.log(`⏳ Waiting 500ms for candidates to arrive...`);
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Check if remote description is set
+        if (!this.pc.remoteDescription) {
+            console.log('⏳ Cannot process queue yet - no remote description');
+            return;
+        }
         
         if (this.iceCandidatesQueue.length === 0) {
-            console.log('⚠️ No queued candidates to process - this may cause connection issues!');
-            return;
+            return; // Silent return, no need to warn
         }
         
         console.log(`⚙️ Processing ${this.iceCandidatesQueue.length} queued candidates...`);
