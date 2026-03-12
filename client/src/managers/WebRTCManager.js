@@ -16,8 +16,7 @@ const ICE_SERVERS = {
             username: "admin",   
             credential: "admin123" 
         }
-    ],
-    iceCandidatePoolSize: 10
+    ]
 };
 
 
