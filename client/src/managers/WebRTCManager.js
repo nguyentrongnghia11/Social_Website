@@ -299,8 +299,8 @@ class WebRTCManager {
 
         if (hasRemoteDesc) {
             try {
-                console.log('ICE candidate added');
                 await this.pc.addIceCandidate(new RTCIceCandidate(candidate));
+                console.log('ICE candidate added');
             } catch (error) {
                 console.error('Error adding ICE candidate:', error);
             }
@@ -314,6 +314,7 @@ class WebRTCManager {
         while (this.iceCandidatesQueue.length > 0) {
             const candidate = this.iceCandidatesQueue.shift();
             try {
+                console.log('Processing queued ICE candidate:', candidate);
                 await this.pc.addIceCandidate(new RTCIceCandidate(candidate));
             } catch (error) {
                 console.error('Error adding queued ICE candidate:', error);
