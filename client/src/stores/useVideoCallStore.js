@@ -13,6 +13,7 @@ const useVideoCallStore = create(
             callStatus: 'idle',
             localStream: null,
             remoteStream: null,
+            pendingCandidates: [], // Queue for candidates arriving before call accepted
 
             // // setter
             // setIncomingCall: (call) => set({ incomingCall: call }),
@@ -86,14 +87,32 @@ const useVideoCallStore = create(
 
 
             // #6 (chạy sau khi nhận candidate tu server)
-            handleIceCandidate: async ({ callId, candidate }) => {
-                console.log('Received ICE candidate');
-                const { activeCall } = get();
+            handleIceCandidate: async ({ callId, candidate, fromUserId }) => {
+                console.log('Received ICE candidate', { callId, fromUserId });
+                const { activeCall, incomingCall, pendingCandidates } = get();
                 
-                if (activeCall?.callId !== callId) {
-                    console.warn('ICE candidate for different call');
+                if (!activeCall && !incomingCall) {
+                    console.warn('❌ No active or incoming call - ignoring ICE candidate');
                     return;
                 }
+                
+                // If call is ringing (not yet accepted), queue the candidate
+                if (!activeCall && incomingCall) {
+                    if (incomingCall.callId === callId) {
+                        console.log('⏳ Call not accepted yet, queueing candidate');
+                        set({ pendingCandidates: [...pendingCandidates, candidate] });
+                        return;
+                    } else {
+                        console.warn(`❌ ICE candidate for different call. Incoming: ${incomingCall.callId}, Received: ${callId}`);
+                        return;
+                    }
+                }
+                
+                if (activeCall?.callId !== callId) {
+                    console.warn(`❌ ICE candidate for different call. Active: ${activeCall.callId}, Received: ${callId}`);
+                    return;
+                }
+                
                 await webRTCManager.addIceCandidate(candidate);
 
             },
@@ -209,7 +228,7 @@ const useVideoCallStore = create(
             },
 
             acceptCall: async () => {
-                const { incomingCall } = get();
+                const { incomingCall, pendingCandidates } = get();
                 if (!incomingCall) return;
 
                 const activeCallData = {
@@ -227,6 +246,7 @@ const useVideoCallStore = create(
                     activeCall: activeCallData,
                     callStatus: 'active',
                     incomingCall: null,
+                    pendingCandidates: [], // Clear queue
                 });
 
                 try {
@@ -250,6 +270,19 @@ const useVideoCallStore = create(
 
                     if (incomingCall.offer) {
                         await webRTCManager.handleReceivedOffer(incomingCall.offer);
+                        
+                        // Process pending ICE candidates that arrived while ringing
+                        if (pendingCandidates.length > 0) {
+                            console.log(`📦 Processing ${pendingCandidates.length} pending ICE candidates...`);
+                            for (const candidate of pendingCandidates) {
+                                try {
+                                    await webRTCManager.addIceCandidate(candidate);
+                                } catch (error) {
+                                    console.error('Error adding pending candidate:', error);
+                                }
+                            }
+                            console.log('✅ All pending candidates processed');
+                        }
                     }
                 } catch (error) {
                     console.error('Failed to initialize WebRTC:', error);
@@ -271,6 +304,7 @@ const useVideoCallStore = create(
                 set({
                     incomingCall: null,
                     callStatus: 'idle',
+                    pendingCandidates: [], // Clear pending queue
                 });
             },
 
@@ -292,6 +326,7 @@ const useVideoCallStore = create(
                     callStatus: 'idle',
                     localStream: null,
                     remoteStream: null,
+                    pendingCandidates: [], // Clear pending queue
                 });
             },
 
