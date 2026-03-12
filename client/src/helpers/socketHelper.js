@@ -90,7 +90,7 @@ export const onEvent = (event, callback) => {
     return false;
   }
   socket.on(event, callback);
-  console.log('Registered event:', event);
+  // console.log('Registered event:', event);
   return true;
 };
 

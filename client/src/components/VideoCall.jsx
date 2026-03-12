@@ -41,7 +41,7 @@ const VideoCall = ({ onCallEnd }) => {
           try {
             localVideoRef.current.srcObject = localStream;
             await localVideoRef.current.play();
-            console.log('Local video playing');
+            // console.log('Local video playing');
             return;
           } catch (err) {
             console.warn('Local video autoplay blocked:', err.message);
@@ -74,7 +74,7 @@ const VideoCall = ({ onCallEnd }) => {
       let retries = 0;
       while (retries < 10) {
         if (activeCall?.callType === 'video' && remoteVideoRef.current) {
-          console.log('Setting remote video srcObject');
+          // console.log('Setting remote video srcObject');
           remoteVideoRef.current.srcObject = remoteStream;
           
           try {

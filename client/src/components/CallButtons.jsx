@@ -5,7 +5,7 @@ import { useVideoCall } from './util/VideoCallContext';
 
 const CallButtons = ({ receiverId, receiverName, receiverAvatar= '', conversationId }) => {
 
-  console.log ("check data in button ", receiverId, receiverName, receiverAvatar, conversationId);
+  // console.log ("check data in button ", receiverId, receiverName, receiverAvatar, conversationId);
   const { startCall, callStatus } = useVideoCall();
 
   const handleVideoCall = async () => {

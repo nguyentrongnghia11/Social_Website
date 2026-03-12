@@ -39,7 +39,7 @@ class WebRTCManager {
     }
 
     async initialize(callData, statusCallback) {
-        console.log('Init call', callData);
+        // console.log('Init call', callData);
 
         this.activeCall = callData;
         this.currentCallId = callData.callId;
@@ -122,7 +122,7 @@ class WebRTCManager {
         this.pc.onicecandidate = (event) => {
             if (event.candidate && this.currentCallId) {
                 const c = event.candidate;
-                console.log(`🧊 ICE Candidate mới: Type: ${c.type} Protocol: ${c.protocol} Address: ${c.address}:${c.port} Candidate: ${c.candidate}`);
+                console.log(`ICE Candidate mới: Type: ${c.type} Protocol: ${c.protocol} `);
                 emitEvent('call-ice-candidate', {
                     callId: this.currentCallId,
                     targetUserId: this.activeCall.receiverId,
@@ -389,7 +389,7 @@ class WebRTCManager {
     }
 
     cleanup() {
-        console.log('🧹 WebRTCManager: Cleaning up...');
+        // console.log('🧹 WebRTCManager: Cleaning up...');
 
         // Stop local stream
         if (this.localStream) {
@@ -419,7 +419,7 @@ class WebRTCManager {
         this.reconnectionAttempt = 0;
         this.activeCall = null;
 
-        console.log('✅ WebRTCManager: Cleanup complete');
+        // console.log('✅ WebRTCManager: Cleanup complete');
     }
 
     getLocalStream() {
