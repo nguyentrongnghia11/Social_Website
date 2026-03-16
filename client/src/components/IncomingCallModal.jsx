@@ -17,10 +17,8 @@ const IncomingCallModal = () => {
   const { incomingCall, acceptCall, rejectCall } = useVideoCall();
   const audioRef = useRef(null);
 
-  // Play ringtone when call comes in
   useEffect(() => {
     if (incomingCall) {
-      // Try to play system notification sound
       try {
         if (audioRef.current) {
           audioRef.current.play().catch(err => {
@@ -31,9 +29,6 @@ const IncomingCallModal = () => {
         console.error('Error playing ringtone:', error);
       }
 
-      // Show browser notification if permitted
-      // On mobile, new Notification() throws "Illegal constructor" — must use
-      // ServiceWorkerRegistration.showNotification() instead.
       if ('Notification' in window && Notification.permission === 'granted') {
         const notifOptions = {
           body: `${incomingCall.callerName} đang gọi ${incomingCall.callType === 'video' ? 'video' : 'thoại'}`,
@@ -48,7 +43,6 @@ const IncomingCallModal = () => {
               const registration = await navigator.serviceWorker.ready;
               await registration.showNotification('Cuộc gọi đến', notifOptions);
             } else {
-              // Desktop fallback
               const notification = new Notification('Cuộc gọi đến', notifOptions);
               notification.onclick = () => {
                 window.focus();
@@ -63,7 +57,6 @@ const IncomingCallModal = () => {
         showNotification();
       }
     } else {
-      // Stop ringtone when call is dismissed
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
