@@ -43,7 +43,6 @@ const Navbar = () => {
   const [displayLimit, setDisplayLimit] = useState(10)
   const notificationScrollRef = useRef(null)
 
-  // Zustand store selectors
   const notifications = useNotificationStore((state) => state.notifications);
   const unreadCount = useNotificationStore((state) => state.unreadCount);
   const unreadMsgCount = useNotificationStore((state) => state.unreadMsgCount);

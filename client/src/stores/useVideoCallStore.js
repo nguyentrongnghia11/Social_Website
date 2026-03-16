@@ -13,14 +13,7 @@ const useVideoCallStore = create(
             callStatus: 'idle',
             localStream: null,
             remoteStream: null,
-            pendingCandidates: [], // Queue for candidates arriving before call accepted
-
-            // // setter
-            // setIncomingCall: (call) => set({ incomingCall: call }),
-            // setActiveCall: (call) => set({ activeCall: call }),
-            // setCallStatus: (status) => set({ callStatus: status }),
-            // setLocalStream: (stream) => set({ localStream: stream }),
-            // setRemoteStream: (stream) => set({ remoteStream: stream }),
+            pendingCandidates: [], 
 
             // #2 only set state
             handleIncomingCall: ({ callId, callerId, callerName, callerAvatar, conversationId, callType }) => {
@@ -38,10 +31,8 @@ const useVideoCallStore = create(
                 });
             },
 
-
             // #3 (chạy sao handle incoming)
             handleCallInitiated: async ({ callId, conversationId }) => {
-                console.log('Call initiated with ID:', callId);
                 const { activeCall, initializeWebRTCForCaller } = get();
                 
                 if (activeCall) {
@@ -55,8 +46,7 @@ const useVideoCallStore = create(
             // #4 (chạy sau khi nhận offer tu server) 
             handleCallOffer: async ({ callId, offer }) => {
                 const { incomingCall, activeCall } = get();
-                
-                // Store offer in state for reference
+
                 if (incomingCall?.callId === callId) {
                     set({ incomingCall: { ...incomingCall, offer } });
                 } else if (activeCall?.callId === callId) {
@@ -67,7 +57,6 @@ const useVideoCallStore = create(
                     await webRTCManager.handleReceivedOffer(offer);
                 }
             },
-
 
             // #5 (chạy sau khi nhận answer tu server)
             handleCallAnswer: async ({ answer }) => {
@@ -85,31 +74,29 @@ const useVideoCallStore = create(
                 });
             },
 
-
             // #6 (chạy sau khi nhận candidate tu server)
             handleIceCandidate: async ({ callId, candidate, fromUserId }) => {
                 console.log('Received ICE candidate', { callId, fromUserId });
                 const { activeCall, incomingCall, pendingCandidates } = get();
                 
                 if (!activeCall && !incomingCall) {
-                    console.warn('❌ No active or incoming call - ignoring ICE candidate');
+                    console.warn('ignoring ICE candidate');
                     return;
                 }
-                
+
                 // If call is ringing (not yet accepted), queue the candidate
                 if (!activeCall && incomingCall) {
                     if (incomingCall.callId === callId) {
-                        console.log('⏳ Call not accepted yet, queueing candidate');
                         set({ pendingCandidates: [...pendingCandidates, candidate] });
                         return;
                     } else {
-                        console.warn(`❌ ICE candidate for different call. Incoming: ${incomingCall.callId}, Received: ${callId}`);
+                        console.warn(`ICE candidate for different call. Incoming: ${incomingCall.callId}, Received: ${callId}`);
                         return;
                     }
                 }
                 
                 if (activeCall?.callId !== callId) {
-                    console.warn(`❌ ICE candidate for different call. Active: ${activeCall.callId}, Received: ${callId}`);
+                    console.warn(`ICE candidate for different call. Active: ${activeCall.callId}, Received: ${callId}`);
                     return;
                 }
                 
@@ -119,7 +106,6 @@ const useVideoCallStore = create(
 
             handleCallEnded: () => {
                 console.log('Call ended ');
-                
                 webRTCManager.cleanup();
                 
                 // reset state
@@ -143,8 +129,6 @@ const useVideoCallStore = create(
                 });
                 alert(reason || 'Cuộc gọi bị từ chối');
             },
-
-
             // #1 (co set active call)
 
             startCall: async (receiverId, receiverName, receiverAvatar, conversationId, callType = 'video') => {
@@ -198,7 +182,7 @@ const useVideoCallStore = create(
             initializeWebRTCForCaller: async () => {
                 const { activeCall } = get();
                 if (!activeCall || !activeCall.isInitiator || !activeCall.callId) {
-                    console.warn('Cannot initialize WebRTC: No active call or not initiator');
+                    console.warn('Cannot initialize WebRTC');
                     return;
                 }
 
@@ -281,7 +265,7 @@ const useVideoCallStore = create(
                                     console.error('Error adding pending candidate:', error);
                                 }
                             }
-                            console.log('✅ All pending candidates processed');
+                            console.log('All pending candidates processed');
                         }
                     }
                 } catch (error) {
