@@ -2,18 +2,10 @@ import React, { useRef, useEffect } from 'react';
 import {
   Box,
   IconButton,
-  Paper,
-  Typography,
-  Stack,
   Avatar,
+  Typography,
 } from '@mui/material';
-import {
-  CallEnd,
-  Mic,
-  MicOff,
-  Videocam,
-  VideocamOff,
-} from '@mui/icons-material';
+import { CallEnd } from '@mui/icons-material';
 import { useVideoCall } from './util/VideoCallContext';
 
 const VideoCall = ({ onCallEnd }) => {
@@ -32,32 +24,28 @@ const VideoCall = ({ onCallEnd }) => {
   // Set local video stream
   useEffect(() => {
     if (!localStream || activeCall?.callType !== 'video') return;
-    
+
     const setupLocalVideo = async () => {
       let retries = 0;
       while (retries < 10) {
         if (localVideoRef.current) {
-          console.log('Setting local video srcObject');
           try {
             localVideoRef.current.srcObject = localStream;
             await localVideoRef.current.play();
-            // console.log('Local video playing');
             return;
           } catch (err) {
             console.warn('Local video autoplay blocked:', err.message);
-            return; // Not critical for local video
+            return;
           }
-        }        
+        }
         await new Promise(resolve => setTimeout(resolve, 50));
         retries++;
       }
-      
       console.error('Failed to get local video ref after retries');
     };
-    
+
     setupLocalVideo();
 
-    // Cleanup
     return () => {
       if (localVideoRef.current) {
         localVideoRef.current.pause();
@@ -74,9 +62,7 @@ const VideoCall = ({ onCallEnd }) => {
       let retries = 0;
       while (retries < 10) {
         if (activeCall?.callType === 'video' && remoteVideoRef.current) {
-          // console.log('Setting remote video srcObject');
           remoteVideoRef.current.srcObject = remoteStream;
-          
           try {
             await remoteVideoRef.current.play();
             console.log('Remote video playing successfully');
@@ -86,28 +72,22 @@ const VideoCall = ({ onCallEnd }) => {
           }
           return;
         } else if (activeCall?.callType === 'audio' && remoteAudioRef.current) {
-          console.log('Setting remote audio srcObject');
           remoteAudioRef.current.srcObject = remoteStream;
-          
           try {
             await remoteAudioRef.current.play();
-            console.log('Remote audio playing');
           } catch (err) {
             console.error('Remote audio play error:', err);
           }
           return;
         }
-        console.log('Waiting for video ref...', retries);
         await new Promise(resolve => setTimeout(resolve, 50));
         retries++;
       }
-      
       console.error('Failed to get video ref after retries');
     };
 
     setupRemoteMedia();
 
-    // Cleanup
     return () => {
       if (remoteVideoRef.current) {
         remoteVideoRef.current.pause();
@@ -122,157 +102,151 @@ const VideoCall = ({ onCallEnd }) => {
 
   const handleEndCall = () => {
     endCall();
-    if (onCallEnd) {
-      onCallEnd();
-    }
+    if (onCallEnd) onCallEnd();
   };
 
-  if (!activeCall) {
-    return null;
-  }
+  if (!activeCall) return null;
+
+  const isVideo = activeCall.callType === 'video';
 
   return (
+
     <Box
       sx={{
         position: 'fixed',
         top: 0,
         left: 0,
-        right: 0,
-        bottom: 0,
-        bgcolor: '#1a1a1a',
+        width: '100%',
+        // Fallback chain: 100dvh (mobile) → -webkit-fill-available (iOS Safari) → 100vh
+        height: '100vh',
+        bgcolor: '#000',
         zIndex: 9999,
-        display: 'flex',
-        flexDirection: 'column',
+        overflow: 'hidden',
       }}
     >
-      {/* Header */}
+      {isVideo ? (
+        <video
+          ref={remoteVideoRef}
+          autoPlay
+          playsInline
+          // eslint-disable-next-line react/no-unknown-property
+          webkit-playsinline="true"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            backgroundColor: '#000',
+            display: remoteStream ? 'block' : 'none',
+          }}
+        />
+      ) : (
+        <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: 'none' }} />
+      )}
+
+      {/* ── Avatar shown when no remote video yet ── */}
+      {(!remoteStream || !isVideo) && (
+        <Box
+          sx={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 2,
+          }}
+        >
+          <Avatar
+            src={activeCall.receiverAvatar}
+            sx={{ width: 120, height: 120 }}
+          />
+          <Typography color="white" variant="h6">{activeCall.receiverName}</Typography>
+          <Typography color="gray" variant="body2">{callStatus}</Typography>
+          {!isVideo && (
+            <Typography color="gray" variant="caption">Cuộc gọi thoại</Typography>
+          )}
+        </Box>
+      )}
+
+      {/* ── Header overlay (top) ── */}
       <Box
         sx={{
-          p: 2,
-          bgcolor: 'rgba(0,0,0,0.5)',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          p: '12px 16px',
+          background: 'linear-gradient(to bottom, rgba(0,0,0,0.65) 0%, transparent 100%)',
           display: 'flex',
           alignItems: 'center',
-          gap: 2,
+          gap: 1.5,
+          // Give extra room for mobile status bar
+          pt: 'max(12px, env(safe-area-inset-top))',
         }}
       >
-        <Avatar src={activeCall.receiverAvatar} alt={activeCall.receiverName} />
+        <Avatar src={activeCall.receiverAvatar} alt={activeCall.receiverName} sx={{ width: 36, height: 36 }} />
         <Box>
-          <Typography variant="h6" color="white">
+          <Typography variant="subtitle1" color="white" lineHeight={1.2} fontWeight={600}>
             {activeCall.receiverName}
           </Typography>
-          <Typography variant="caption" color="gray">
+          <Typography variant="caption" color="rgba(255,255,255,0.7)">
             {callStatus}
           </Typography>
         </Box>
       </Box>
 
-      {/* Video containers */}
-      <Box sx={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-        {/* Remote video (full screen) */}
+      {/* ── Local video PiP (top‑right) ── */}
+      {isVideo && (
         <Box
           sx={{
             position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            bgcolor: '#000',
+            // Sit below the header
+            top: 'calc(max(12px, env(safe-area-inset-top)) + 56px)',
+            right: 16,
+            width: { xs: 90, sm: 130 },
+            height: { xs: 120, sm: 170 },
+            borderRadius: 2,
+            overflow: 'hidden',
+            bgcolor: '#1a1a1a',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
+            display: localStream ? 'block' : 'none',
+            border: '2px solid rgba(255,255,255,0.2)',
           }}
         >
-          {/* Remote video - always render but hide when no stream */}
           <video
-            ref={remoteVideoRef}
+            ref={localVideoRef}
             autoPlay
             playsInline
+            // eslint-disable-next-line react/no-unknown-property
             webkit-playsinline="true"
+            muted
             style={{
               width: '100%',
               height: '100%',
               objectFit: 'cover',
-              backgroundColor: '#000',
-              display: (remoteStream && activeCall.callType === 'video') ? 'block' : 'none',
+              transform: 'scaleX(-1)',
             }}
           />
-          
-          {/* Show avatar when no video */}
-          {(!remoteStream || activeCall.callType === 'audio') && (
-            <Box sx={{ textAlign: 'center', position: 'absolute' }}>
-              <Avatar
-                src={activeCall.receiverAvatar}
-                sx={{ width: 120, height: 120, margin: '0 auto', mb: 2 }}
-              />
-              <Typography color="white" variant="h6">
-                {activeCall.receiverName}
-              </Typography>
-              <Typography color="gray" variant="body2">
-                {callStatus}
-              </Typography>
-              {activeCall.callType === 'audio' && (
-                <Typography color="gray" variant="caption" sx={{ mt: 2, display: 'block' }}>
-                  Cuộc gọi thoại
-                </Typography>
-              )}
-            </Box>
-          )}
         </Box>
+      )}
 
-        {/* Local video (picture-in-picture) - always render for video calls */}
-        {activeCall.callType === 'video' && (
-          <Paper
-            elevation={4}
-            sx={{
-              position: 'absolute',
-              top: 80,
-              right: 16,
-              width: 150,
-              height: 200,
-              overflow: 'hidden',
-              borderRadius: 2,
-              bgcolor: '#000',
-              display: localStream ? 'block' : 'none',
-            }}
-          >
-            <video
-              ref={localVideoRef}
-              autoPlay
-              playsInline
-              webkit-playsinline="true"
-              muted
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                transform: 'scaleX(-1)', // Mirror effect
-              }}
-            />
-          </Paper>
-        )}
-
-        {/* Hidden audio element for audio calls */}
-        {activeCall.callType === 'audio' && (
-          <audio
-            ref={remoteAudioRef}
-            autoPlay
-            playsInline
-            style={{ display: 'none' }}
-          />
-        )}
-      </Box>
-
-      {/* Controls */}
+      {/* ── Controls overlay (bottom) ── */}
       <Box
         sx={{
-          p: 3,
-          bgcolor: 'rgba(0,0,0,0.5)',
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          pb: 'max(24px, env(safe-area-inset-bottom))',
+          pt: 3,
+          background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 100%)',
           display: 'flex',
           justifyContent: 'center',
-          gap: 2,
+          gap: 3,
         }}
       >
-        {/* End call button only */}
         <IconButton
           onClick={handleEndCall}
           sx={{
@@ -280,9 +254,7 @@ const VideoCall = ({ onCallEnd }) => {
             color: 'white',
             width: 64,
             height: 64,
-            '&:hover': {
-              bgcolor: '#d32f2f',
-            },
+            '&:hover': { bgcolor: '#d32f2f' },
           }}
         >
           <CallEnd />
