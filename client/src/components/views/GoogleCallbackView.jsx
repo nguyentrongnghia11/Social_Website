@@ -17,7 +17,7 @@ const GoogleCallbackView = () => {
                 if (searchParams.get('success') === 'true') {
                     const response = await fetch(`${BASE_URL}/v1/user/me`, {
                         credentials: 'include',
-                     
+
                     });
                     console.log("Google callback response:", response);
                     if (!response.ok) {
@@ -85,9 +85,9 @@ const GoogleCallbackView = () => {
                 ) : (
                     <>
                         <CircularProgress />
-                        <Typography variant="h5" color="text.secondary">
+                        {/* <Typography variant="h5" color="text.secondary">
                             Đang xử lý đăng nhập Google...
-                        </Typography>
+                        </Typography> */}
                     </>
                 )}
             </Stack>
