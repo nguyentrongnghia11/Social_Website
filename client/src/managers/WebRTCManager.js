@@ -72,6 +72,7 @@ class WebRTCManager {
             video: callType === 'video' ? {
                 width: { ideal: 1280, max: 1920 },
                 height: { ideal: 720, max: 1080 },
+                aspectRatio: { ideal: 16 / 9 },
                 facingMode: 'user',
                 frameRate: { ideal: 30, max: 30 }
             } : false,
