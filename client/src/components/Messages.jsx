@@ -254,13 +254,7 @@ const Messages = (props) => {
 
   const handleReceiveMessage = useCallback((content) => {
     try {
-      console.log('📨 Received message:', content)
-      console.log('📎 MediaFiles in received message:', content.msg.mediaFiles)
-
-      // Chỉ xử lý message nếu thuộc về cuộc trò chuyện hiện tại
       if (conservantRef.current && conservantRef.current.conversationId !== content.msg.conversationId) {
-        console.log('⏭️ Message belongs to different conversation, skipping display');
-        // Update conversation list only, don't display message
         let conversation = props.getConversation(conversationsRef.current, content.msg.conversationId);
         if (conversation) {
           conversation.lastMessageAt = Date.now();

@@ -9,14 +9,14 @@ const isLoggedIn = () => {
 // Validate token khi app khởi động hoặc sau thời gian dài không dùng
 const validateSession = async () => {
   const user = JSON.parse(localStorage.getItem("user"));
-  
+
   if (!user) {
     return null;
   }
-  
+
   try {
     const result = await validateToken();
-    
+
     if (result.valid) {
       return user;
     } else {
@@ -37,16 +37,16 @@ const validateSession = async () => {
 };
 
 const loginUser = async (user) => {
-  console.log  ("checkeed")
-  
+  console.log("checkeed")
+
   disconnectSocket();
-  
+
   localStorage.setItem("user", JSON.stringify(user));
-  
+
   initiateSocketConnection();
 
   const token = await requestPermission();
-  console.log('token firebase ', token)
+  console.log('Token firebase ', token)
 
   if (!token)
     return
@@ -64,7 +64,7 @@ const loginUser = async (user) => {
 const logoutUser = async () => {
   // Call the logout API to clear server-side session
   await logoutAPI();
-  
+
   // Disconnect socket and clear local storage
   disconnectSocket();
   localStorage.removeItem('user')

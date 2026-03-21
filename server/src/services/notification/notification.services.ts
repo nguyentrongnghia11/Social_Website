@@ -12,6 +12,7 @@ export async function handleNotification(notice: INotification) {
     const keyUserOnline = "USER-ONLINE-SOCKET-";
 
     try {
+        console.log("thong bao o handleNotification ", notice)
         const notif = await _Notification.create(notice);
         if (!notif) {
             console.error('Failed to create notification');
@@ -23,12 +24,11 @@ export async function handleNotification(notice: INotification) {
             .populate('sender', 'name avatar')
             .lean();
 
-        console.log ("Populated notif ", populatedNotif)
+        console.log("Populated notif ", populatedNotif)
 
         const list = await redisClient.sMembers(`${keyUserOnline}${notif.receiver}`);
         for (const socketId of list) {
             io.to(socketId).emit(notif.type, populatedNotif || notif);
-            console.log(`✅ Emitted to socket: ${socketId}`);
         }
 
         const isOnline = list.length > 0;
@@ -49,12 +49,11 @@ export async function handleNotification(notice: INotification) {
                 ? `Push notification sent for ${notif.type}`
                 : 'offline failed'
             );
-        } 
+        }
     } catch (error: any) {
         console.error('Error in handleNotification:', error.message);
     }
 }
-
 
 export const getNotifications = async () => {
     const listNotice = await _Notification.aggregate([
@@ -186,51 +185,19 @@ export const getNotificationsByReceiver = async (receiverId: string) => {
 }
 
 
-
-// firebase
-export const sendNotifiCation = async (deviceToken: string, notice: INotification, title?: string) => {
-    try {
-        const message: Message = {
-            token: deviceToken,
-            notification: {
-                title: title || 'Thông báo mới',
-                body: notice.message
-            },
-            data: {
-                type: notice.type || 'general',
-                ...(notice.link && { link: notice.link })
-            }
-        }
-        const noticee = await _Notifycation.create(notice)
-
-        if (!noticee) {
-            console.error('Failed to create notification in DB');
-            return null;
-        }
-        const res = await admin.messaging().send(message)
-        console.log('✅ Notification sent successfully:', res);
-        return res;
-    } catch (error: any) {
-        console.error('❌ Error sending notification:', error.message);
-        // Don't throw error, just return null to not break the flow
-        return null;
-    }
-}
-
-export const sendEventDevice = async (notice: string, uid: string | ObjectId, title?: string) => {
+const sendEventDevice = async (notice: string, uid: string | ObjectId, title?: string) => {
     try {
         const user = await _User.findById(uid).select({ tokenFcms: 1 }).lean();
 
         const tokenFcms: string[] | null = user && user.tokenFcms ? user.tokenFcms : null;
 
         if (!tokenFcms || tokenFcms.length === 0) {
-            console.log('No FCM tokens found for user:', uid);
             return null;
         }
 
         const message: MulticastMessage = {
             tokens: tokenFcms,
-            notification: {
+            data: {
                 title: title || 'Thông báo mới',
                 body: notice
             }
@@ -242,39 +209,48 @@ export const sendEventDevice = async (notice: string, uid: string | ObjectId, ti
             return null
         }
 
-        console.log(`✅ Sent notification to ${response.successCount}/${tokenFcms.length} devices`);
-
-        // Log failed tokens
         if (response.failureCount > 0) {
             const failedTokens: string[] = [];
             response.responses.forEach((resp, idx) => {
                 if (!resp.success) {
-                    failedTokens.push(tokenFcms[idx]);
+                    console.log(`FCM error [${idx}]:`, resp.error?.code, resp.error?.message);
+                    const code = resp.error?.code;
+                    if (code === 'messaging/registration-token-not-registered' ||
+                        code === 'messaging/invalid-registration-token') {
+                        failedTokens.push(tokenFcms[idx]);
+                    }
                 }
             });
-            console.log('❌ Failed tokens:', failedTokens);
+            // Remove expired tokens from DB
+            if (failedTokens.length > 0) {
+                await _User.findByIdAndUpdate(uid, { $pull: { tokenFcms: { $in: failedTokens } } });
+                console.log(`Removed ${failedTokens.length} expired FCM tokens for user ${uid}`);
+            }
         }
 
         return response;
     } catch (error: any) {
-        console.error('❌ Error sending multicast notification:', error.message);
+        console.error('err sending multicast notification:', error.message);
         return null;
     }
 }
 
+
 // Send notification for new message
-export const sendMessageNotification = async (
+export const sendMessageNotificationWhenOffline = async (
     recipientId: string | ObjectId,
     senderName: string,
     messageContent: string,
     conversationId: string
 ) => {
     try {
+
         const user = await _User.findById(recipientId).select({ tokenFcms: 1 }).lean();
 
         if (!user || !user.tokenFcms || user.tokenFcms.length === 0) {
             return null;
         }
+        console.log("sendMessageNotificationWhenOffline ", user.tokenFcms)
 
         const title = `Tin nhắn mới từ ${senderName}`;
         const body = messageContent.length > 100
@@ -283,11 +259,9 @@ export const sendMessageNotification = async (
 
         const message: MulticastMessage = {
             tokens: user.tokenFcms,
-            notification: {
-                title,
-                body
-            },
             data: {
+                title,
+                body,
                 type: 'message',
                 conversationId,
                 senderName
@@ -297,7 +271,24 @@ export const sendMessageNotification = async (
         const response = await admin.messaging().sendEachForMulticast(message);
 
         if (response) {
-            console.log(`Message notification sent to ${response.successCount} devices`);
+            if (response.failureCount > 0) {
+                const failedTokens: string[] = [];
+                response.responses.forEach((resp, idx) => {
+                    if (!resp.success) {
+                        console.log(`FCM msg error [${idx}]:`, resp.error?.code, resp.error?.message);
+                        const codeErr = resp.error;
+                        if (codeErr) {
+                            failedTokens.push(user.tokenFcms![idx]);
+                        }
+                    }
+                });
+                if (failedTokens.length > 0) {
+                    await _User.findByIdAndUpdate(recipientId, { $pull: { tokenFcms: { $in: failedTokens } } });
+                    console.log(`Removed ${failedTokens.length} expired tokens for user ${recipientId}`);
+                }
+            } else {
+                console.log(`send message success to ${response.successCount} devices`);
+            }
         }
 
         return response;
@@ -307,8 +298,7 @@ export const sendMessageNotification = async (
     }
 }
 
-// Send notification to multiple users (for group chat)
-export const sendGroupMessageNotification = async (
+export const sendGroupMessageNotificationWhenOffline = async (
     recipientIds: (string | ObjectId)[],
     senderName: string,
     messageContent: string,
@@ -316,6 +306,8 @@ export const sendGroupMessageNotification = async (
     conversationId: string
 ) => {
     try {
+
+        console.log("sendGroupMessageNotificationWhenOffline")
         const users = await _User.find({
             _id: { $in: recipientIds.map(id => new Types.ObjectId(id.toString())) }
         }).select({ tokenFcms: 1 }).lean();
@@ -338,11 +330,9 @@ export const sendGroupMessageNotification = async (
 
         const message: MulticastMessage = {
             tokens: allTokens,
-            notification: {
-                title,
-                body
-            },
             data: {
+                title,
+                body,
                 type: 'group_message',
                 conversationId,
                 groupName,
@@ -353,7 +343,7 @@ export const sendGroupMessageNotification = async (
         const response = await admin.messaging().sendEachForMulticast(message);
 
         if (response) {
-            console.log(`Group message notification sent to ${response.successCount}/${allTokens.length} devices`);
+            console.log(`send group message success`);
         }
 
         return response;

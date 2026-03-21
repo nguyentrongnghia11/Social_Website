@@ -3,12 +3,12 @@ import { Request, Response, NextFunction } from "express";
 import messageService from '../services/message/message.services';
 
 const getAllConventionOfUser = async (req: Request, res: Response, next: NextFunction) => {
-    console.log ("123")
+    console.log("123")
     try {
         const user = req.user as IUser;
         const listConversation = await messageService.getAllConversationsOfUser(user._id.toString());
 
-        console.log("listConversation ", listConversation);
+        // console.log("listConversation ", listConversation);
         return res.status(200).json({
             message: 'List of all conversations of user',
             result: listConversation
@@ -120,7 +120,7 @@ const getTotalUnreadCount = async (req: Request, res: Response, next: NextFuncti
     try {
         const user = req.user as IUser;
         const result = await messageService.getTotalUnreadCount(user._id.toString());
-        
+
         console.log("unread count ", result);
 
         return res.status(200).json({
@@ -132,10 +132,10 @@ const getTotalUnreadCount = async (req: Request, res: Response, next: NextFuncti
     }
 }
 
-export { 
-    getAllConventionOfUser, 
-    getMessageOfUser, 
-    markMessagesAsRead, 
+export {
+    getAllConventionOfUser,
+    getMessageOfUser,
+    markMessagesAsRead,
     sendMessageWithMedia,
     grantPermissionUploadMedia,
     saveMessageMedia,

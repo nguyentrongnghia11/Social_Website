@@ -19,10 +19,11 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage(function (payload) {
   console.log('[firebase-messaging-sw.js] Background message received:', payload);
 
-  const notificationTitle = payload.notification?.title || 'Background Notification';
+  const notificationTitle = payload.data?.title || payload.notification?.title || 'Thông báo mới';
   const notificationOptions = {
-    body: 'No message body.',
+    body: payload.data?.body || payload.notification?.body || 'Bạn có thông báo mới',
     icon: '/favicon-16x16.png',
+    data: payload.data || {}
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);

@@ -8,7 +8,7 @@ import _Group from '../models/group';
 import _Call from '../models/call';
 import groupService from "../services/group/group.services";
 import callService from "./call/call.services";
-import { sendMessageNotification, sendGroupMessageNotification } from './notification/notification.services';
+import { sendMessageNotificationWhenOffline, sendGroupMessageNotificationWhenOffline } from './notification/notification.services';
 import { Types } from 'mongoose';
 
 declare module "socket.io" {
@@ -51,32 +51,22 @@ const emitToOnlineUsers = async (socket: Socket, userIds: string[], event: strin
 const incrementUnreadCounts = async (conversationId: string, memberIds: string[], senderId: string) => {
     const pipeline = redisClient.multi();
     const recipientIds = memberIds.filter(memberId => memberId !== senderId);
-    
+
     // Increment Redis counters for per-conversation unread counts
     recipientIds.forEach(memberId => {
         pipeline.incr(`${KEY_UNREAD_COUNT}${memberId}:${conversationId}`);
     });
     await pipeline.exec();
-    
-    // Increment total unread count in User model and Redis total unread cache
+
     await Promise.all(recipientIds.map(async (memberId) => {
-        // Increment in database
         await _User.findByIdAndUpdate(memberId, { $inc: { totalUnreadCount: 1 } });
-        
-        // Increment Redis total unread cache
         await redisClient.incr(`unread-count:${memberId}`);
     }));
 }
 
 const handleExistingConversation = async (socket: Socket, msg: any, conversation: any) => {
     try {
-        console.log('💾 [handleExistingConversation] Received msg:', { 
-            content: msg.content, 
-            mediaFiles: msg.mediaFiles,
-            mediaFilesCount: msg.mediaFiles?.length 
-        });
 
-        // Determine contentType based on mediaFiles
         let contentType = 'text';
         if (msg.mediaFiles && msg.mediaFiles.length > 0) {
             const firstMedia = msg.mediaFiles[0];
@@ -97,13 +87,6 @@ const handleExistingConversation = async (socket: Socket, msg: any, conversation
             mediaFiles: msg.mediaFiles || [],
             type: conversation.type
         });
-
-        console.log('✅ [handleExistingConversation] Message created:', {
-            _id: message._id,
-            contentType: message.contentType,
-            mediaFilesCount: message.mediaFiles?.length
-        });
-
         if (!message) {
             throw new Error('Failed to create message');
         }
@@ -128,7 +111,6 @@ const handleExistingConversation = async (socket: Socket, msg: any, conversation
             }
         };
 
-        console.log('📡 [handleExistingConversation] Emitting chat event with mediaFiles:', messageData.msg.mediaFiles?.length);
         socket.to(conversation._id.toString()).emit("chat", messageData);
 
         // Send push notification to offline users
@@ -136,13 +118,13 @@ const handleExistingConversation = async (socket: Socket, msg: any, conversation
         if (conversation.type === 'group' && conversation.groupId) {
             const group = await _Group.findById(conversation.groupId).select('members name').lean();
             memberIds = (group?.members || []).map((id: any) => id.toString()).filter((id: string) => id !== msg.senderId);
-            
+
             // Send group notification to offline members
             const onlineMemberIds = await Promise.all(memberIds.map(id => checkUserOnline(id)));
             const offlineMemberIds = memberIds.filter((id, idx) => onlineMemberIds[idx].length === 0);
-            
+
             if (offlineMemberIds.length > 0 && group) {
-                await sendGroupMessageNotification(
+                await sendGroupMessageNotificationWhenOffline(
                     offlineMemberIds,
                     msg.nameSender || 'Unknown',
                     msg.content || 'Đã gửi tệp đính kèm',
@@ -155,13 +137,13 @@ const handleExistingConversation = async (socket: Socket, msg: any, conversation
                 conversation.senderId?.toString(),
                 conversation.receiverId?.toString()
             ].filter(Boolean).filter((id: string) => id !== msg.senderId);
-            
-            // Send notification to offline recipient
+
             const recipientId = memberIds[0];
             if (recipientId) {
                 const isOnline = await checkUserOnline(recipientId);
+                console.log("isOnline ", isOnline)
                 if (isOnline.length === 0) {
-                    await sendMessageNotification(
+                    await sendMessageNotificationWhenOffline(
                         recipientId,
                         msg.nameSender || 'Unknown',
                         msg.content || 'Đã gửi tệp đính kèm',
@@ -214,7 +196,6 @@ const handleNewUserConversation = async (socket: Socket, msg: any) => {
             .populate('senderId receiverId', 'name email avatar')
             .lean();
 
-        // Determine contentType based on mediaFiles
         let contentType = 'text';
         if (msg.mediaFiles && msg.mediaFiles.length > 0) {
             const firstMedia = msg.mediaFiles[0];
@@ -274,8 +255,7 @@ const handleNewUserConversation = async (socket: Socket, msg: any) => {
                 });
             });
         } else {
-            // Receiver is offline, send push notification
-            await sendMessageNotification(
+            await sendMessageNotificationWhenOffline(
                 msg.receiverId,
                 msg.nameSender || 'Unknown',
                 msg.content || 'Đã gửi tệp đính kèm',
@@ -402,7 +382,7 @@ const handleNewGroupConversation = async (socket: Socket, msg: any) => {
         );
 
         if (offlineMemberIds.length > 0) {
-            await sendGroupMessageNotification(
+            await sendGroupMessageNotificationWhenOffline(
                 offlineMemberIds,
                 msg.nameSender || 'Unknown',
                 msg.content || `Đã tạo nhóm "${msg.groupName}"`,
@@ -442,14 +422,7 @@ export const socketioService = async (socket: Socket) => {
 
     socket.on('chat', async (msg) => {
         try {
-            console.log('📨 [Socket.chat] Received message:', {
-                senderId: msg.senderId,
-                content: msg.content?.substring(0, 50),
-                mediaFiles: msg.mediaFiles,
-                mediaFilesCount: msg.mediaFiles?.length,
-                type: msg.type,
-                conversationId: msg.conversationId
-            });
+
 
             if (!msg || !msg.senderId) {
                 socket.emit('error', { message: 'Invalid message data' });
@@ -512,13 +485,13 @@ export const socketioService = async (socket: Socket) => {
         try {
             const { callerId, receiverId, conversationId, callType, callerName, callerAvatar } = data;
 
-            console.log('[Call-Initiate] Received data:', { 
-                callerId, 
-                receiverId, 
-                conversationId, 
+            console.log('[Call-Initiate] Received data:', {
+                callerId,
+                receiverId,
+                conversationId,
                 callType,
                 callerName,
-                callerAvatar 
+                callerAvatar
             });
 
             // Validate required fields
@@ -527,7 +500,7 @@ export const socketioService = async (socket: Socket) => {
                 socket.emit('call-error', { message: 'Missing required fields' });
                 return;
             }
-            
+
             const call = await callService.initiateCall(callerId, receiverId, conversationId, callType);
 
             if (!call) {
@@ -541,7 +514,7 @@ export const socketioService = async (socket: Socket) => {
 
             // Check if receiver is online
             const receiverSocketIds = await checkUserOnline(receiverId);
-            
+
             if (receiverSocketIds.length > 0) {
                 // Send call notification to all receiver's devices
                 receiverSocketIds.forEach(socketId => {
@@ -562,7 +535,7 @@ export const socketioService = async (socket: Socket) => {
                     try {
                         const currentCall = await callService.getCallById(callId);
                         console.log('[Timeout] Checking call status:', currentCall?.status);
-                        
+
                         if (currentCall && currentCall.status === 'calling') {
                             console.log('📥 [Timeout] Marking call as missed:', callId);
                             await callService.markCallAsMissed(callId);
@@ -589,7 +562,7 @@ export const socketioService = async (socket: Socket) => {
 
                 // Store timeout to clear it if call is answered
                 socket.data.callTimeout = missedCallTimeout;
-                
+
             } else {
                 await callService.markCallAsMissed(callId);
                 socket.emit('call-user-offline', {
@@ -618,10 +591,10 @@ export const socketioService = async (socket: Socket) => {
                     callType: data.callType
                 }
             });
-            
+
             const errorMessage = error.message || 'Failed to initiate call';
-            socket.emit('call-error', { 
-                message: `Failed to initiate call: ${errorMessage}` 
+            socket.emit('call-error', {
+                message: `Failed to initiate call: ${errorMessage}`
             });
         }
     });
@@ -725,10 +698,10 @@ export const socketioService = async (socket: Socket) => {
                         candidate
                     });
                 });
-                console.log ('[Call-ICE-Candidate] Forwarded ICE candidate to:', targetUserId);
+                console.log('[Call-ICE-Candidate] Forwarded ICE candidate to:', targetUserId);
             }
 
-            
+
 
         } catch (error) {
             console.error('Error handling ICE candidate:', error);
