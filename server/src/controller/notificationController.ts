@@ -52,7 +52,7 @@ class NotificationController {
             const id = req.params.id;
             const result = await getNotificationsByReceiver(id);
 
-            console.log ("ressss",  result);
+            // console.log ("ressss",  result);
 
             return res.status(200).json({
                 message: 'Get notifications for user success',

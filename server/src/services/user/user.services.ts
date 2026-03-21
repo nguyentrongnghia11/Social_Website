@@ -223,7 +223,7 @@ export class UserService {
         }
         const payLoad = await verifyToken(refreshTokenOld, tokenOld.publicKey);
 
-        console.log("payload rf ", payLoad)
+        // console.log("payload rf ", payLoad)
 
         if (!payLoad) {
             console.error('Khong co payload');

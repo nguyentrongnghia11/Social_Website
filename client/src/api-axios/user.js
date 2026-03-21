@@ -113,7 +113,7 @@ const registerGroup = async (token, typeTopic) => {
 
 const updateToken = async (tokenFcm, deviceId) => {
 
-    console.log('123 ', tokenFcm, deviceId)
+    console.log('update token', tokenFcm, deviceId)
     const response = await instance.patch("/auth/v1/token", { tokenFcm, deviceId })
     return response;
 }

@@ -27,12 +27,6 @@ export class CommentService {
             if (post && post.artistId.toString() !== userId) {
                 const user = await _User.findById(userId).select('name');
 
-                console.log('🔔 Sending comment notification:', {
-                    from: user?.name,
-                    to: post.artistId,
-                    postId
-                });
-
                 await handleNotification({
                     message: `${user?.name || 'Someone'} đã bình luận về bài viết của bạn: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`,
                     title: 'Bình luận mới',
