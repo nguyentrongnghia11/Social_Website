@@ -33,10 +33,6 @@ jobs:
     if: github.event_name == 'push' 
     runs-on: ubuntu-latest
     steps:
-      - name: Debug SSH Key
-        run: |
-            echo "${{ secrets.SSH_PRIVATE_KEY }}" > test.pem
-            cat test.pem
       - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
