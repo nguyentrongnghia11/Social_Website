@@ -18,19 +18,23 @@ const Comments = () => {
 
   const fetchComments2 = async () => {
     const data = await getComments(params.id);
+    console.log ("data result ", data.result)
     if (data.error) {
       setError("Failed to fetch comments");
     }
     else {
+
+      console.log ("Data result ", data)
       setComments(data.result)
       return data.result;
     }
   }
 
-  console.log(comments)
+  // console.log(comments)
 
 
   useEffect(() => {
+    console.log ("fetaching ccomment")
     fetchComments2()
   }, [])
 
@@ -92,8 +96,6 @@ const Comments = () => {
   };
 
   const addComment = async (comment) => {
-    // await fetchComments2()
-
     const updatedComments = await fetchComments2();
     if (updatedComments) {
       setComments(updatedComments);

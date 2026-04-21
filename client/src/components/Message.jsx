@@ -11,6 +11,7 @@ const Message = (props) => {
   const theme = useTheme();
   const [openImageModal, setOpenImageModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [failedImageUrls, setFailedImageUrls] = useState(new Set());
 
 
   const handleImageClick = (imageUrl) => {
@@ -43,65 +44,96 @@ const Message = (props) => {
 
 
     if (isImage) {
+      const hasError = failedImageUrls.has(file.url);
+      
       return (
         <Box
           key={index}
-          onClick={() => handleImageClick(file.url)}
           sx={{
             position: 'relative',
-            cursor: 'pointer',
             borderRadius: '8px',
             overflow: 'hidden',
             maxWidth: '300px',
             mt: 1,
-            '&:hover .image-overlay': {
-              opacity: 1
-            },
-            '&:hover': {
-              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            },
-            transition: 'all 0.3s ease',
           }}
         >
-          <img
-            src={file.url}
-            alt={file.fileName}
-            style={{
-              width: '100%',
-              height: 'auto',
-              display: 'block',
-            }}
-          />
-          <Box
-            className="image-overlay"
-            sx={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(0,0,0,0.4)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              opacity: 0,
-              transition: 'opacity 0.3s ease',
-            }}
-          >
+          {hasError ? (
             <Box
               sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: 'rgba(255,255,255,0.2)',
-                borderRadius: '50%',
-                width: 50,
-                height: 50,
+                backgroundColor: '#f5f5f5',
+                borderRadius: '8px',
+                padding: '20px',
+                textAlign: 'center',
+                border: '1px solid #ddd',
+                cursor: 'pointer',
+              }}
+              onClick={() => handleImageClick(file.url)}
+            >
+              <ImageIcon sx={{ fontSize: 40, color: '#999', mb: 1 }} />
+              <Typography variant="body2" sx={{ color: '#666' }}>
+                Không thể hiển thị ảnh
+              </Typography>
+            </Box>
+          ) : (
+            <Box
+              onClick={() => handleImageClick(file.url)}
+              sx={{
+                position: 'relative',
+                cursor: 'pointer',
+                '&:hover .image-overlay': {
+                  opacity: 1
+                },
+                '&:hover': {
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                },
+                transition: 'all 0.3s ease',
               }}
             >
-              <ZoomIn sx={{ color: 'white', fontSize: 24 }} />
+              <img
+                src={file.url}
+                alt={file.fileName}
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                  display: 'block',
+                }}
+                onError={() => {
+                  console.error('❌ Image failed to load:', file.url);
+                  setFailedImageUrls(prev => new Set([...prev, file.url]));
+                }}
+              />
+              <Box
+                className="image-overlay"
+                sx={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: 'rgba(0,0,0,0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: 0,
+                  transition: 'opacity 0.3s ease',
+                }}
+              >
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: 'rgba(255,255,255,0.2)',
+                    borderRadius: '50%',
+                    width: 50,
+                    height: 50,
+                  }}
+                >
+                  <ZoomIn sx={{ color: 'white', fontSize: 24 }} />
+                </Box>
+              </Box>
             </Box>
-          </Box>
+          )}
         </Box>
       );
     }

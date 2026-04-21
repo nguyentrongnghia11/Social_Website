@@ -15,22 +15,24 @@ import {
   ListItemIcon,
   Container,
 } from "@mui/material"
+import { MoreVert } from "@mui/icons-material"
 import { Box } from "@mui/system"
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react"
 import "react-icons/ai"
 import "react-icons/ri"
 import { AiFillFileText, AiFillHome, AiFillMessage, AiOutlineSearch, AiFillBell, AiOutlineBell } from "react-icons/ai"
-import { Link, useNavigate } from "react-router-dom"
+import { Link, useNavigate, useLocation } from "react-router-dom"
 import { isLoggedIn, logoutUser } from "../helpers/authHelper"
 import UserAvatar from "./UserAvatar"
 import HorizontalStack from "./util/HorizontalStack"
-import { MdAdminPanelSettings } from "react-icons/md"
+import { MdAdminPanelSettings, MdCancel } from "react-icons/md"
 import { markAsRead, markAllAsRead as markAllAsReadAPI } from "../api-axios/notification"
 import useNotificationStore from "../stores/useNotificationStore"
 
 
 const Navbar = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const user = isLoggedIn()
   const theme = useTheme()
   const username = user && user.user._id
@@ -42,6 +44,8 @@ const Navbar = () => {
   const [showAllNotifications, setShowAllNotifications] = useState(false)
   const [displayLimit, setDisplayLimit] = useState(10)
   const notificationScrollRef = useRef(null)
+  const [menuAnchorEl, setMenuAnchorEl] = useState(null)
+  const menuOpen = Boolean(menuAnchorEl)
 
   const notifications = useNotificationStore((state) => state.notifications);
   const unreadCount = useNotificationStore((state) => state.unreadCount);
@@ -60,6 +64,10 @@ const Navbar = () => {
     return () => window.removeEventListener("resize", updateDimensions)
   }, [])
 
+  useEffect(() => {
+    setSearchIcon(false)
+  }, [location])
+
   const mobile = width < 500
   const navbarWidth = width < 600
 
@@ -77,6 +85,14 @@ const Navbar = () => {
     setShowAllNotifications(false)
     setDisplayLimit(10)
   }, []);
+
+  const handleMenuClick = useCallback((event) => {
+    setMenuAnchorEl(event.currentTarget)
+  }, [])
+
+  const handleMenuClose = useCallback(() => {
+    setMenuAnchorEl(null)
+  }, [])
 
   const handleNotificationScroll = useCallback((e) => {
     const element = e.target
@@ -123,6 +139,7 @@ const Navbar = () => {
   const handleSubmit = useCallback((e) => {
     e.preventDefault()
     navigate("/search?" + new URLSearchParams({ search }))
+    setSearchIcon(false)
   }, [search, navigate]);
 
   const handleSearchIcon = useCallback((e) => {
@@ -150,8 +167,8 @@ const Navbar = () => {
   }, []);
 
   return (
-    <Stack mb={2}>
-      <Container maxWidth="xl">
+    <Stack mb={2} sx={{ width: '100%', overflow: 'hidden' }}>
+      <Container maxWidth="xl" sx={{ width: '100%', overflow: 'hidden' }}>
         <Stack
           direction="row"
           alignItems="center"
@@ -159,21 +176,24 @@ const Navbar = () => {
           sx={{
             pt: 2,
             pb: 0,
+            width: '100%',
+            overflow: 'hidden',
           }}
-          spacing={!mobile ? 2 : 0}
+          spacing={!mobile ? 2 : 0.5}
         >
-          <HorizontalStack spacing={1} alignItems="center">
+          <HorizontalStack spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
             <img
               src="/logo.png"
               alt="JustVibing Logo"
               style={{
-                height: 50,
-                width: 50,
+                height: mobile ? 40 : 50,
+                width: mobile ? 40 : 50,
                 cursor: "pointer",
                 objectFit: "cover",
                 borderRadius: "12px",
                 boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-                transition: "transform 0.2s ease, box-shadow 0.2s ease"
+                transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                flexShrink: 0,
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = "scale(1.05)"
@@ -189,9 +209,12 @@ const Navbar = () => {
               sx={{
                 cursor: "pointer",
                 fontWeight: 700,
-                fontSize: navbarWidth ? "1.25rem" : "1.75rem",
+                fontSize: mobile ? "1rem" : navbarWidth ? "1.25rem" : "1.75rem",
                 letterSpacing: "-0.5px",
                 color: "#1a237e",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
               }}
               onClick={() => navigate("/")}
             >
@@ -211,56 +234,85 @@ const Navbar = () => {
             </Box>
           )}
 
-          <HorizontalStack>
+          <HorizontalStack sx={{ flexShrink: 1, minWidth: 0, overflow: 'hidden' }}>
             {mobile && (
-              <IconButton onClick={handleSearchIcon}>
+              <IconButton onClick={handleSearchIcon} sx={{ p: 1 }}>
                 <AiOutlineSearch />
               </IconButton>
             )}
-            <IconButton component={Link} to={"/"}>
+            <IconButton component={Link} to={"/"} sx={{ p: 1 }}>
               <AiFillHome />
             </IconButton>
             {user ? (
               <>
                 {(user.user?.role === 'admin' || user.user?.role === 'moderator' || user.user?.permissions?.includes('view_admin_panel')) && (
-                  <IconButton component={Link} to={"/admin/users"} title="Admin Panel">
+                  <IconButton component={Link} to={"/admin/users"} title="Admin Panel" sx={{ p: 1 }}>
                     <MdAdminPanelSettings />
                   </IconButton>
                 )}
-                <IconButton component={Link} to={"/messenger"}>
+                <IconButton component={Link} to={"/messenger"} sx={{ p: 1 }}>
                   <Badge badgeContent={unreadMsgCount > 0 ? unreadMsgCount : 0} color="error" max={99}>
                     <AiFillMessage />
                   </Badge>
                 </IconButton>
 
                 {/* Notification Bell */}
-                <IconButton onClick={handleNotificationClick}>
+                <IconButton onClick={handleNotificationClick} sx={{ p: 1 }}>
                   <Badge badgeContent={unreadCount > 0 ? unreadCount : 0} color="error" max={99}>
                     {unreadCount > 0 ? <AiFillBell style={{ color: theme.palette.primary.main }} /> : <AiOutlineBell />}
                   </Badge>
                 </IconButton>
 
-                <IconButton component={Link} to={"/users/" + username}>
+                <IconButton component={Link} to={"/users/" + username} sx={{ p: 1 }}>
                   <UserAvatar width={30} height={30} username={user.username} />
                 </IconButton>
-                <Button onClick={handleLogout}>Logout</Button>
+                {mobile && (
+                  <IconButton onClick={handleMenuClick} sx={{ p: 1 }}>
+                    <MoreVert />
+                  </IconButton>
+                )}
+                {!mobile && <Button onClick={handleLogout}>Logout</Button>}
               </>
             ) : (
               <>
-                <Button variant="text" sx={{ minWidth: 80 }} onClick={() => navigate("/signup")}>
-                  Sign Up
-                </Button>
-                <Button variant="text" sx={{ minWidth: 65 }} onClick={() => navigate("/login")}>
-                  Login
-                </Button>
+                {!mobile && (
+                  <>
+                    <Button variant="text" sx={{ minWidth: 80 }} onClick={() => navigate("/signup")}>
+                      Sign Up
+                    </Button>
+                    <Button variant="text" sx={{ minWidth: 65 }} onClick={() => navigate("/login")}>
+                      Login
+                    </Button>
+                  </>
+                )}
+                {mobile && (
+                  <IconButton onClick={handleMenuClick} sx={{ p: 1 }}>
+                    <MoreVert />
+                  </IconButton>
+                )}
               </>
             )}
           </HorizontalStack>
         </Stack>
 
         {navbarWidth && searchIcon && (
-          <Box component="form" onSubmit={handleSubmit} mt={2}>
-            <TextField size="small" label="Search for posts..." fullWidth onChange={handleChange} value={search} />
+          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2, mb: 2, display: 'flex', gap: 0.5, width: '100%', boxSizing: 'border-box', px: 2 }}>
+            <TextField 
+              size="small" 
+              label="Search for posts..." 
+              fullWidth 
+              onChange={handleChange} 
+              value={search}
+              autoFocus
+              sx={{ minWidth: 0 }}
+            />
+            <IconButton 
+              onClick={() => setSearchIcon(false)} 
+              sx={{ px: 0.5, flexShrink: 0 }}
+              title="Close search"
+            >
+              <MdCancel />
+            </IconButton>
           </Box>
         )}
       </Container>
@@ -442,6 +494,30 @@ const Navbar = () => {
               <Typography variant="body2" color="primary" sx={{ fontWeight: 500 }}>
                 Xem tất cả thông báo ({notifications.length})
               </Typography>
+            </MenuItem>
+          </>
+        )}
+      </Menu>
+
+      {/* Mobile Menu */}
+      <Menu
+        anchorEl={menuAnchorEl}
+        open={menuOpen}
+        onClose={handleMenuClose}
+      >
+        {user ? (
+          <>
+            <MenuItem onClick={() => { handleLogout(); handleMenuClose(); }}>
+              Logout
+            </MenuItem>
+          </>
+        ) : (
+          <>
+            <MenuItem onClick={() => { navigate("/signup"); handleMenuClose(); }}>
+              Sign Up
+            </MenuItem>
+            <MenuItem onClick={() => { navigate("/login"); handleMenuClose(); }}>
+              Login
             </MenuItem>
           </>
         )}

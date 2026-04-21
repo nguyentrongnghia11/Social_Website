@@ -314,13 +314,14 @@ class PostController {
 
     async getTopPost(req: Request, res: Response, next: NextFunction) {
         try {
-            const limit = parseInt(req.query.limit as string) || 10;
-            const period = (req.query.period as string) || 'week';
+            const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
+            const period = (req.query.period as string) || 'week'; // day | week | month | year | all
+            const page = Math.max(parseInt(req.query.page as string) || 1, 1);
 
-            const result = await postService.getTopPost(limit, period);
+            const result = await postService.getTopPost(limit, period, page);
 
             return res.status(200).json({
-                message: 'Get top post success',
+                message: 'Get top posts success',
                 result
             });
         } catch (error) {

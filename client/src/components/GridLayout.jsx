@@ -9,7 +9,7 @@ const GridLayout = (props) => {
       <Grid size={{ xs: 12, md: 8 }}>
         {left}
       </Grid>
-      <Grid size={{ xs: 12, md: 4 }} sx={{ display: { xs: "none", md: "block" } }}>
+      <Grid size={{ xs: 12, md: 4 }}>
         {right}
       </Grid>
     </Grid>

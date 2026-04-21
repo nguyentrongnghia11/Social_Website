@@ -5,6 +5,7 @@ import {
   IconButton,
   Stack,
   Typography,
+  Box,
 } from "@mui/material";
 import React, { useEffect, useState } from "react";
 import { AiOutlineUser } from "react-icons/ai";
@@ -37,33 +38,34 @@ const FindUsers = () => {
   };
 
   return (
-    <Card>
-      <Stack spacing={2}>
-        <HorizontalStack justifyContent="space-between">
-          <HorizontalStack>
-            <AiOutlineUser />
-            <Typography>Find Others</Typography>
+    <Card sx={{ overflow: 'hidden', position: 'relative' }}>
+      <Box sx={{ p: 2 }}>
+        <Stack spacing={2}>
+          <HorizontalStack justifyContent="space-between">
+            <HorizontalStack>
+              <AiOutlineUser />
+              <Typography>Find Others</Typography>
+            </HorizontalStack>
+            <IconButton
+              sx={{ padding: 0 }}
+              disabled={loading}
+              onClick={handleClick}
+            >
+              <MdRefresh />
+            </IconButton>
           </HorizontalStack>
-          <IconButton
-            sx={{ padding: 0 }}
-            disabled={loading}
-            onClick={handleClick}
-          >
-            <MdRefresh />
-          </IconButton>
-        </HorizontalStack>
 
-        <Divider />
-        s
-        {loading ? (
-          <Loading />
-        ) : (
-          users &&
-          users.map((user) => (
-            <UserEntry username={user.name} id={user._id} key={user._id} />
-          ))
-        )}
-      </Stack>
+          <Divider />
+          {loading ? (
+            <Loading />
+          ) : (
+            users &&
+            users.map((user) => (
+              <UserEntry username={user.name} id={user._id} key={user._id} />
+            ))
+          )}
+        </Stack>
+      </Box>
     </Card>
   );
 };

@@ -85,8 +85,9 @@ export class CommentService {
     }
 
     async getComment(postId: string) {
-        const comments = await _Comment.findWithDeleted({ postId })
-            .select('_id content imageUrl userId parentID createdAt isToxic')
+        console.log("Get comment for post id ", postId)
+        const comments = await _Comment.findWithDeleted({ postId }).populate('userId', 'name avatarUrl')
+            .select('_id content imageUrl userId parentID createdAt isToxic senderId')
             .lean();
 
         const tree = this.buildTree(comments);

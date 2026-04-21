@@ -26,6 +26,7 @@ const Comment = (props) => {
   const [replying, setReplying] = useState(false);
   const [editing, setEditing] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [imageLoadError, setImageLoadError] = useState(false);
   // const [comment, setComment] = useState(commentData);
   const user = isLoggedIn();
   const isAuthor = user && user.userId === comment.userId?._id;
@@ -54,8 +55,6 @@ const Comment = (props) => {
     await updateComment(comment._id, user, { content });
 
     const newCommentData = { ...comment, content, edited: true };
-
-    // setComment(newCommentData);
 
     editComment(newCommentData);
 
@@ -155,7 +154,7 @@ const Comment = (props) => {
             <HorizontalStack justifyContent="space-between" >
               <HorizontalStack>
                 <ContentDetails
-                  username={comment.commenter?.username || "trongnghia"}
+                  username={comment?.userId?.name || "trongnghia"}
                   createdAt={comment.createdAt}
                   edited={comment.edited}
 
@@ -245,19 +244,40 @@ const Comment = (props) => {
                 <Markdown content={comment.deleted ? "Comment was deleted" : comment.content} />
                 {comment.imageUrl && !comment.deleted && (
                   <Box sx={{ mt: 2 }}>
-                    <img
-                      src={comment.imageUrl}
-                      alt="Comment attachment"
-                      style={{
-                        maxWidth: '100%',
-                        maxHeight: 100,
-                        borderRadius: 8,
-                        cursor: 'pointer',
-                        display: 'block',
-                      }}
-                      onClick={() => setLightboxOpen(true)}
-                      title="Click to view full size"
-                    />
+                    {imageLoadError ? (
+                      <Box
+                        sx={{
+                          maxWidth: '100%',
+                          padding: '20px',
+                          backgroundColor: '#f5f5f5',
+                          borderRadius: 1,
+                          textAlign: 'center',
+                          border: '1px solid #ddd'
+                        }}
+                      >
+                        <Typography variant="body2" sx={{ color: '#666' }}>
+                          Không thể hiển thị ảnh
+                        </Typography>
+                      </Box>
+                    ) : (
+                      <img
+                        src={comment.imageUrl}
+                        alt="Comment attachment"
+                        style={{
+                          maxWidth: '100%',
+                          maxHeight: 100,
+                          borderRadius: 8,
+                          cursor: 'pointer',
+                          display: 'block',
+                        }}
+                        onClick={() => setLightboxOpen(true)}
+                        title="Click to view full size"
+                        onError={() => {
+                          console.error('Image failed to load:', comment.imageUrl);
+                          setImageLoadError(true);
+                        }}
+                      />
+                    )}
                   </Box>
                 )}
               </>

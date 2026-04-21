@@ -11,7 +11,6 @@ import PostCard from "./PostCard";
 import SortBySelect from "./SortBySelect";
 import HorizontalStack from "./util/HorizontalStack";
 import { getALlPosts, searchPosts } from "../api-axios/posts.";
-import CommentBrowser from "./CommentBrowser";
 import { emitEvent, onEvent, offEvent } from "../helpers/socketHelper";
 
 const PostBrowser = (props) => {

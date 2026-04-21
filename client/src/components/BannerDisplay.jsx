@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Link, IconButton } from '@mui/material';
+import { Box, Link, IconButton, Typography } from '@mui/material';
 import { Close } from '@mui/icons-material';
 import { getActiveBanners } from '../api-axios/banner';
 
 const BannerDisplay = ({ position = 'left' }) => {
     const [banners, setBanners] = useState([]);
     const [closedBanners, setClosedBanners] = useState([]);
+    const [failedImageUrls, setFailedImageUrls] = useState(new Set());
 
     useEffect(() => {
         loadBanners();
@@ -84,17 +85,55 @@ const BannerDisplay = ({ position = 'left' }) => {
                             rel="noopener noreferrer"
                             sx={{ display: 'block' }}
                         >
-                            <img
-                                src={banner.imageUrl}
-                                alt={banner.title}
-                                style={{
-                                    width: '100%',
-                                    height: 'auto',
-                                    display: 'block',
-                                    cursor: 'pointer',
-                                }}
-                            />
+                            {failedImageUrls.has(banner.imageUrl) ? (
+                                <Box
+                                    sx={{
+                                        width: '100%',
+                                        minHeight: '100px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        backgroundColor: '#f5f5f5',
+                                        border: '1px solid #ddd',
+                                    }}
+                                >
+                                    <Typography variant="body2" sx={{ color: '#666' }}>
+                                        Không thể hiển thị banner
+                                    </Typography>
+                                </Box>
+                            ) : (
+                                <img
+                                    src={banner.imageUrl}
+                                    alt={banner.title}
+                                    style={{
+                                        width: '100%',
+                                        height: 'auto',
+                                        display: 'block',
+                                        cursor: 'pointer',
+                                    }}
+                                    onError={() => {
+                                        console.error('❌ Banner image failed to load:', banner.imageUrl);
+                                        setFailedImageUrls(prev => new Set([...prev, banner.imageUrl]));
+                                    }}
+                                />
+                            )}
                         </Link>
+                    ) : failedImageUrls.has(banner.imageUrl) ? (
+                        <Box
+                            sx={{
+                                width: '100%',
+                                minHeight: '100px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                backgroundColor: '#f5f5f5',
+                                border: '1px solid #ddd',
+                            }}
+                        >
+                            <Typography variant="body2" sx={{ color: '#666' }}>
+                                Không thể hiển thị banner
+                            </Typography>
+                        </Box>
                     ) : (
                         <img
                             src={banner.imageUrl}
@@ -103,6 +142,10 @@ const BannerDisplay = ({ position = 'left' }) => {
                                 width: '100%',
                                 height: 'auto',
                                 display: 'block',
+                            }}
+                            onError={() => {
+                                console.error('❌ Banner image failed to load:', banner.imageUrl);
+                                setFailedImageUrls(prev => new Set([...prev, banner.imageUrl]));
                             }}
                         />
                     )}

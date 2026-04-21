@@ -31,6 +31,8 @@ const getPresignedUrl = async (url: string): Promise<string> => {
 };
 
 const addStandardPostFields = async (posts: any[], userId?: string): Promise<any[]> => {
+
+    console.log("Adding standard fields to posts. Total posts:", posts.length, "User ID:", userId);
     const userObjectId = userId ? new Types.ObjectId(userId) : null;
 
     const processedPosts = await Promise.all(posts.map(async (post: any) => {
@@ -813,131 +815,171 @@ export class PostService {
         return post;
     }
 
-    async getTopPost(limit: number = 10, period: string = 'week') {
-        // Calculate date range based on period
-        const now = new Date();
-        let startDate = new Date();
+    async getTopPost(limit: number = 10, period: string = 'week', page: number = 1) {
+        try {
+            // Kiểm tra cache trước
+            const cacheKey = `top_posts:${period}:${page}:${limit}`;
+            const cachedData = await redisClient.get(cacheKey);
+            if (cachedData) return JSON.parse(cachedData);
 
-        switch (period) {
-            case 'day':
-                startDate.setDate(now.getDate() - 1);
-                break;
-            case 'week':
-                startDate.setDate(now.getDate() - 7);
-                break;
-            case 'month':
-                startDate.setMonth(now.getMonth() - 1);
-                break;
-            case 'year':
-                startDate.setFullYear(now.getFullYear() - 1);
-                break;
-            case 'all':
-            default:
-                startDate = new Date(0); // Beginning of time
-                break;
-        }
 
-        const topPosts = await _Post.aggregate([
-            {
-                $match: {
-                    createdAt: { $gte: startDate },
-                    visibility: 'published'
-                }
-            },
-            {
-                $addFields: {
-                    likeCount: { $size: { $ifNull: ['$react', []] } }
-                }
-            },
-            {
-                $lookup: {
-                    from: 'users',
-                    localField: 'artistId',
-                    foreignField: '_id',
-                    as: 'author'
-                }
-            },
-            {
-                $unwind: {
-                    path: '$author',
-                    preserveNullAndEmptyArrays: true
-                }
-            },
-            {
-                $lookup: {
-                    from: 'comments',
-                    localField: '_id',
-                    foreignField: 'postId',
-                    as: 'comments'
-                }
-            },
-            {
-                $lookup: {
-                    from: 'files',
-                    localField: '_id',
-                    foreignField: 'postId',
-                    as: 'files'
-                }
-            },
-            {
-                $addFields: {
-                    commentCount: { $size: { $ifNull: ['$comments', []] } },
-                    imageCount: {
-                        $size: {
-                            $filter: {
-                                input: '$files',
-                                as: 'file',
-                                cond: { $eq: ['$$file.resource_type', 'image'] }
-                            }
-                        }
-                    },
-                    videoCount: {
-                        $size: {
-                            $filter: {
-                                input: '$files',
-                                as: 'file',
-                                cond: { $eq: ['$$file.resource_type', 'video'] }
-                            }
-                        }
-                    },
-                    // Calculate engagement score: likes * 2 + comments * 3
-                    engagementScore: {
-                        $add: [
-                            { $multiply: [{ $size: { $ifNull: ['$react', []] } }, 2] },
-                            { $multiply: [{ $size: { $ifNull: ['$comments', []] } }, 3] }
+            console.log("Calculating top posts for period:", period);
+            // Tính ngày bắt đầu theo period
+            const startDate = this.getStartDate(period);
+            const skip = (page - 1) * limit;
+
+            const [result] = await _Post.aggregate([
+                {
+                    $match: {
+                        createdAt: { $gte: startDate },
+                        visibility: 'published',
+                        deleted: { $ne: true }
+                    }
+                },
+                // Tính likeCount từ mảng react
+                {
+                    $addFields: {
+                        likeCount: { $size: { $ifNull: ['$react', []] } }
+                    }
+                },
+                // Lấy thông tin tác giả
+                {
+                    $lookup: {
+                        from: 'users',
+                        localField: 'artistId',
+                        foreignField: '_id',
+                        as: 'author',
+                        pipeline: [
+                            { $project: { _id: 1, name: 1, username: 1, avatar: 1, avt_url: 1 } }
                         ]
                     }
-                }
-            },
-            {
-                $project: {
-                    _id: 1,
-                    title: 1,
-                    content: 1,
-                    likeCount: 1,
-                    commentCount: 1,
-                    imageCount: 1,
-                    videoCount: 1,
-                    engagementScore: 1,
-                    createdAt: 1,
-                    imgUrl: '$files.secure_url',
-                    author: {
-                        _id: '$author._id',
-                        name: '$author.name',
-                        avatar: '$author.avatar',
-                        avt_url: '$author.avt_url'
+                },
+                { $unwind: { path: '$author', preserveNullAndEmptyArrays: true } },
+                // Đếm comment
+                {
+                    $lookup: {
+                        from: 'comments',
+                        localField: '_id',
+                        foreignField: 'postId',
+                        as: 'commentDocs',
+                        pipeline: [{ $project: { _id: 1 } }] // chỉ lấy _id để đếm nhẹ
+                    }
+                },
+                // Lấy thumbnail (ảnh đầu tiên) và đếm media
+                {
+                    $lookup: {
+                        from: 'files',
+                        localField: '_id',
+                        foreignField: 'postId',
+                        as: 'fileDocs',
+                        pipeline: [{ $project: { secure_url: 1, resource_type: 1 } }]
+                    }
+                },
+                // Tính toán các trường display và engagement score
+                {
+                    $addFields: {
+                        commentCount: { $size: { $ifNull: ['$commentDocs', []] } },
+                        imageCount: {
+                            $size: {
+                                $filter: { input: '$fileDocs', as: 'f', cond: { $eq: ['$$f.resource_type', 'image'] } }
+                            }
+                        },
+                        videoCount: {
+                            $size: {
+                                $filter: { input: '$fileDocs', as: 'f', cond: { $eq: ['$$f.resource_type', 'video'] } }
+                            }
+                        },
+                        // Thumbnail: URL ảnh đầu tiên (nếu có)
+                        thumbnail: {
+                            $let: {
+                                vars: {
+                                    images: {
+                                        $filter: { input: '$fileDocs', as: 'f', cond: { $eq: ['$$f.resource_type', 'image'] } }
+                                    }
+                                },
+                                in: { $ifNull: [{ $arrayElemAt: ['$$images.secure_url', 0] }, null] }
+                            }
+                        },
+                        daysSinceCreated: {
+                            $divide: [{ $subtract: [new Date(), '$createdAt'] }, 86400000]
+                        }
+                    }
+                },
+                {
+                    $addFields: {
+                        // Điểm tương tác có tính recency
+                        engagementScore: {
+                            $multiply: [
+                                { $add: [{ $multiply: ['$likeCount', 2] }, { $multiply: ['$commentCount', 3] }] },
+                                {
+                                    $switch: {
+                                        branches: [
+                                            { case: { $lte: ['$daysSinceCreated', 1] }, then: 1.5 },
+                                            { case: { $lte: ['$daysSinceCreated', 7] }, then: 1.2 },
+                                            { case: { $lte: ['$daysSinceCreated', 30] }, then: 1.0 }
+                                        ],
+                                        default: 0.7
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                },
+                // Chỉ giữ các field cần thiết để hiển thị danh sách
+                {
+                    $project: {
+                        _id: 1,
+                        title: 1,
+                        likeCount: 1,
+                        commentCount: 1,
+                        imageCount: 1,
+                        videoCount: 1,
+                        thumbnail: 1,
+                        engagementScore: 1,
+                        createdAt: 1,
+                        category: 1,
+                        author: 1
+                    }
+                },
+                { $sort: { engagementScore: -1, likeCount: -1, commentCount: -1, createdAt: -1 } },
+                {
+                    $facet: {
+                        metadata: [{ $count: 'total' }],
+                        data: [{ $skip: skip }, { $limit: limit }]
                     }
                 }
-            },
-            {
-                $sort: { engagementScore: -1, likeCount: -1, commentCount: -1 }
-            },
-            {
-                $limit: limit
-            }
-        ]);
+            ]);
 
-        return topPosts;
+            const response = {
+                data: result?.data || [],
+                pagination: {
+                    total: result?.metadata[0]?.total || 0,
+                    page,
+                    limit,
+                    pages: Math.ceil((result?.metadata[0]?.total || 0) / limit)
+                }
+            };
+
+            // Cache 1 tiếng
+            await redisClient.setEx(cacheKey, 3600, JSON.stringify(response));
+            return response;
+
+        } catch (error) {
+            console.error('Error in getTopPost:', error);
+            throw error;
+        }
+    }
+
+    /** Tính ngày bắt đầu của period */
+    private getStartDate(period: string): Date {
+        const now = new Date();
+        switch (period) {
+            case 'day': return new Date(now.setDate(now.getDate() - 1));
+            case 'week': return new Date(now.setDate(now.getDate() - 7));
+            case 'month': return new Date(now.setMonth(now.getMonth() - 1));
+            case 'year': return new Date(now.setFullYear(now.getFullYear() - 1));
+            default: return new Date(0); // all time
+        }
     }
 
     async searchPost(keyword: string, page: number = 1, limit: number = 10) {

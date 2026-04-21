@@ -58,6 +58,7 @@ const PostCard = (props) => {
   const [menuAnchorEl, setMenuAnchorEl] = useState(null)
   const menuOpen = Boolean(menuAnchorEl)
   const [expanded, setExpanded] = useState(false)
+  const [failedImageUrls, setFailedImageUrls] = useState(new Set())
   const isPreviewMode = preview === "primary" || preview === "secondary"
   const isCompactPreview = preview === "secondary"
   const isDetailPage = !preview || !isPreviewMode
@@ -193,81 +194,106 @@ const PostCard = (props) => {
             gap: 2,
           }}
         >
-          {post.imgUrl.map((image, index) => (
-            <Box
-              key={index}
-              sx={{
-                position: "relative",
-                cursor: "pointer",
-                borderRadius: 2,
-                overflow: "hidden",
-                width: "fit-content",
-                maxWidth: "300px",
-                display: "flex",
-                justifyContent: "flex-start",
-                "&:hover .image-overlay": { opacity: 1 },
-                "&:hover": {
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                },
-                transition: "all 0.3s ease",
-              }}
-              onClick={() => handleImageClick(image)}
-            >
-              <img
-                src={image || "/placeholder.svg"}
-                alt={`Post image ${index + 1}`}
-                style={{
-                  width: "auto",
-                  height: "auto",
-                  display: "block",
-                  maxWidth: "300px",
-                  maxHeight: "200px",
-                  objectFit: "contain",
-                  opacity: 0,
-                  transition: "opacity 0.3s ease-in-out",
-                }}
-                onLoad={(e) => {
-                  console.log("✅ Image loaded successfully:", image);
-                  e.target.style.opacity = "1"
-                }}
-                onError={(e) => {
-                  console.error("❌ Image failed to load:", image);
-                  e.target.style.opacity = "1"
-                  e.target.src = "/placeholder.svg?height=200&width=300&text=Image+not+found"
-                }}
-              />
+          {post.imgUrl.map((image, index) => {
+            const hasError = failedImageUrls.has(image);
+            
+            return (
               <Box
-                className="image-overlay"
+                key={index}
                 sx={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  backgroundColor: "rgba(0,0,0,0.4)",
+                  position: "relative",
+                  cursor: "pointer",
+                  borderRadius: 2,
+                  overflow: "hidden",
+                  width: "fit-content",
+                  maxWidth: "300px",
                   display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  opacity: 0,
-                  transition: "opacity 0.3s ease",
+                  justifyContent: "flex-start",
+                  "&:hover .image-overlay": { opacity: 1 },
+                  "&:hover": {
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                  },
+                  transition: "all 0.3s ease",
                 }}
+                onClick={() => handleImageClick(image)}
               >
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: "rgba(255,255,255,0.2)",
-                    borderRadius: "50%",
-                    width: 60,
-                    height: 60,
-                  }}
-                >
-                  <ZoomIn sx={{ color: "white", fontSize: 30 }} />
-                </Box>
+                {hasError ? (
+                  <Box
+                    sx={{
+                      width: "300px",
+                      height: "200px",
+                      backgroundColor: "#f5f5f5",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      border: "1px solid #ddd",
+                      borderRadius: 2,
+                    }}
+                  >
+                    <Typography variant="body2" sx={{ color: "#666" }}>
+                      Không thể hiển thị ảnh
+                    </Typography>
+                  </Box>
+                ) : (
+                  <>
+                    <img
+                      src={image || "/placeholder.svg"}
+                      alt={`Post image ${index + 1}`}
+                      style={{
+                        width: "auto",
+                        height: "auto",
+                        display: "block",
+                        maxWidth: "300px",
+                        maxHeight: "200px",
+                        objectFit: "contain",
+                        opacity: 0,
+                        transition: "opacity 0.3s ease-in-out",
+                      }}
+                      onLoad={(e) => {
+                        console.log("✅ Image loaded successfully:", image);
+                        e.target.style.opacity = "1"
+                      }}
+                      onError={() => {
+                        console.error("Image failed to load:", image);
+                        setFailedImageUrls(prev => new Set([...prev, image]));
+                      }}
+                    />
+                    <Box
+                      className="image-overlay"
+                      sx={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: "rgba(0,0,0,0.4)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        opacity: 0,
+                        transition: "opacity 0.3s ease",
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "rgba(255,255,255,0.2)",
+                          borderRadius: "50%",
+                          width: 60,
+                          height: 60,
+                        }}
+                      >
+                        <ZoomIn sx={{ color: "white", fontSize: 30 }} />
+                      </Box>
+                    </Box>
+                  </>
+                )}
               </Box>
-            </Box>
-          ))}
+            );
+          })}
         </Stack>
       </Box>
     )

@@ -16,7 +16,6 @@ const CommentBrowser = (props) => {
   const fetchComments = async () => {
     setLoading(true);
 
-    // Nếu có commentedPosts từ localStorage (đây là các posts đã comment)
     if (props.profileUser?.commentedPosts) {
       setComments(props.profileUser.commentedPosts);
       setIsCommentedPosts(true);
