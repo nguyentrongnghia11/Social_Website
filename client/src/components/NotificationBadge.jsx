@@ -216,9 +216,17 @@ const NotificationBadge = () => {
                   }}
                 >
                   <ListItemAvatar>
-                    <Avatar sx={{ bgcolor: getAvatarColor(notification.type) }}>
-                      {getNotificationIcon(notification.type)}
-                    </Avatar>
+                    {notification.senderInfo?.avt_url ? (
+                      <Avatar
+                        src={notification.senderInfo.avt_url}
+                        alt={notification.senderInfo.name}
+                        sx={{ width: 40, height: 40 }}
+                      />
+                    ) : (
+                      <Avatar sx={{ bgcolor: getAvatarColor(notification.type) }}>
+                        {getNotificationIcon(notification.type)}
+                      </Avatar>
+                    )}
                   </ListItemAvatar>
                   <ListItemText
                     sx={{

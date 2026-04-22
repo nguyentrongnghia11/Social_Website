@@ -24,8 +24,8 @@ const Message = (props) => {
     setSelectedImage(null);
   };
 
-  // Compute display name: if name has 3 or more parts, show the last part
-  const rawName = (message?.senderId && message.senderId.name) || username || "";
+  // displayName: ưu tiên senderInfo (embedded snapshot), sau đó senderId.name (socket), cuối cùng là conservant.name
+  const rawName = message?.senderInfo?.name || (message?.senderId?.name) || username || "";
   const nameParts = rawName.trim().split(/\s+/).filter(Boolean);
   const displayName = nameParts.length >= 3 ? nameParts[nameParts.length - 1] : rawName;
 
@@ -218,7 +218,7 @@ const Message = (props) => {
       alignItems="flex-end"
     >
       {message.direction === "to" && (
-        <UserAvatar username={message.senderId._id} height={30} width={30} />
+        <UserAvatar username={message.senderInfo?.name || username || "?"} height={30} width={30} />
       )}
 
       <div

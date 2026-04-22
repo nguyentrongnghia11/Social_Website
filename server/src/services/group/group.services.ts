@@ -1,5 +1,6 @@
 import _Group from '../../models/group';
 import _Conversation from '../../models/conversation';
+import _User from '../../models/user';
 import { ErrorApi } from '../../middleware/error';
 
 export class GroupService {
@@ -19,9 +20,25 @@ export class GroupService {
             throw new ErrorApi(500, "Create group fail");
         }
 
+        const memberDocs = await _User.find({ _id: { $in: members } })
+            .select('name email avt_url')
+            .lean();
+
+        const memberSnapshots = memberDocs.map((u: any) => ({
+            _id: u._id,
+            name: u.name,
+            email: u.email,
+            avt_url: u.avt_url
+        }));
+
         let newConversation: any = await _Conversation.create({
-            groupId: newGroup._id,
-            type: "group"
+            type: "group",
+            participantIds: members,
+            participants: memberSnapshots,
+            groupInfo: {
+                groupId: newGroup._id,
+                name: newGroup.name
+            }
         });
 
         if (!newConversation) {
@@ -30,7 +47,10 @@ export class GroupService {
 
         newConversation = newConversation.toObject ? newConversation.toObject() : newConversation;
         newConversation.name = name;
-        newConversation.groupId = newGroup.toObject ? newGroup.toObject() : newGroup;
+        newConversation.groupInfo = {
+            groupId: newGroup._id,
+            name: newGroup.name
+        };
         return { newGroup, newConversation };
     }
 
@@ -47,6 +67,24 @@ export class GroupService {
 
         if (!group) {
             throw new ErrorApi(404, "Group not found");
+        }
+
+        const member = await _User.findById(uid).select('name email avt_url').lean();
+        if (member) {
+            await _Conversation.updateOne(
+                { type: 'group', 'groupInfo.groupId': group._id },
+                {
+                    $addToSet: {
+                        participantIds: member._id,
+                        participants: {
+                            _id: member._id,
+                            name: member.name,
+                            email: member.email,
+                            avt_url: member.avt_url
+                        }
+                    }
+                }
+            );
         }
 
         return { success: true };

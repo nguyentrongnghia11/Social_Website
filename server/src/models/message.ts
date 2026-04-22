@@ -12,9 +12,17 @@ export interface IMediaFile {
     publicId?: string;
 }
 
+// Snapshot thông tin người gửi — embed để tránh $lookup khi lấy messages
+export interface ISenderSnapshot {
+    _id: Types.ObjectId;
+    name: string;
+    avt_url?: string;
+}
+
 export interface IMessage extends Document {
     conversationId: Types.ObjectId,
     senderId: Types.ObjectId,
+    senderInfo?: ISenderSnapshot;      // Extended Reference: snapshot tại thời điểm gửi
     content: {
         type: String,
         required: true
@@ -27,6 +35,11 @@ export interface IMessage extends Document {
     updatedAt: Date;
 }
 
+const senderSnapshotSchema = new Schema<ISenderSnapshot>({
+    _id: { type: Schema.Types.ObjectId, required: true },
+    name: { type: String, required: true },
+    avt_url: { type: String }
+}, { _id: false });
 
 const messageSchema = new Schema<IMessage>({
     conversationId: {
@@ -37,13 +50,18 @@ const messageSchema = new Schema<IMessage>({
     type: {
         type: String,
         enum: ["user", "group"],
-    }
-    ,
+    },
 
     senderId: {
         type: Schema.Types.ObjectId,
         ref: 'User',
         required: true
+    },
+
+    // Extended Reference: embed sender info để tránh $lookup khi getMessagesOfConversation
+    senderInfo: {
+        type: senderSnapshotSchema,
+        required: false
     },
 
     content: {
@@ -72,11 +90,14 @@ const messageSchema = new Schema<IMessage>({
         type: Boolean,
         default: false
     }
-
 }, {
-
     timestamps: true,
     collection: 'messages'
-})
+});
+
+// Indexes
+messageSchema.index({ conversationId: 1, createdAt: -1 });   // lấy messages của conversation
+messageSchema.index({ conversationId: 1, senderId: 1 });     // query messages của sender trong conv
+messageSchema.index({ conversationId: 1, isRead: 1 });       // đếm unread
 
 export default model<IMessage>('message', messageSchema);

@@ -7,7 +7,10 @@ export interface IFile extends Document {
     width?: number,
     height?: number
     public_id: string,
-    postId: ObjectId,
+    postId?: ObjectId,
+    messageId?: ObjectId,
+    conversationId?: ObjectId,
+    uploadedBy?: ObjectId,
     folder: string,
     resource_type: string,
     app_tags?: string[]
@@ -20,7 +23,10 @@ export const fileSchema = new Schema<IFile>({
     width: { type: Number, required: false },
     height: { type: Number, required: false },
     public_id: { type: String, required: true },
-    postId: { type: Schema.Types.ObjectId, required: true, ref: 'posts' },
+    postId: { type: Schema.Types.ObjectId, required: false, ref: 'posts' },
+    messageId: { type: Schema.Types.ObjectId, required: false, ref: 'message' },
+    conversationId: { type: Schema.Types.ObjectId, required: false, ref: 'conversations' },
+    uploadedBy: { type: Schema.Types.ObjectId, required: false, ref: 'users' },
     folder: { type: String, required: false },
     resource_type: { type: String, required: true },
     app_tags: { type: [], required: false },

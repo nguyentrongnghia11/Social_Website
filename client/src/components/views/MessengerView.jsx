@@ -41,31 +41,41 @@ const MessengerView = () => {
     })
 
     if (newConservant) {
-      const existing = conver.find(c => 
-        c.type === "user" && (
-          (c.receiverId?._id === newConservant._id) || 
-          (c.senderId?._id === newConservant._id)
-        )
+      const existing = conver.find(c =>
+        c.type === "user" &&
+        Array.isArray(c.participants) &&
+        c.participants.some(p => p?._id?.toString() === newConservant._id?.toString())
       )
-      
+
       if (existing) {
-        const recipient = existing.senderId._id === user.user._id 
-          ? existing.receiverId 
-          : existing.senderId
-        setConservant({...recipient, conversationId: existing._id})
+        // Model mới: lấy participant khác với current user
+        const recipientParticipant = existing.participants?.find(
+          p => p?._id?.toString() !== user?.user?._id?.toString()
+        ) || existing.participants?.[0];
+        setConservant({ ...recipientParticipant, conversationId: existing._id })
       } else {
-        // Tạo cuộc trò chuyện ảo để hiển thị bên trái
+        // Tạo cuộc trò chuyỬn ảo với cấu trúc model mới
+        const myInfo = {
+          _id: user?.user?._id,
+          name: user?.user?.name || "",
+          avt_url: user?.user?.avt_url || ""
+        };
+        const otherInfo = {
+          _id: newConservant._id,
+          name: newConservant.name || "",
+          avt_url: newConservant.avt_url || newConservant.avatar || ""
+        };
         const tempConversation = {
           _id: `temp-${newConservant._id}`,
           _isTemporary: true,
           type: "user",
-          senderId: user.user,
-          receiverId: newConservant,
+          participantIds: [user?.user?._id, newConservant._id],
+          participants: [myInfo, otherInfo],
           createdAt: new Date(),
           updatedAt: new Date()
         }
         conver = [tempConversation, ...conver]
-        setConservant({...newConservant, conversationId: null})
+        setConservant({ ...otherInfo, conversationId: null })
       }
     }
     

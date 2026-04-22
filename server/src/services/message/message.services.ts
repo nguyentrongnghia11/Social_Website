@@ -1,8 +1,8 @@
 import _Conversation from '../../models/conversation';
 import _Message, { IMediaFile } from '../../models/message';
 import _Call from '../../models/call';
-import _Media from '../../models/media';
 import _User from '../../models/user';
+import _File from '../../models/file';
 import { Types } from 'mongoose';
 import { ErrorApi } from '../../middleware/error';
 import redisClient from '../../databases/connectRedis';
@@ -23,105 +23,7 @@ export class MessageService {
         const listConversation = await _Conversation.aggregate([
             {
                 $match: {
-                    $or: [
-                        { senderId: userIdObj, type: "user" },
-                        { receiverId: userIdObj, type: "user" },
-                        { type: "group" }
-                    ]
-                }
-            },
-            {
-                $lookup: {
-                    from: 'groups',
-                    localField: 'groupId',
-                    foreignField: '_id',
-                    as: 'groupInfo'
-                }
-            },
-            {
-                $unwind: {
-                    path: '$groupInfo',
-                    preserveNullAndEmptyArrays: true
-                }
-            },
-            {
-                $match: {
-                    $or: [
-                        { type: "user" },
-                        {
-                            type: "group",
-                            'groupInfo.members': userIdObj
-                        }
-                    ]
-                }
-            },
-            {
-                $lookup: {
-                    from: 'users',
-                    localField: 'senderId',
-                    foreignField: '_id',
-                    as: 'senderInfo'
-                }
-            },
-            {
-                $unwind: {
-                    path: '$senderInfo',
-                    preserveNullAndEmptyArrays: true
-                }
-            },
-            {
-                $lookup: {
-                    from: 'users',
-                    localField: 'receiverId',
-                    foreignField: '_id',
-                    as: 'receiverInfo'
-                }
-            },
-            {
-                $unwind: {
-                    path: '$receiverInfo',
-                    preserveNullAndEmptyArrays: true
-                }
-            },
-            {
-                $lookup: {
-                    from: 'messages',
-                    let: { conversationId: '$_id' },
-                    pipeline: [
-                        { $match: { $expr: { $eq: ['$conversationId', '$$conversationId'] } } },
-                        { $sort: { createdAt: -1 } },
-                        { $limit: 1 },
-                        {
-                            $lookup: {
-                                from: 'users',
-                                localField: 'senderId',
-                                foreignField: '_id',
-                                as: 'sender'
-                            }
-                        },
-                        {
-                            $unwind: {
-                                path: '$sender',
-                                preserveNullAndEmptyArrays: true
-                            }
-                        },
-                        {
-                            $project: {
-                                content: 1,
-                                contentType: 1,
-                                createdAt: 1,
-                                senderId: 1,
-                                senderName: '$sender.name'
-                            }
-                        }
-                    ],
-                    as: 'lastMessage'
-                }
-            },
-            {
-                $unwind: {
-                    path: '$lastMessage',
-                    preserveNullAndEmptyArrays: true
+                    participantIds: userIdObj
                 }
             },
             {
@@ -151,54 +53,10 @@ export class MessageService {
                     type: 1,
                     createdAt: 1,
                     updatedAt: 1,
-                    groupId: {
-                        $cond: {
-                            if: { $eq: ['$type', 'group'] },
-                            then: {
-                                _id: '$groupInfo._id',
-                                name: '$groupInfo.name',
-                                members: '$groupInfo.members'
-                            },
-                            else: null
-                        }
-                    },
-                    senderId: {
-                        $cond: {
-                            if: { $eq: ['$type', 'user'] },
-                            then: {
-                                _id: '$senderInfo._id',
-                                name: '$senderInfo.name',
-                                email: '$senderInfo.email',
-                                avatar: '$senderInfo.avatar'
-                            },
-                            else: null
-                        }
-                    },
-                    receiverId: {
-                        $cond: {
-                            if: { $eq: ['$type', 'user'] },
-                            then: {
-                                _id: '$receiverInfo._id',
-                                name: '$receiverInfo.name',
-                                email: '$receiverInfo.email',
-                                avatar: '$receiverInfo.avatar'
-                            },
-                            else: null
-                        }
-                    },
-                    lastMessage: {
-                        $cond: {
-                            if: { $ne: ['$lastMessage', null] },
-                            then: {
-                                content: '$lastMessage.content',
-                                contentType: '$lastMessage.contentType',
-                                createdAt: '$lastMessage.createdAt',
-                                senderId: '$lastMessage.senderId',
-                                senderName: '$lastMessage.senderName'
-                            },
-                            else: null
-                        }
-                    },
+                    participantIds: 1,
+                    participants: 1,
+                    groupInfo: 1,
+                    lastMessage: 1,
                     unreadCount: {
                         $ifNull: [
                             { $arrayElemAt: ['$unreadCount.count', 0] },
@@ -250,10 +108,10 @@ export class MessageService {
         );
 
         if (unreadCount > 0) {
-            await _User.findByIdAndUpdate(userId, { 
-                $inc: { totalUnreadCount: -unreadCount } 
+            await _User.findByIdAndUpdate(userId, {
+                $inc: { totalUnreadCount: -unreadCount }
             });
-            
+
             const currentCount = await redisClient.get(`unread-count:${userId}`);
             if (currentCount !== null) {
                 const newCount = Math.max(0, parseInt(currentCount) - unreadCount);
@@ -268,13 +126,13 @@ export class MessageService {
         if (!userId || !Types.ObjectId.isValid(userId)) {
             throw new ErrorApi(400, "Invalid user ID");
         }
-        
+
         const cachedCount = await redisClient.get(`unread-count:${userId}`);
         if (cachedCount !== null) {
             console.log("Cache hit for unread count:", cachedCount);
             return { totalUnreadCount: parseInt(cachedCount) };
         }
-        
+
         const user = await _User.findById(userId).select('totalUnreadCount').lean();
         console.log("User totalUnreadCount from DB:", user?.totalUnreadCount);
         if (user && typeof user.totalUnreadCount === 'number') {
@@ -282,45 +140,14 @@ export class MessageService {
             return { totalUnreadCount: user.totalUnreadCount };
         }
         // recovery
-        
+
         const userIdObj = new Types.ObjectId(userId);
         const totalUnreadCount = await _Message.countDocuments({
-            conversationId: { $exists: true },
+            conversationId: {
+                $in: await _Conversation.find({ participantIds: userIdObj }).distinct('_id')
+            },
             senderId: { $ne: userIdObj },
-            isRead: false,
-            $or: [
-                {
-                    conversationId: {
-                        $in: await _Conversation.find({
-                            $or: [
-                                { senderId: userIdObj, type: "user" },
-                                { receiverId: userIdObj, type: "user" }
-                            ]
-                        }).distinct('_id')
-                    }
-                },
-                {
-                    conversationId: {
-                        $in: await _Conversation.aggregate([
-                            { $match: { type: "group" } },
-                            {
-                                $lookup: {
-                                    from: 'groups',
-                                    localField: 'groupId',
-                                    foreignField: '_id',
-                                    as: 'groupInfo'
-                                }
-                            },
-                            { $unwind: '$groupInfo' },
-                            {
-                                $match: {
-                                    'groupInfo.members': userIdObj
-                                }
-                            }
-                        ]).then(results => results.map(r => r._id))
-                    }
-                }
-            ]
+            isRead: false
         });
         await _User.findByIdAndUpdate(userId, { totalUnreadCount });
         await redisClient.set(`unread-count:${userId}`, totalUnreadCount.toString());
@@ -338,11 +165,9 @@ export class MessageService {
             throw new ErrorApi(404, "Conversation not found");
         }
 
+        // senderInfo đã embedded — không cần .populate('senderId') nữa
         const messages = await _Message.find({ conversationId })
-            .populate({
-                path: 'senderId',
-                select: '_id name avatar email'
-            })
+            .select('-__v')
             .lean();
 
         const calls = await _Call.find({ conversationId })
@@ -434,13 +259,7 @@ export class MessageService {
                     filename: file.originalname
                 });
 
-                // Save to Media model
-                await _Media.create({
-                    url: uploadResult.url,
-                    type: fileType,
-                    size: file.size,
-                    uploadedBy: new Types.ObjectId(senderId)
-                });
+                // File metadata will be stored after message is created
 
                 // Clean up local file
                 fs.unlinkSync(file.path);
@@ -454,9 +273,18 @@ export class MessageService {
             contentType = hasVideo ? 'video' : 'image';
         }
 
+        // Lấy senderInfo để embed vào message
+        const senderUser = await _User.findById(senderId).select('name avt_url').lean();
+
         const message = await _Message.create({
             conversationId: new Types.ObjectId(conversationId),
             senderId: new Types.ObjectId(senderId),
+            // Nhúng senderInfo — tránh $lookup khi getMessagesOfConversation
+            senderInfo: senderUser ? {
+                _id: senderUser._id,
+                name: senderUser.name,
+                avt_url: senderUser.avt_url
+            } : undefined,
             content: content || (mediaFiles.length > 0 ? 'Đã gửi tệp đính kèm' : ''),
             contentType,
             mediaFiles,
@@ -464,14 +292,32 @@ export class MessageService {
             isRead: false
         });
 
+        if (mediaFiles.length > 0) {
+            const fileDocs = mediaFiles.map((file) => ({
+                secure_url: file.url,
+                bytes: file.size || file.fileSize || 0,
+                public_id: file.publicId || file.fileName || file.filename || `message-${Date.now()}`,
+                folder: `messages/${conversationId}`,
+                resource_type: file.type || file.resourceType || 'image',
+                messageId: message._id,
+                conversationId: new Types.ObjectId(conversationId),
+                uploadedBy: new Types.ObjectId(senderId)
+            }));
+
+            await _File.insertMany(fileDocs);
+        }
+
         await _Conversation.findByIdAndUpdate(conversationId, {
-            lastMessage: message._id,
+            lastMessage: {
+                text: message.content,
+                senderName: senderUser?.name || '',
+                createdAt: message.createdAt,
+                messageId: message._id
+            },
             updatedAt: new Date()
         });
 
-        const populatedMessage = await _Message.findById(message._id)
-            .populate('senderId', '_id name avatar email')
-            .lean();
+        const populatedMessage = await _Message.findById(message._id).lean();
 
         return populatedMessage;
     }
@@ -544,12 +390,15 @@ export class MessageService {
 
         await message.save();
 
-        // Save to Media model
         for (const file of mediaFiles) {
-            await _Media.create({
-                url: file.url,
-                type: file.type,
-                size: file.size,
+            await _File.create({
+                secure_url: file.url,
+                bytes: file.size || file.fileSize || 0,
+                public_id: file.publicId || file.fileName || file.filename || `message-${Date.now()}`,
+                folder: `messages/${message.conversationId}`,
+                resource_type: file.type || file.resourceType || 'image',
+                messageId: message._id,
+                conversationId: message.conversationId,
                 uploadedBy: message.senderId
             });
         }

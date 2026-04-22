@@ -12,42 +12,24 @@ export async function handleNotification(notice: INotification) {
     const keyUserOnline = "USER-ONLINE-SOCKET-";
 
     try {
-        console.log("thong bao o handleNotification ", notice)
         const notif = await _Notification.create(notice);
         if (!notif) {
             console.error('Failed to create notification');
             return;
         }
 
-        // Populate notification with sender info before emitting
-        const populatedNotif = await _Notification.findById(notif._id)
-            .populate('sender', 'name avatar')
-            .lean();
-
-        console.log("Populated notif ", populatedNotif)
-
+        // senderInfo đã được embed — không cần populate nữa
         const list = await redisClient.sMembers(`${keyUserOnline}${notif.receiver}`);
         for (const socketId of list) {
-            io.to(socketId).emit(notif.type, populatedNotif || notif);
+            io.to(socketId).emit(notif.type, notif);
         }
 
         const isOnline = list.length > 0;
-
         if (!isOnline) {
-            let senderName = 'Someone';
-            if (notice.sender) {
-                const sender = await _User.findById(notice.sender).select('name').lean();
-                senderName = sender?.name || 'Someone';
-            }
-            const response = await sendEventDevice(
+            await sendEventDevice(
                 notif.message,
                 notif.receiver,
                 notif.title || getNotificationTitle(notif.type)
-            );
-
-            console.log(response
-                ? `Push notification sent for ${notif.type}`
-                : 'offline failed'
             );
         }
     } catch (error: any) {
@@ -56,6 +38,7 @@ export async function handleNotification(notice: INotification) {
 }
 
 export const getNotifications = async () => {
+    // senderInfo đã embedded — bỏ $lookup users
     const listNotice = await _Notification.aggregate([
         {
             $facet: {
@@ -63,27 +46,10 @@ export const getNotifications = async () => {
                     { $sort: { createdAt: -1 } },
                     { $limit: 50 },
                     {
-                        $lookup: {
-                            from: 'users',
-                            localField: 'sender',
-                            foreignField: '_id',
-                            as: 'sender'
-                        }
-                    },
-                    { $unwind: { path: '$sender', preserveNullAndEmptyArrays: true } },
-                    {
                         $project: {
-                            message: 1,
-                            title: 1,
-                            type: 1,
-                            read: 1,
-                            link: 1,
-                            postId: 1,
-                            createdAt: 1,
-                            'sender._id': 1,
-                            'sender.username': 1,
-                            'sender.name': 1,
-                            'sender.avatar': 1
+                            message: 1, title: 1, type: 1,
+                            read: 1, link: 1, postId: 1,
+                            createdAt: 1, senderInfo: 1
                         }
                     }
                 ],
@@ -95,10 +61,7 @@ export const getNotifications = async () => {
         }
     ]);
 
-    if (!listNotice) {
-        throw new ErrorApi(404, "Not found notification");
-    }
-
+    if (!listNotice) throw new ErrorApi(404, "Not found notification");
     return listNotice;
 }
 
@@ -137,6 +100,7 @@ export const getNotificationsByReceiver = async (receiverId: string) => {
 
     const receiverObjId = new Types.ObjectId(receiverId);
 
+    // senderInfo đã embedded — không cần $lookup users nữa
     const listNotice = await _Notification.aggregate([
         { $match: { receiver: receiverObjId } },
         {
@@ -145,27 +109,10 @@ export const getNotificationsByReceiver = async (receiverId: string) => {
                     { $sort: { createdAt: -1 } },
                     { $limit: 100 },
                     {
-                        $lookup: {
-                            from: 'users',
-                            localField: 'sender',
-                            foreignField: '_id',
-                            as: 'sender'
-                        }
-                    },
-                    { $unwind: { path: '$sender', preserveNullAndEmptyArrays: true } },
-                    {
                         $project: {
-                            message: 1,
-                            title: 1,
-                            type: 1,
-                            read: 1,
-                            link: 1,
-                            postId: 1,
-                            createdAt: 1,
-                            'sender._id': 1,
-                            'sender.username': 1,
-                            'sender.name': 1,
-                            'sender.avatar': 1
+                            message: 1, title: 1, type: 1,
+                            read: 1, link: 1, postId: 1,
+                            createdAt: 1, senderInfo: 1
                         }
                     }
                 ],
@@ -177,10 +124,7 @@ export const getNotificationsByReceiver = async (receiverId: string) => {
         }
     ]);
 
-    if (!listNotice) {
-        throw new ErrorApi(404, "Not found notification for receiver");
-    }
-
+    if (!listNotice) throw new ErrorApi(404, "Not found notification for receiver");
     return listNotice;
 }
 

@@ -154,10 +154,9 @@ const Comment = (props) => {
             <HorizontalStack justifyContent="space-between" >
               <HorizontalStack>
                 <ContentDetails
-                  username={comment?.userId?.name || "trongnghia"}
+                  username={comment?.author?.name || comment?.userId?.name || "trongnghia"}
                   createdAt={comment.createdAt}
                   edited={comment.edited}
-
                 />
 
                 <IconButton

@@ -19,27 +19,32 @@ const UserMessengerEntry = (props) => {
   // console.log ("Rendering UserMessengerEntry with conversation: ", props.conversation)
 
   const userAuth = isLoggedIn()
-  const user = userAuth?.user || userAuth 
+  const user = userAuth?.user || userAuth
   let recipient;
   if (props.conversation.type === "group") {
-    recipient = props.conversation.groupId;
-  } else if (props.conversation.receiverId && props.conversation.senderId) {
-    if (props.conversation.senderId?._id === user?._id) {
-      recipient = props.conversation.receiverId;
-    } else if (props.conversation.receiverId?._id === user?._id) {
-      recipient = props.conversation.senderId;
-    } else {
-      recipient = props.conversation.receiverId;
-    }
+    // Group conversation: lấy từ groupInfo (model mới)
+    const groupInfo = props.conversation.groupInfo || props.conversation.groupId;
+    recipient = groupInfo ? {
+      _id: groupInfo.groupId || groupInfo._id,
+      name: groupInfo.name,
+      avatar: groupInfo.avatar,
+      members: props.conversation.participants || groupInfo.members || [],
+      isGroup: true
+    } : undefined;
+  } else if (props.conversation.participants && props.conversation.participants.length > 0) {
+    // Model mới: participants[] snapshot — luôn ưu tiên dùng trường này
+    const other = props.conversation.participants.find(
+      p => p?._id?.toString() !== user?._id?.toString()
+    );
+    recipient = other || props.conversation.participants[0];
   } else if (props.conversation.recipient) {
     recipient = props.conversation.recipient;
   } else {
     recipient = undefined;
   }
 
-
-  const username = recipient !== null ? recipient.name : "No name"
-
+  // Safety guard: nếu dữ liệu cũ trong DB chưa có participants[], hiển placeholder
+  const username = recipient?.name || "Unknown";
 
 
   const selected = props.conservant && username === props.conservant.name;
@@ -96,7 +101,7 @@ const UserMessengerEntry = (props) => {
               )}
             </Box>
           }
-          secondary={moment(props.conversation.lastMessageAt).fromNow()}
+          secondary={moment(props.conversation.lastMessage?.createdAt || props.conversation.lastMessageAt).fromNow()}
         />
       </MenuItem>
     </>
