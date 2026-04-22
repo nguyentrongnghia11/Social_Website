@@ -1,65 +1,146 @@
-import { Box, Button, Stack, TextField, IconButton, Typography, ImageList, ImageListItem, ImageListItemBar } from "@mui/material";
-import { Close } from "@mui/icons-material";
-import React, { useState } from "react";
+import {
+  Box,
+  Button,
+  Stack,
+  TextField,
+  Typography,
+  LinearProgress,
+  Chip,
+} from "@mui/material";
+import { Close, PhotoCamera, Videocam } from "@mui/icons-material";
+import React, { useState, useRef } from "react";
 import RichTextEditor from "./RichTextEditor";
+import { grantPermissionUpload } from "../api-axios/posts.";
 
 const ContentUpdateEditor = (props) => {
   const [content, setContent] = useState(props.originalContent);
   const [title, setTitle] = useState(props.originalTitle || "");
-  const [files, setFiles] = useState(props.originalFiles || []);
+
+  // Chỉ quản lý file MỚI — ảnh hiện tại được quản lý bởi PostCard
+  const [newFiles, setNewFiles] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
 
-  // Helper to get URL from file object or string
-  const getFileUrl = (file) => {
-    if (typeof file === 'string') return file;
-    if (file?.secure_url) return file.secure_url;
-    return file;
+  const imageInputRef = useRef(null);
+  const videoInputRef = useRef(null);
+
+  const handleContentChange = (value) => setContent(value);
+  const handleTitleChange = (e) => setTitle(e.target.value);
+
+  const handleAddImages = (e) => {
+    const files = Array.from(e.target.files || []).filter((f) =>
+      f.type.startsWith("image/")
+    );
+    setNewFiles((prev) => [...prev, ...files]);
+    e.target.value = "";
   };
 
-  const handleContentChange = (value) => {
-    setContent(value);
+  const handleAddVideos = (e) => {
+    const files = Array.from(e.target.files || []).filter((f) =>
+      f.type.startsWith("video/")
+    );
+    setNewFiles((prev) => [...prev, ...files]);
+    e.target.value = "";
   };
 
-  const handleTitleChange = (e) => {
-    setTitle(e.target.value);
+  const handleRemoveNew = (index) => {
+    setNewFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleRemoveFile = (index) => {
-    const newFiles = files.filter((_, i) => i !== index);
-    setFiles(newFiles);
+  const formatSize = (bytes) => {
+    if (!bytes) return "";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
   };
 
-  const isVideoFile = (file) => {
-    const url = getFileUrl(file);
-    return url?.match(/\.(mp4|webm|ogg|mov)$/i) || file?.resource_type === 'video';
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    console.log(content, title, files)
-    let error = null;
-
     if (props.validate) {
-      error = props.validate(content);
+      const err = props.validate(content);
+      if (err && err.length !== 0) {
+        setError(err);
+        return;
+      }
+    }
+    setError("");
+
+    let uploadedNewFiles = [];
+
+    if (newFiles.length > 0) {
+      setUploading(true);
+      setProgress(0);
+
+      try {
+        const filesInfo = newFiles.map((f) => ({
+          contentType: f.type,
+          fileName: f.name,
+          fileSize: f.size,
+        }));
+
+        const result = await grantPermissionUpload({
+          typeImg: "upload",
+          postId: props.postId,
+          files: filesInfo,
+          title,
+          content,
+        });
+
+        const { uploadUrls } = result.data;
+        const totalBytes = newFiles.reduce((acc, f) => acc + f.size, 0);
+        let uploadedBytes = 0;
+
+        const uploadPromises = newFiles.map(async (file, index) => {
+          const urlInfo = uploadUrls[index];
+          const response = await fetch(urlInfo.uploadUrl, {
+            method: "PUT",
+            body: file,
+            headers: { "Content-Type": urlInfo.fileType },
+          });
+
+          if (!response.ok) {
+            throw new Error(`Upload thất bại cho ${file.name}: ${response.status}`);
+          }
+
+          uploadedBytes += file.size;
+          setProgress(Math.round((uploadedBytes / totalBytes) * 100));
+
+          return {
+            url: urlInfo.uploadUrl.split("?")[0],
+            key: urlInfo.key,
+            resource_type: file.type.startsWith("video/") ? "video" : "image",
+            format: file.name.split(".").pop(),
+            bytes: file.size,
+          };
+        });
+
+        uploadedNewFiles = await Promise.all(uploadPromises);
+      } catch (err) {
+        console.error("Upload error:", err);
+        setError("Upload thất bại: " + err.message);
+        setUploading(false);
+        return;
+      } finally {
+        setUploading(false);
+      }
     }
 
-    if (error && error.length !== 0) {
-      setError(error);
-    } else {
-      // Tạo một event giả với title và content
-      const syntheticEvent = {
-        ...e,
-        preventDefault: () => { },
-        stopPropagation: () => { },
-        target: {
-          ...e.target,
-          title: { value: title },
-          content: { value: content }
-        }
-      };
-      props.handleSubmit(syntheticEvent, files);
-    }
+    const syntheticEvent = {
+      ...e,
+      preventDefault: () => {},
+      stopPropagation: () => {},
+      target: {
+        ...e.target,
+        title: { value: title },
+        content: { value: content },
+      },
+    };
+
+    // Chỉ truyền các file MỚI — PostCard tự merge với existingMedia
+    props.handleSubmit(syntheticEvent, uploadedNewFiles);
   };
 
   return (
@@ -72,13 +153,14 @@ const ContentUpdateEditor = (props) => {
             margin="normal"
             name="title"
             label={props.titleLabel || "Tiêu đề"}
-            sx={{ backgroundColor: "white" }}
             onChange={handleTitleChange}
           />
         )}
 
         <Box>
-          <Typography variant="subtitle2" sx={{ mb: 1 }}>Nội dung</Typography>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>
+            Nội dung
+          </Typography>
           <RichTextEditor
             value={content}
             onChange={handleContentChange}
@@ -89,61 +171,93 @@ const ContentUpdateEditor = (props) => {
           />
         </Box>
 
-        {files && files.length > 0 && (
-          <Box>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>Tệp đính kèm (Hình ảnh & Video)</Typography>
-            <ImageList sx={{ width: '100%', maxHeight: 300 }} cols={3} rowHeight={150}>
-              {files.map((file, index) => (
-                <ImageListItem key={index}>
-                  {isVideoFile(file) ? (
-                    <video
-                      src={getFileUrl(file)}
-                      style={{ objectFit: 'cover', height: '150px', width: '100%' }}
-                      controls={false}
-                    />
-                  ) : (
-                    <img
-                      src={getFileUrl(file)}
-                      alt={`File ${index + 1}`}
-                      loading="lazy"
-                      style={{ objectFit: 'cover', height: '150px' }}
-                    />
-                  )}
-                  <ImageListItemBar
-                    sx={{
-                      background: 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.3) 70%, rgba(0,0,0,0) 100%)',
-                    }}
-                    position="top"
-                    actionIcon={
-                      <IconButton
-                        sx={{ color: 'white' }}
-                        onClick={() => handleRemoveFile(index)}
-                        size="small"
-                      >
-                        <Close />
-                      </IconButton>
-                    }
-                  />
-                </ImageListItem>
+        {/* Thêm file mới */}
+        <Box>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>
+            Thêm ảnh / video
+          </Typography>
+          <Stack direction="row" spacing={1}>
+            <input
+              accept="image/*"
+              style={{ display: "none" }}
+              id="edit-image-upload"
+              multiple
+              type="file"
+              ref={imageInputRef}
+              onChange={handleAddImages}
+            />
+            <label htmlFor="edit-image-upload">
+              <Button
+                variant="outlined"
+                component="span"
+                startIcon={<PhotoCamera />}
+                size="small"
+                disabled={uploading}
+              >
+                Thêm ảnh
+              </Button>
+            </label>
+
+            <input
+              accept="video/*"
+              style={{ display: "none" }}
+              id="edit-video-upload"
+              multiple
+              type="file"
+              ref={videoInputRef}
+              onChange={handleAddVideos}
+            />
+            <label htmlFor="edit-video-upload">
+              <Button
+                variant="outlined"
+                component="span"
+                startIcon={<Videocam />}
+                size="small"
+                disabled={uploading}
+              >
+                Thêm video
+              </Button>
+            </label>
+          </Stack>
+
+          {newFiles.length > 0 && (
+            <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mt: 1.5 }}>
+              {newFiles.map((file, index) => (
+                <Chip
+                  key={index}
+                  label={`${file.name} (${formatSize(file.size)})`}
+                  onDelete={() => handleRemoveNew(index)}
+                  deleteIcon={<Close />}
+                  variant="outlined"
+                  size="small"
+                  color={file.type.startsWith("video/") ? "secondary" : "primary"}
+                />
               ))}
-            </ImageList>
+            </Stack>
+          )}
+        </Box>
+
+        {uploading && (
+          <Box>
+            <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: "block" }}>
+              Đang upload... {progress}%
+            </Typography>
+            <LinearProgress variant="determinate" value={progress} />
           </Box>
         )}
 
+        {error && (
+          <Typography variant="caption" color="error">
+            {error}
+          </Typography>
+        )}
+
         <Stack direction="row" spacing={2}>
-          <Button
-            type="submit"
-            variant="contained"
-            sx={{ flex: 1 }}
-          >
-            Cập nhật
+          <Button type="submit" variant="contained" sx={{ flex: 1 }} disabled={uploading}>
+            {uploading ? "Đang upload..." : "Cập nhật"}
           </Button>
           {props.onCancel && (
-            <Button
-              variant="outlined"
-              onClick={props.onCancel}
-              sx={{ flex: 1 }}
-            >
+            <Button variant="outlined" onClick={props.onCancel} sx={{ flex: 1 }} disabled={uploading}>
               Hủy
             </Button>
           )}

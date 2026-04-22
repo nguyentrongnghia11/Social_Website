@@ -1,8 +1,6 @@
 import express from 'express';
 import mainRouter from './routes/server';
 import connectMongo from './databases/connectMongo';
-import { uploadWorker } from '../workers/upload.woker';
-import { sendOtpWorker } from '../workers/sendOtp.worker';
 import config from './services/auth/servicesOauth2';
 import cors from 'cors'
 import http from 'http';
@@ -20,7 +18,7 @@ import { startWorkers } from '../workers/startWorker';
 
 dotenv.config()
 
-console.log ("Starting JustVibing Server...")
+console.log("Starting JustVibing Server...")
 
 
 // run workers
@@ -29,7 +27,7 @@ startWorkers()
 // init
 const app = express();
 const server = http.createServer(app);
-app.set('trust proxy', 1); 
+app.set('trust proxy', 1);
 
 
 // middleware 

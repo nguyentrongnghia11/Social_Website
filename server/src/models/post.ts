@@ -3,7 +3,6 @@ import mongoose_delete, { SoftDeleteDocument, SoftDeleteModel } from 'mongoose-d
 import _User from './user'
 import { Types } from 'mongoose';
 
-// ─── Author Snapshot (Extended Reference) ────────────────────────────────────
 export interface IAuthorSnapshot {
     _id: Types.ObjectId;
     name: string;
@@ -11,19 +10,16 @@ export interface IAuthorSnapshot {
     avt_url?: string;
 }
 
-// ─── Media Item — embed trực tiếp vào Post ───────────────────────────────────
-// Thay thế việc tham chiếu sang collection `files` riêng biệt
 export interface IPostMedia {
-    url: string;                            // S3 / Cloudinary URL
+    url: string;
     resource_type: 'image' | 'video';
-    public_id?: string;                     // dùng để delete trên cloud
+    public_id?: string;
     bytes?: number;
     width?: number;
     height?: number;
     format?: string;
 }
 
-// ─── Post Interface ───────────────────────────────────────────────────────────
 export interface Post extends SoftDeleteDocument {
     title: string;
     artistId: Types.ObjectId;
@@ -33,14 +29,11 @@ export interface Post extends SoftDeleteDocument {
     status: 'pending' | 'resovled' | 'reject';
     embedding: number[];
 
-    // Media embedded — tránh $lookup sang collection files mỗi lần query
     media: IPostMedia[];
-    imageCount: number;   // cache counter, cập nhật khi upload/delete media
+    imageCount: number;
     videoCount: number;
-    thumbnail?: string;   // URL ảnh đầu tiên — dùng cho card preview
+    thumbnail?: string;
 }
-
-// ─── Sub-schemas ──────────────────────────────────────────────────────────────
 const authorSnapshotSchema = new Schema<IAuthorSnapshot>({
     _id: { type: Schema.Types.ObjectId, required: true },
     name: { type: String, required: true },
@@ -56,9 +49,8 @@ const postMediaSchema = new Schema<IPostMedia>({
     width: { type: Number },
     height: { type: Number },
     format: { type: String }
-}, { _id: false });   // _id: false — không cần ObjectId cho từng media item
+}, { _id: false });
 
-// ─── Post Schema ──────────────────────────────────────────────────────────────
 const postSchema = new Schema<Post>({
     title: { type: String, required: true },
 
@@ -78,16 +70,13 @@ const postSchema = new Schema<Post>({
 
     embedding: { type: [Number], default: [] },
 
-    // ── Embedded media ──
     media: {
         type: [postMediaSchema],
         default: []
     },
-
-    // Cached counters — giúp getAllPost không phải $lookup hay $filter
     imageCount: { type: Number, default: 0 },
     videoCount: { type: Number, default: 0 },
-    thumbnail: { type: String }    // URL preview ảnh đầu tiên
+    thumbnail: { type: String }
 
 }, {
     timestamps: true,
@@ -96,7 +85,6 @@ const postSchema = new Schema<Post>({
     toObject: { virtuals: true }
 });
 
-// ─── Virtual: comments ────────────────────────────────────────────────────────
 postSchema.virtual('comments', {
     ref: 'comments',
     localField: '_id',
@@ -104,7 +92,6 @@ postSchema.virtual('comments', {
     justOne: false
 });
 
-// ─── Hook: cập nhật user.posts khi tạo bài mới ───────────────────────────────
 postSchema.post('save', async function (doc, next) {
     try {
         const result = await _User.findByIdAndUpdate(
@@ -122,12 +109,11 @@ postSchema.post('save', async function (doc, next) {
 
 postSchema.plugin(mongoose_delete, { overrideMethods: 'all' });
 
-// ─── Indexes ──────────────────────────────────────────────────────────────────
 postSchema.index({ artistId: 1, createdAt: -1 });
 postSchema.index({ react: 1 });
 postSchema.index({ status: 1 });
 postSchema.index({ embedding: 1 });
-postSchema.index({ createdAt: -1 });                // getAllPost sort
+postSchema.index({ createdAt: -1 });
 postSchema.index({ 'author._id': 1 });
 postSchema.index({ imageCount: 1 });
 postSchema.index({ videoCount: 1 });

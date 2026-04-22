@@ -97,10 +97,14 @@ const PostBrowser = (props) => {
 
     setLoading(false);
     if (!data.error) {
-      setPosts([...posts, ...data.data]);
+      setPosts((prev) => {
+        const existingIds = new Set(prev.map((p) => p._id));
+        const newPosts = data.data.filter((p) => !existingIds.has(p._id));
+        return [...prev, ...newPosts];
+      });
       setCount(data.count);
     }
-  }, [page, sortBy, props.contentType, props.profileUser, searchExists, search, posts]);
+  }, [page, sortBy, props.contentType, props.profileUser, searchExists, search]);
 
   useEffect(() => {
     fetchPostss();
@@ -128,8 +132,8 @@ const PostBrowser = (props) => {
   }, [sorts]);
 
   const removePost = useCallback((removedPost) => {
-    setPosts(posts.filter((post) => post._id !== removedPost._id));
-  }, [posts]);
+    setPosts((prev) => prev.filter((post) => post._id !== removedPost._id));
+  }, []);
 
   const handleBackToTop = useCallback(() => {
     window.scrollTo({

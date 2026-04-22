@@ -27,17 +27,13 @@ const getALlPosts = async (query) => {
 
 const getTopPosts = async (limit = 5, period = 'week', page = 1) => {
     try {
-        const params = new URLSearchParams({
-            limit: Math.min(limit, 50),
-            period,
-            page
-        });
-        const data = await instance.get(`/post/top?${params}`);
-        console.log("Top posts data:", data.data);
-        return data.data;
+        const params = new URLSearchParams({ limit, period, page });
+        const { data } = await instance.get(`/post/top?${params}`);
+        // response shape: { message, data: Post[], pagination }
+        return { data: data.data ?? [], pagination: data.pagination };
     } catch (error) {
         console.error('Error fetching top posts:', error);
-        return { result: [], pagination: { total: 0, page: 1, limit, pages: 0 } };
+        return { data: [], pagination: { total: 0, page: 1, limit, pages: 0 } };
     }
 }
 

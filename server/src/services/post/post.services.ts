@@ -123,7 +123,6 @@ export class PostService {
         const folder = typeImg === "avatar" ? "avatar" : "upload";
 
         if (postId && files && Array.isArray(files) && files.length > 0) {
-            console.log("Khi co file")
             for (const file of files) {
                 if (!allowedTypes.includes(file.contentType)) {
                     throw new ErrorApi(400, `File type ${file.contentType} is not allowed. Only images and videos are supported.`);
@@ -133,16 +132,23 @@ export class PostService {
             const uploadUrls = await Promise.all(
                 files.map(async (file) => {
                     const fileKey = `${folder}/${postId}/${uuidv4()}`;
+
+                    console.log("fileKey", file.contentType);
                     const presignedData = await S3Service.getPresignedUploadUrl(
                         fileKey,
                         file.contentType,
                         3600
                     );
+
+                    console.log("presignedData", presignedData.url)
+
+
                     return {
                         uploadUrl: presignedData.url,
                         key: presignedData.key,
                         fileName: file.fileName,
-                        fileSize: file.fileSize
+                        fileSize: file.fileSize,
+                        fileType: file.contentType
                     };
                 })
             );
@@ -222,6 +228,8 @@ export class PostService {
             'image/*',
             3600
         );
+
+        console.log('presignedData', presignedData.url)
 
         const information = {
             uploadUrl: presignedData.url,
@@ -523,13 +531,13 @@ export class PostService {
 
         // Map sort key từ frontend sang field trong DB
         const sortMap: Record<string, any> = {
-            'likes':    { likeCount: -1, createdAt: -1 },
+            'likes': { likeCount: -1, createdAt: -1 },
             'comments': { commentCount: -1, createdAt: -1 },
             'earliest': { createdAt: 1 },
-            'latest':   { createdAt: -1 },
+            'latest': { createdAt: -1 },
             '-createdAt': { createdAt: -1 },
-            'createdAt':  { createdAt: 1 },
-            '-likeCount':    { likeCount: -1, createdAt: -1 },
+            'createdAt': { createdAt: 1 },
+            '-likeCount': { likeCount: -1, createdAt: -1 },
             '-commentCount': { commentCount: -1, createdAt: -1 },
         };
         const sortCriteria = sortMap[sortBy] ?? { createdAt: -1 };
@@ -766,118 +774,96 @@ export class PostService {
     }
 
     async getTopPost(limit: number = 10, period: string = 'week', page: number = 1) {
-        try {
-            // Kiểm tra cache trước
-            const cacheKey = `top_posts:${period}:${page}:${limit}`;
-            const cachedData = await redisClient.get(cacheKey);
-            if (cachedData) return JSON.parse(cachedData);
+        const cacheKey = `top_posts:${period}:${page}:${limit}`;
+        const cached = await redisClient.get(cacheKey);
+        if (cached) return JSON.parse(cached);
 
+        const startDate = this.getStartDate(period);
+        const skip = (page - 1) * limit;
 
-            console.log("Calculating top posts for period:", period);
-            // Tính ngày bắt đầu theo period
-            const startDate = this.getStartDate(period);
-            const skip = (page - 1) * limit;
-
-            const [result] = await _Post.aggregate([
-                {
-                    $match: {
-                        createdAt: { $gte: startDate },
-                        visibility: 'published',
-                        deleted: { $ne: true }
-                    }
-                },
-                // Tính likeCount từ mảng react
-                {
-                    $addFields: {
-                        likeCount: { $size: { $ifNull: ['$react', []] } }
-                    }
-                },
-                // author đã embedded — KHÔNG cần $lookup users
-                // Đếm comment (chỉ lấy _id để nhẹ)
-                {
-                    $lookup: {
-                        from: 'comments',
-                        localField: '_id',
-                        foreignField: 'postId',
-                        as: 'commentDocs',
-                        pipeline: [{ $project: { _id: 1 } }]
-                    }
-                },
-                // Tính toán các trường display và engagement score
-                {
-                    $addFields: {
-                        commentCount: { $size: { $ifNull: ['$commentDocs', []] } },
-                        imageCount: { $ifNull: ['$imageCount', 0] },
-                        videoCount: { $ifNull: ['$videoCount', 0] },
-                        thumbnail: { $ifNull: ['$thumbnail', null] },
-                        daysSinceCreated: {
-                            $divide: [{ $subtract: [new Date(), '$createdAt'] }, 86400000]
+        // Helper expression dùng chung cho thumbnail (ảnh đầu tiên trong media[])
+        const thumbnailExpr = {
+            $let: {
+                vars: {
+                    firstImg: {
+                        $first: {
+                            $filter: {
+                                input: { $ifNull: ['$media', []] },
+                                as: 'm',
+                                cond: { $eq: ['$$m.resource_type', 'image'] }
+                            }
                         }
                     }
                 },
-                {
-                    $addFields: {
-                        // Điểm tương tác có tính recency
-                        engagementScore: {
-                            $multiply: [
-                                { $add: [{ $multiply: ['$likeCount', 2] }, { $multiply: ['$commentCount', 3] }] },
-                                {
-                                    $switch: {
-                                        branches: [
-                                            { case: { $lte: ['$daysSinceCreated', 1] }, then: 1.5 },
-                                            { case: { $lte: ['$daysSinceCreated', 7] }, then: 1.2 },
-                                            { case: { $lte: ['$daysSinceCreated', 30] }, then: 1.0 }
-                                        ],
-                                        default: 0.7
-                                    }
-                                }
-                            ]
+                in: { $ifNull: ['$$firstImg.url', '$thumbnail'] }
+            }
+        };
+
+        const [result] = await _Post.aggregate([
+            { $match: { createdAt: { $gte: startDate }, deleted: { $ne: true } } },
+            // Đếm comment nhẹ
+            {
+                $lookup: {
+                    from: 'comments',
+                    localField: '_id',
+                    foreignField: 'postId',
+                    as: '_c',
+                    pipeline: [{ $project: { _id: 1 } }]
+                }
+            },
+            {
+                $addFields: {
+                    likeCount: { $size: { $ifNull: ['$react', []] } },
+                    commentCount: { $size: { $ifNull: ['$_c', []] } },
+                    imageCount: {
+                        $size: {
+                            $filter: {
+                                input: { $ifNull: ['$media', []] },
+                                as: 'm',
+                                cond: { $eq: ['$$m.resource_type', 'image'] }
+                            }
                         }
-                    }
-                },
-                // Chỉ giữ các field cần thiết để hiển thị danh sách
-                {
-                    $project: {
-                        _id: 1,
-                        title: 1,
-                        likeCount: 1,
-                        commentCount: 1,
-                        imageCount: 1,
-                        videoCount: 1,
-                        thumbnail: 1,
-                        engagementScore: 1,
-                        createdAt: 1,
-                        category: 1,
-                        author: 1
-                    }
-                },
-                { $sort: { engagementScore: -1, likeCount: -1, commentCount: -1, createdAt: -1 } },
-                {
-                    $facet: {
-                        metadata: [{ $count: 'total' }],
-                        data: [{ $skip: skip }, { $limit: limit }]
-                    }
+                    },
+                    videoCount: {
+                        $size: {
+                            $filter: {
+                                input: { $ifNull: ['$media', []] },
+                                as: 'm',
+                                cond: { $eq: ['$$m.resource_type', 'video'] }
+                            }
+                        }
+                    },
+                    thumbnail: thumbnailExpr
                 }
-            ]);
-
-            const response = {
-                data: result?.data || [],
-                pagination: {
-                    total: result?.metadata[0]?.total || 0,
-                    page,
-                    limit,
-                    pages: Math.ceil((result?.metadata[0]?.total || 0) / limit)
+            },
+            {
+                $project: {
+                    _id: 1, title: 1, author: 1, createdAt: 1,
+                    likeCount: 1, commentCount: 1,
+                    imageCount: 1, videoCount: 1, thumbnail: 1
                 }
-            };
+            },
+            { $sort: { likeCount: -1, commentCount: -1, createdAt: -1 } },
+            {
+                $facet: {
+                    metadata: [{ $count: 'total' }],
+                    data: [{ $skip: skip }, { $limit: limit }]
+                }
+            }
+        ]);
 
-            // Cache 1 tiếng
-            await redisClient.setEx(cacheKey, 3600, JSON.stringify(response));
-            return response;
+        const response = {
+            data: result?.data ?? [],
+            pagination: {
+                total: result?.metadata[0]?.total ?? 0,
+                page,
+                limit,
+                pages: Math.ceil((result?.metadata[0]?.total ?? 0) / limit)
+            }
+        };
 
-        } catch (error) {
-            console.error('Error in getTopPost:', error);
-            throw error;
-        }
+        await redisClient.setEx(cacheKey, 3600, JSON.stringify(response));
+        return response;
     }
 
     /** Tính ngày bắt đầu của period */

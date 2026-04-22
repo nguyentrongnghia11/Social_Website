@@ -37,11 +37,11 @@ const PostEditor = () => {
   })
 
   const handleGrantPermissionUpload = async (e) => {
-    e.preventDefault(); 
+    e.preventDefault();
 
     if (uploading) return;
     setUploading(true);
-    setServerError(""); 
+    setServerError("");
 
     try {
       const result = await grantPermissionUpload({ ...formData, typeImg: "upload" });
@@ -57,46 +57,46 @@ const PostEditor = () => {
       // Gộp cả ảnh và video
       const arrFile = [...mediaFiles.images, ...mediaFiles.videos];
       if (arrFile.length === 0) {
-        setSnackbar({ 
-          open: true, 
-          message: 'Bài viết đã được tạo thành công!', 
-          severity: 'success' 
+        setSnackbar({
+          open: true,
+          message: 'Bài viết đã được tạo thành công!',
+          severity: 'success'
         });
-        
+
         setTimeout(() => {
           navigate("/");
         }, 1000);
         return;
       }
-      
+
       const totalBytes = arrFile.reduce((acc, file) => acc + file.size, 0);
-      
+
       // Gọi MỘT LẦN để lấy TẤT CẢ presigned URLs cùng lúc
       const filesInfo = arrFile.map(file => ({
         contentType: file.type,
         fileName: file.name,
         fileSize: file.size
       }));
-      
-      const uploadUrlsResult = await grantPermissionUpload({ 
+
+      const uploadUrlsResult = await grantPermissionUpload({
         typeImg: "upload",
         postId: result.data.postId,
         files: filesInfo,
         title: formData.title,
         content: formData.content
       });
-      
+
       console.log("Received batch presigned URLs:", uploadUrlsResult.data);
-      
+
       const uploadPromises = arrFile.map(async (file, index) => {
         const uploadUrl = uploadUrlsResult.data.uploadUrls[index];
-        
-        console.log(`Uploading file ${index + 1}/${arrFile.length}:`, file.name)
+
+        console.log(`Uploading file ${index + 1}/${arrFile.length}:`, uploadUrl.fileType)
         const response = await fetch(uploadUrl.uploadUrl, {
           method: 'PUT',
           body: file,
           headers: {
-            'Content-Type': file.type
+            'Content-Type': uploadUrl.fileType
           }
         });
 
@@ -120,18 +120,18 @@ const PostEditor = () => {
 
       const uploadedFiles = await Promise.all(uploadPromises);
       console.log('Uploaded files to S3:', uploadedFiles)
-      
+
       try {
         const res = await saveMedia(uploadedFiles, result.data.postId)
         console.log("Server updated:", res);
-        
+
         // Show success notification
-        setSnackbar({ 
-          open: true, 
-          message: 'Bài viết đã được tạo thành công!', 
-          severity: 'success' 
+        setSnackbar({
+          open: true,
+          message: 'Bài viết đã được tạo thành công!',
+          severity: 'success'
         });
-        
+
         // Navigate to home page after a short delay
         setTimeout(() => {
           navigate("/");
@@ -142,18 +142,18 @@ const PostEditor = () => {
         console.error("Error status:", err.response?.status);
         console.error("Uploaded files that caused error:", uploadedFiles);
         setServerError(err.response?.data?.message || "Lưu thông tin file lên server thất bại!");
-        setSnackbar({ 
-          open: true, 
-          message: err.response?.data?.message || 'Lưu thông tin file lên server thất bại!', 
-          severity: 'error' 
+        setSnackbar({
+          open: true,
+          message: err.response?.data?.message || 'Lưu thông tin file lên server thất bại!',
+          severity: 'error'
         });
       }
     } catch (error) {
       setServerError("Upload fail !")
-      setSnackbar({ 
-        open: true, 
-        message: 'Upload thất bại!', 
-        severity: 'error' 
+      setSnackbar({
+        open: true,
+        message: 'Upload thất bại!',
+        severity: 'error'
       });
     }
     finally {
@@ -491,8 +491,8 @@ const PostEditor = () => {
         onClose={() => setSnackbar({ ...snackbar, open: false })}
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
       >
-        <Alert 
-          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
           sx={{ width: '100%' }}
         >

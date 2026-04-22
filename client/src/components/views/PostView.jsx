@@ -55,7 +55,7 @@ const PostView = () => {
         <Loading />
       ) : post ? (
         <Stack spacing={2}>
-          {/* <PostCard post={post} key={post._id} /> */}
+          <PostCard post={post} key={post._id} />
           <Comments />
           <SimilarPosts postId={post._id} />
         </Stack>

@@ -1,6 +1,5 @@
 import { ObjectId, Schema, model } from "mongoose";
 
-// Snapshot thông tin người gửi — embed để tránh $lookup khi query notifications
 export interface ISenderSnapshot {
     _id: ObjectId;
     name: string;
@@ -12,7 +11,6 @@ export interface INotification extends Document {
     title: string;
     receiver: string | ObjectId;
     sender?: string | ObjectId;
-    // Extended Reference: snapshot tại thời điểm tạo thông báo
     senderInfo?: ISenderSnapshot;
     type: 'login' | 'message' | 'comment' | 'like' | 'follow' | "invite" | string;
     read: boolean;
