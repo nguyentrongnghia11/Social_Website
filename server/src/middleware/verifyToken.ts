@@ -20,6 +20,15 @@ export const authenticateMiddleware = (req: Request, res: Response, next: NextFu
     })(req, res, next);
 }
 
+// Optional authentication middleware - doesn't require user but sets req.user if available
+export const optionalAuthenticateMiddleware = (req: Request, res: Response, next: NextFunction) => {
+    return passport.authenticate('jwt', { session: false }, (err: any, user: unknown, info: unknown) => {
+        // Set user if authentication succeeds, otherwise set to null
+        req.user = user || undefined;
+        next();
+    })(req, res, next);
+}
+
 const stragyVerifyLocal = () => {
     const opts: any = {}
     const cookieExtractor = function (req: Request, res: Response) {

@@ -1,5 +1,5 @@
 import { IconButton, Stack, Typography, useTheme } from "@mui/material";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { AiFillLike, AiOutlineLike } from "react-icons/ai";
 import { IconContext } from "react-icons/lib";
 import { useNavigate } from "react-router-dom";
@@ -9,6 +9,11 @@ const LikeBox = (props) => {
   const { likeCount, onLike } = props;
   const theme = useTheme();
   const [liked, setLiked] = useState(props.liked);
+
+  // Sync state with prop changes
+  useEffect(() => {
+    setLiked(props.liked);
+  }, [props.liked]);
 
   const navigate = useNavigate();
 

@@ -16,6 +16,7 @@ import { ErrorApi } from '../../middleware/error';
 import redisClient from '../../databases/connectRedis';
 import { admin } from '../../databases/connectFirebase';
 import _Comment from '../../models/comment';
+import { getDefaultPermissions } from '../../enums/role-permission.map';
 
 export class UserService {
     async signupWithLocal(email: string) {
@@ -57,7 +58,6 @@ export class UserService {
         }
 
         // Get default permissions for the role
-        const { getDefaultPermissions } = await import('../../enums/role-permission.map');
         const defaultPermissions = getDefaultPermissions(role as any);
 
         const user = await _User.create({

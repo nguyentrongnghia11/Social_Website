@@ -70,7 +70,15 @@ const Messages = (props) => {
 
   const setDirection = useCallback((messages) => {
     messages.forEach((message) => {
-      if (message.senderId._id === user?._id) {
+      // senderId từ DB là plain ObjectId, từ socket có thể là object { _id, name }
+      // Ưưu tiên dùng senderInfo (embedded snapshot), sau đó mới dùng senderId
+      const msgSenderId =
+        message.senderInfo?._id?.toString?.()
+        || message.senderId?._id?.toString?.()
+        || message.senderId?.toString?.()
+        || String(message.senderId);
+
+      if (msgSenderId === user?._id?.toString()) {
         message.direction = "from"
       } else {
         message.direction = "to"
@@ -218,7 +226,14 @@ const Messages = (props) => {
     setMessages(newMessages);
 
     // Update conversation list
-    const updatedConversation = { ...conversation };
+    const updatedConversation = {
+      ...conversation,
+      lastMessage: {
+        text: content,
+        senderName: user?.name,
+        createdAt: new Date().toISOString()
+      }
+    };
     const newConversations = props.conversations.filter(
       (c) => c._id !== conversation._id
     );
@@ -228,7 +243,10 @@ const Messages = (props) => {
     // Determine receiver
     let receiverId = '';
     if (conversation.type === "group") {
-      receiverId = conversation.groupId?._id || '';
+      receiverId = conversation.groupInfo?.groupId || conversation.groupId?._id || '';
+    } else if (conversation.participants && conversation.participants.length > 0) {
+      const other = conversation.participants.find(p => p?._id !== user?._id) || conversation.participants[0];
+      receiverId = other?._id || '';
     } else {
       receiverId = (conversation.senderId?._id === user?._id)
         ? conversation.receiverId?._id
@@ -257,7 +275,11 @@ const Messages = (props) => {
       if (conservantRef.current && conservantRef.current.conversationId !== content.msg.conversationId) {
         let conversation = props.getConversation(conversationsRef.current, content.msg.conversationId);
         if (conversation) {
-          conversation.lastMessageAt = Date.now();
+          conversation.lastMessage = {
+            text: content.msg.content,
+            senderName: content.msg.senderName || content.msg.name || "Unknown",
+            createdAt: new Date().toISOString()
+          };
           const newConversations = conversationsRef.current.filter(
             (c) => conversation._id !== c._id,
           );
@@ -291,7 +313,11 @@ const Messages = (props) => {
           conversation.messages = newMessages
         }
 
-        conversation.lastMessageAt = Date.now()
+        conversation.lastMessage = {
+          text: content.msg.content,
+          senderName: content.msg.senderName || content.msg.name || "Unknown",
+          createdAt: new Date().toISOString()
+        }
         const newConversations = conversationsRef.current.filter(
           (conversationCompare) => conversation._id !== conversationCompare._id,
         )
@@ -299,33 +325,39 @@ const Messages = (props) => {
         props.setConversations(newConversations)
       } else {
         console.log("No matching conversation found, creating new one. ", content.msg)
+        // Tạo conversation theo model mới: participantIds + participants snapshot
+        const senderSnapshot = {
+          _id: content.msg.senderId?._id || content.msg.senderId,
+          name: content.msg.senderName || content.msg.name || username || "Unknown",
+          avt_url: content.msg.senderAvt || ""
+        };
+        const mySnapshot = {
+          _id: user?._id,
+          name: user?.name || "",
+          avt_url: user?.avt_url || ""
+        };
         const newConversation = {
           _id: content.msg.conversationId || null,
-          type: "user",
+          type: content.msg.type || "user",
+          participantIds: [
+            senderSnapshot._id,
+            user?._id
+          ],
+          participants: [senderSnapshot, mySnapshot],
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          groupId: content.msg.groupId || null,
-          senderId: {
-            _id: content.msg.senderId,
-            name: content.msg.name || username || "Unknown",
-            email: ""
-          },
-          receiverId: {
-            _id: user?._id,
-            name: user?.name || "",
-            email: user?.email || ""
-          },
+          groupInfo: content.msg.groupId ? {
+            groupId: content.msg.groupId,
+            name: content.msg.groupName || content.msg.name
+          } : null,
           lastMessage: {
-            content: content.msg.content,
-            contentType: content.contentType || "text",
-            createdAt: new Date().toISOString(),
-            senderId: content.msg.senderId,
-            senderName: content.msg.name || "Unknown"
+            text: content.msg.content,
+            senderName: senderSnapshot.name,
+            createdAt: new Date().toISOString()
           },
           unreadCount: 1,
           new: true,
           messages: [newMessage],
-          lastMessageAt: Date.now(),
         }
 
         console.log("cuoc tro chuyen moi ", newConversation)
@@ -352,8 +384,10 @@ const Messages = (props) => {
         // Check if this conversation is for current conservant
         const isForCurrentConservant =
           (fullConversation.type === 'group' && props.conservant.isGroup &&
-            fullConversation.groupId?.name === props.conservant.name) ||
+            (fullConversation.groupInfo?.name === props.conservant.name ||
+              fullConversation.groupInfo?.groupId === props.conservant._id)) ||
           (fullConversation.type === 'user' && (
+            fullConversation.participants?.some(p => p?._id === props.conservant._id) ||
             fullConversation.receiverId?._id === props.conservant._id ||
             fullConversation.senderId?._id === props.conservant._id
           ));
@@ -396,11 +430,15 @@ const Messages = (props) => {
       conversation._id === null;
     if (isTemporary) return;
 
-    const receiverId = (conversation.type === "group")
-      ? conversation.groupId?._id
-      : (conversation.senderId._id === user?._id)
-        ? conversation.receiverId._id
-        : conversation.senderId._id;
+    let receiverId;
+    if (conversation.type === "group") {
+      receiverId = conversation.groupInfo?.groupId || conversation.groupId?._id;
+    } else {
+      // Model mới: dùng participants[]
+      const other = conversation.participants?.find(p => p?._id?.toString() !== user?._id?.toString())
+        || conversation.participants?.[0];
+      receiverId = other?._id;
+    }
 
     const isTyping = e.target.value && e.target.value.trim().length > 0;
 
@@ -507,7 +545,7 @@ const Messages = (props) => {
 
   // Check if current conversation is a group
   const isGroup = conversation?.type === "group" || props.conservant?.isGroup || false
-  const groupMembers = props.conservant?.members || []
+  const groupMembers = props.conservant?.members || conversation?.participants || []
   const memberCount = groupMembers.length || 0
 
   const handleShowGroupInfo = useCallback(() => {

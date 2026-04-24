@@ -6,6 +6,7 @@ import { Socket } from 'socket.io';
 import _Notifycation from '../models/notification';
 import _Group from '../models/group';
 import _Call from '../models/call';
+import _File from '../models/file';
 import groupService from "../services/group/group.services";
 import callService from "./call/call.services";
 import { sendMessageNotificationWhenOffline, sendGroupMessageNotificationWhenOffline } from './notification/notification.services';
@@ -82,6 +83,8 @@ const handleExistingConversation = async (socket: Socket, msg: any, conversation
         const message = await _Message.create({
             conversationId: conversation._id,
             senderId: msg.senderId,
+            // Nhúng senderInfo — tránh $lookup khi getMessagesOfConversation
+            senderInfo: msg.senderInfo || (msg.nameSender ? { _id: msg.senderId, name: msg.nameSender } : undefined),
             content: msg.content || (msg.mediaFiles && msg.mediaFiles.length > 0 ? 'Đã gửi tệp đính kèm' : ''),
             contentType: contentType,
             mediaFiles: msg.mediaFiles || [],
@@ -91,8 +94,28 @@ const handleExistingConversation = async (socket: Socket, msg: any, conversation
             throw new Error('Failed to create message');
         }
 
+        if (msg.mediaFiles && msg.mediaFiles.length > 0) {
+            const fileDocs = msg.mediaFiles.map((file: any) => ({
+                secure_url: file.url,
+                bytes: file.size || file.fileSize || 0,
+                public_id: file.publicId || file.fileName || file.filename || `message-${Date.now()}`,
+                folder: `messages/${conversation._id.toString()}`,
+                resource_type: file.resourceType || file.type || 'image',
+                messageId: message._id,
+                conversationId: conversation._id,
+                uploadedBy: new Types.ObjectId(msg.senderId)
+            }));
+
+            await _File.insertMany(fileDocs);
+        }
+
         await _Conversation.findByIdAndUpdate(conversation._id, {
-            lastMessage: message._id,
+            lastMessage: {
+                text: message.content,
+                senderName: msg.nameSender || 'Unknown',
+                createdAt: message.createdAt,
+                messageId: message._id
+            },
             updatedAt: new Date()
         });
 
@@ -115,28 +138,46 @@ const handleExistingConversation = async (socket: Socket, msg: any, conversation
 
         // Send push notification to offline users
         let memberIds: string[] = [];
-        if (conversation.type === 'group' && conversation.groupId) {
-            const group = await _Group.findById(conversation.groupId).select('members name').lean();
-            memberIds = (group?.members || []).map((id: any) => id.toString()).filter((id: string) => id !== msg.senderId);
+        if (conversation.type === 'group') {
+            const memberSnapshots = conversation.participants || [];
+            if (memberSnapshots.length > 0) {
+                memberIds = memberSnapshots
+                    .map((m: any) => m._id?.toString())
+                    .filter(Boolean)
+                    .filter((id: string) => id !== msg.senderId);
+            } else if (conversation.groupInfo?.groupId) {
+                const group = await _Group.findById(conversation.groupInfo.groupId).select('members name').lean();
+                memberIds = (group?.members || []).map((id: any) => id.toString()).filter((id: string) => id !== msg.senderId);
+            }
 
             // Send group notification to offline members
             const onlineMemberIds = await Promise.all(memberIds.map(id => checkUserOnline(id)));
             const offlineMemberIds = memberIds.filter((id, idx) => onlineMemberIds[idx].length === 0);
 
-            if (offlineMemberIds.length > 0 && group) {
+            if (offlineMemberIds.length > 0) {
+                const groupName = conversation.groupInfo?.name || 'Group';
                 await sendGroupMessageNotificationWhenOffline(
                     offlineMemberIds,
                     msg.nameSender || 'Unknown',
                     msg.content || 'Đã gửi tệp đính kèm',
-                    group.name || 'Group',
+                    groupName,
                     conversation._id.toString()
                 );
             }
         } else {
-            memberIds = [
-                conversation.senderId?.toString(),
-                conversation.receiverId?.toString()
-            ].filter(Boolean).filter((id: string) => id !== msg.senderId);
+            // Dùng participantIds (model mới) — luôn có sẵn
+            if (Array.isArray(conversation.participantIds) && conversation.participantIds.length > 0) {
+                memberIds = conversation.participantIds
+                    .map((id: any) => id?.toString())
+                    .filter(Boolean)
+                    .filter((id: string) => id !== msg.senderId);
+            } else if (Array.isArray(conversation.participants) && conversation.participants.length > 0) {
+                // Fallback: lấy từ participants snapshot
+                memberIds = conversation.participants
+                    .map((p: any) => p._id?.toString())
+                    .filter(Boolean)
+                    .filter((id: string) => id !== msg.senderId);
+            }
 
             const recipientId = memberIds[0];
             if (recipientId) {
@@ -169,32 +210,54 @@ const handleNewUserConversation = async (socket: Socket, msg: any) => {
         }
 
         // Check existing
+        const senderIdObj = new Types.ObjectId(msg.senderId);
+        const receiverIdObj = new Types.ObjectId(msg.receiverId);
         const existing = await _Conversation.findOne({
             type: 'user',
             $or: [
+                { participantIds: { $all: [senderIdObj, receiverIdObj] } },
                 { senderId: msg.senderId, receiverId: msg.receiverId },
                 { senderId: msg.receiverId, receiverId: msg.senderId }
             ]
-        }).populate('senderId receiverId', 'name email avatar').lean();
+        }).lean();
 
         if (existing) {
             socket.emit('conversationCreated', {
                 conversationId: existing._id,
-                conversation: existing
+                conversation: {
+                    ...existing,
+                    participants: existing.participants?.length ? existing.participants : [],
+                    participantIds: existing.participantIds?.length ? existing.participantIds : [senderIdObj, receiverIdObj]
+                }
             });
             return await handleExistingConversation(socket, { ...msg, conversationId: existing._id }, existing);
         }
 
+        const [senderUser, receiverUser] = await Promise.all([
+            _User.findById(msg.senderId).select('name email avt_url').lean(),
+            _User.findById(msg.receiverId).select('name email avt_url').lean()
+        ]);
+
+        const senderInfo = senderUser ? {
+            _id: senderUser._id,
+            name: senderUser.name,
+            email: senderUser.email,
+            avt_url: senderUser.avt_url
+        } : undefined;
+
+        const receiverInfo = receiverUser ? {
+            _id: receiverUser._id,
+            name: receiverUser.name,
+            email: receiverUser.email,
+            avt_url: receiverUser.avt_url
+        } : undefined;
+
         // Create new
         const nConversation = await new _Conversation({
-            senderId: msg.senderId,
-            receiverId: msg.receiverId,
-            type: "user"
+            type: "user",
+            participantIds: [senderIdObj, receiverIdObj],
+            participants: [senderInfo, receiverInfo].filter(Boolean)
         }).save();
-
-        const populatedConversation = await _Conversation.findById(nConversation._id)
-            .populate('senderId receiverId', 'name email avatar')
-            .lean();
 
         let contentType = 'text';
         if (msg.mediaFiles && msg.mediaFiles.length > 0) {
@@ -208,26 +271,50 @@ const handleNewUserConversation = async (socket: Socket, msg: any) => {
             }
         }
 
+        const newConversationId = (nConversation as any)._id as Types.ObjectId;
+
         const message = await _Message.create({
-            conversationId: nConversation._id,
+            conversationId: newConversationId,
             senderId: msg.senderId,
+            // Nhúng senderInfo — tránh $lookup khi getMessagesOfConversation
+            senderInfo: msg.senderInfo || (msg.nameSender ? { _id: msg.senderId, name: msg.nameSender } : undefined),
             content: msg.content || (msg.mediaFiles && msg.mediaFiles.length > 0 ? 'Đã gửi tệp đính kèm' : ''),
             contentType: contentType,
             mediaFiles: msg.mediaFiles || [],
             type: 'user'
         });
 
-        await _Conversation.findByIdAndUpdate(nConversation._id, {
-            lastMessage: message._id,
+        if (msg.mediaFiles && msg.mediaFiles.length > 0) {
+            const fileDocs = msg.mediaFiles.map((file: any) => ({
+                secure_url: file.url,
+                bytes: file.size || file.fileSize || 0,
+                public_id: file.publicId || file.fileName || file.filename || `message-${Date.now()}`,
+                folder: `messages/${newConversationId.toString()}`,
+                resource_type: file.resourceType || file.type || 'image',
+                messageId: message._id,
+                conversationId: newConversationId,
+                uploadedBy: new Types.ObjectId(msg.senderId)
+            }));
+
+            await _File.insertMany(fileDocs);
+        }
+
+        await _Conversation.findByIdAndUpdate(newConversationId, {
+            lastMessage: {
+                text: message.content,
+                senderName: msg.nameSender || 'Unknown',
+                createdAt: message.createdAt,
+                messageId: message._id
+            },
             updatedAt: new Date()
         });
 
-        await joinConversationRoom(socket, (nConversation._id as any).toString());
+        await joinConversationRoom(socket, newConversationId.toString());
 
         // Notify sender
         socket.emit('conversationCreated', {
-            conversationId: nConversation._id,
-            conversation: populatedConversation
+            conversationId: newConversationId,
+            conversation: nConversation.toObject()
         });
 
         // Notify receiver
@@ -237,7 +324,7 @@ const handleNewUserConversation = async (socket: Socket, msg: any) => {
                 msg: {
                     ...msg,
                     name: msg.nameSender || 'Unknown',
-                    conversationId: (nConversation._id as any).toString(),
+                    conversationId: newConversationId.toString(),
                     senderName: msg.nameSender,
                     senderId: {
                         _id: msg.senderId,
@@ -250,8 +337,8 @@ const handleNewUserConversation = async (socket: Socket, msg: any) => {
             receiverSocketIds.forEach(socketId => {
                 socket.to(socketId).emit('chat', messageData);
                 socket.to(socketId).emit('conversationCreated', {
-                    conversationId: nConversation._id,
-                    conversation: populatedConversation
+                    conversationId: newConversationId,
+                    conversation: nConversation.toObject()
                 });
             });
         } else {
@@ -259,13 +346,13 @@ const handleNewUserConversation = async (socket: Socket, msg: any) => {
                 msg.receiverId,
                 msg.nameSender || 'Unknown',
                 msg.content || 'Đã gửi tệp đính kèm',
-                (nConversation._id as any).toString()
+                newConversationId.toString()
             );
         }
 
-        await redisClient.incr(`${KEY_UNREAD_COUNT}${msg.receiverId}:${nConversation._id}`);
+        await redisClient.incr(`${KEY_UNREAD_COUNT}${msg.receiverId}:${newConversationId}`);
 
-        return { success: true, conversationId: nConversation._id };
+        return { success: true, conversationId: newConversationId };
     } catch (error) {
         console.error('Error handling new user conversation:', error);
         socket.emit('error', { message: 'Failed to create conversation' });
@@ -290,15 +377,15 @@ const handleNewGroupConversation = async (socket: Socket, msg: any) => {
             throw new Error('Failed to create group');
         }
 
-        const populatedConversation = await _Conversation.findById(newConversation._id)
-            .populate({
-                path: 'groupId',
-                populate: {
-                    path: 'members',
-                    select: 'name email avatar'
-                }
-            })
-            .lean();
+        const populatedConversation = {
+            ...newConversation,
+            groupInfo: newConversation.groupInfo || {
+                groupId: newGroup._id,
+                name: newGroup.name
+            },
+            participantIds: newConversation.participantIds || msg.memberIds,
+            participants: newConversation.participants || []
+        };
 
         // Determine contentType based on mediaFiles
         let contentType = 'text';
@@ -316,6 +403,8 @@ const handleNewGroupConversation = async (socket: Socket, msg: any) => {
         const firstMessage = await _Message.create({
             conversationId: newConversation._id,
             senderId: msg.senderId,
+            // Nhúng senderInfo — tránh $lookup khi getMessagesOfConversation
+            senderInfo: msg.senderInfo || (msg.nameSender ? { _id: msg.senderId, name: msg.nameSender } : undefined),
             content: msg.content || `Đã tạo nhóm "${msg.groupName}"`,
             contentType: contentType,
             mediaFiles: msg.mediaFiles || [],
@@ -323,7 +412,12 @@ const handleNewGroupConversation = async (socket: Socket, msg: any) => {
         });
 
         await _Conversation.findByIdAndUpdate(newConversation._id, {
-            lastMessage: firstMessage._id,
+            lastMessage: {
+                text: firstMessage.content,
+                senderName: msg.nameSender || 'Unknown',
+                createdAt: firstMessage.createdAt,
+                messageId: firstMessage._id
+            },
             updatedAt: new Date()
         });
 

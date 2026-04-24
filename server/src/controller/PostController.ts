@@ -31,6 +31,8 @@ class PostController {
             const { typeImg, title, content, contentType, postId, files } = req.body;
             const { _id } = req.user as IUser;
 
+            console.log("files", files)
+
             const information = await postService.grantPermissionUploadFile(
                 typeImg,
                 title,
@@ -314,15 +316,13 @@ class PostController {
 
     async getTopPost(req: Request, res: Response, next: NextFunction) {
         try {
-            const limit = parseInt(req.query.limit as string) || 10;
+            const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
             const period = (req.query.period as string) || 'week';
+            const page = Math.max(parseInt(req.query.page as string) || 1, 1);
 
-            const result = await postService.getTopPost(limit, period);
+            const { data, pagination } = await postService.getTopPost(limit, period, page);
 
-            return res.status(200).json({
-                message: 'Get top post success',
-                result
-            });
+            return res.status(200).json({ message: 'Get top posts success', data, pagination });
         } catch (error) {
             next(error);
         }

@@ -1,12 +1,19 @@
-import React from 'react';
-import { Dialog, IconButton, Box } from '@mui/material';
+import React, { useState } from 'react';
+import { Dialog, IconButton, Box, Typography } from '@mui/material';
 import { Close } from '@mui/icons-material';
 
 const ImageLightbox = ({ open, imageUrl, onClose }) => {
+    const [imageError, setImageError] = useState(false);
+
+    const handleClose = () => {
+        setImageError(false);
+        onClose();
+    };
+
     return (
         <Dialog
             open={open}
-            onClose={onClose}
+            onClose={handleClose}
             maxWidth="lg"
             fullWidth
             PaperProps={{
@@ -27,7 +34,7 @@ const ImageLightbox = ({ open, imageUrl, onClose }) => {
                 }}
             >
                 <IconButton
-                    onClick={onClose}
+                    onClick={handleClose}
                     sx={{
                         position: 'absolute',
                         top: 16,
@@ -43,17 +50,40 @@ const ImageLightbox = ({ open, imageUrl, onClose }) => {
                     <Close />
                 </IconButton>
 
-                <img
-                    src={imageUrl}
-                    alt="Full size"
-                    style={{
-                        maxWidth: '100%',
-                        maxHeight: '90vh',
-                        objectFit: 'contain',
-                        cursor: 'zoom-out',
-                    }}
-                    onClick={onClose}
-                />
+                {imageError ? (
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '100%',
+                            minHeight: '80vh',
+                            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                            flexDirection: 'column',
+                            gap: 2,
+                        }}
+                    >
+                        <Typography variant="h6" sx={{ color: 'white' }}>
+                            Không thể hiển thị ảnh
+                        </Typography>
+                    </Box>
+                ) : (
+                    <img
+                        src={imageUrl}
+                        alt="Full size"
+                        style={{
+                            maxWidth: '100%',
+                            maxHeight: '90vh',
+                            objectFit: 'contain',
+                            cursor: 'zoom-out',
+                        }}
+                        onClick={handleClose}
+                        onError={() => {
+                            console.error('❌ Lightbox image failed to load:', imageUrl);
+                            setImageError(true);
+                        }}
+                    />
+                )}
             </Box>
         </Dialog>
     );

@@ -58,6 +58,9 @@ const PostCard = (props) => {
   const [menuAnchorEl, setMenuAnchorEl] = useState(null)
   const menuOpen = Boolean(menuAnchorEl)
   const [expanded, setExpanded] = useState(false)
+  const [failedImageUrls, setFailedImageUrls] = useState(new Set())
+  // Media state khi đang edit — track những ảnh/video còn giữ lại
+  const [editingMedia, setEditingMedia] = useState([])
   const isPreviewMode = preview === "primary" || preview === "secondary"
   const isCompactPreview = preview === "secondary"
   const isDetailPage = !preview || !isPreviewMode
@@ -87,14 +90,23 @@ const PostCard = (props) => {
 
   const handleEditPost = useCallback((e) => {
     e.stopPropagation()
+    if (!editing) {
+      // Khởi tạo editingMedia từ media hiện tại của post
+      setEditingMedia(post.media || [])
+    }
     setEditing(!editing)
-  }, [editing])
+  }, [editing, post.media])
 
-  const handleSubmit = useCallback(async (e, updatedFiles) => {
+  const handleRemoveEditingMedia = useCallback((index) => {
+    setEditingMedia((prev) => prev.filter((_, i) => i !== index))
+  }, [])
+
+  const handleSubmit = useCallback(async (e, newlyUploadedFiles) => {
     e.preventDefault()
     const content = e.target.content.value
     const title = e.target.title.value || post.title
-    const files = updatedFiles || post.files || [];
+    // existingMedia (đã lọc qua X) + file mới upload từ ContentUpdateEditor
+    const files = [...editingMedia, ...(newlyUploadedFiles || [])];
 
     const updateData = {
       content,
@@ -119,7 +131,7 @@ const PostCard = (props) => {
       console.error('Error updating post:', error);
       alert('Không thể cập nhật bài viết. Vui lòng thử lại!');
     }
-  }, [post])
+  }, [post, editingMedia])
 
   const handleLikee = useCallback(async (isLiked) => {
     if (!isLoggedIn()) return navigate("/login")
@@ -173,140 +185,133 @@ const PostCard = (props) => {
   }, [post])
 
   const renderImages = () => {
-    if (!post.imgUrl || post.imgUrl.length === 0 || !isDetailPage) return null
+    // Khi đang edit: hiển thị từ editingMedia (ảnh type image), khi không edit: từ imgUrl
+    const imagesToShow = editing
+      ? editingMedia.filter((m) => m.resource_type === 'image')
+      : (post.imgUrl || [])
 
-    console.log("PostCard - Rendering images:", post.imgUrl);
-    console.log("Post data:", post);
+    if (imagesToShow.length === 0 || !isDetailPage) return null
 
     return (
       <Box sx={{ mt: 2, mb: 2 }}>
         <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-          Hình ảnh ({post.imgUrl.length})
+          Hình ảnh ({imagesToShow.length})
         </Typography>
 
-        <Stack
-          direction="row"
-          spacing={2}
-          sx={{
-            alignItems: "flex-start",
-            flexWrap: "wrap",
-            gap: 2,
-          }}
-        >
-          {post.imgUrl.map((image, index) => (
-            <Box
-              key={index}
-              sx={{
-                position: "relative",
-                cursor: "pointer",
-                borderRadius: 2,
-                overflow: "hidden",
-                width: "fit-content",
-                maxWidth: "300px",
-                display: "flex",
-                justifyContent: "flex-start",
-                "&:hover .image-overlay": { opacity: 1 },
-                "&:hover": {
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                },
-                transition: "all 0.3s ease",
-              }}
-              onClick={() => handleImageClick(image)}
-            >
-              <img
-                src={image || "/placeholder.svg"}
-                alt={`Post image ${index + 1}`}
-                style={{
-                  width: "auto",
-                  height: "auto",
-                  display: "block",
-                  maxWidth: "300px",
-                  maxHeight: "200px",
-                  objectFit: "contain",
-                  opacity: 0,
-                  transition: "opacity 0.3s ease-in-out",
-                }}
-                onLoad={(e) => {
-                  console.log("✅ Image loaded successfully:", image);
-                  e.target.style.opacity = "1"
-                }}
-                onError={(e) => {
-                  console.error("❌ Image failed to load:", image);
-                  e.target.style.opacity = "1"
-                  e.target.src = "/placeholder.svg?height=200&width=300&text=Image+not+found"
-                }}
-              />
+        <Stack direction="row" spacing={2} sx={{ alignItems: "flex-start", flexWrap: "wrap", gap: 2 }}>
+          {imagesToShow.map((item, index) => {
+            const imageUrl = editing ? (item.url || item.secure_url || '') : item
+            const hasError = failedImageUrls.has(imageUrl)
+            // index trong editingMedia (chỉ ảnh) cần map sang index trong editingMedia gốc
+            const mediaIndex = editing
+              ? editingMedia.findIndex((m) => m === item)
+              : index
+
+            return (
               <Box
-                className="image-overlay"
+                key={index}
                 sx={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  backgroundColor: "rgba(0,0,0,0.4)",
+                  position: "relative",
+                  cursor: editing ? "default" : "pointer",
+                  borderRadius: 2,
+                  overflow: "hidden",
+                  width: "fit-content",
+                  maxWidth: "300px",
                   display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  opacity: 0,
-                  transition: "opacity 0.3s ease",
+                  justifyContent: "flex-start",
+                  ...(!editing && {
+                    "&:hover .image-overlay": { opacity: 1 },
+                    "&:hover": { boxShadow: "0 4px 12px rgba(0,0,0,0.15)" },
+                  }),
+                  transition: "all 0.3s ease",
                 }}
+                onClick={() => !editing && handleImageClick(imageUrl)}
               >
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: "rgba(255,255,255,0.2)",
-                    borderRadius: "50%",
-                    width: 60,
-                    height: 60,
-                  }}
-                >
-                  <ZoomIn sx={{ color: "white", fontSize: 30 }} />
-                </Box>
+                {hasError ? (
+                  <Box sx={{ width: "300px", height: "200px", backgroundColor: "#f5f5f5", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", border: "1px solid #ddd", borderRadius: 2 }}>
+                    <Typography variant="body2" sx={{ color: "#666" }}>Không thể hiển thị ảnh</Typography>
+                  </Box>
+                ) : (
+                  <>
+                    <img
+                      src={imageUrl || "/placeholder.svg"}
+                      alt={`Post image ${index + 1}`}
+                      style={{ width: "auto", height: "auto", display: "block", maxWidth: "300px", maxHeight: "200px", objectFit: "contain", opacity: 0, transition: "opacity 0.3s ease-in-out" }}
+                      onLoad={(e) => { e.target.style.opacity = "1" }}
+                      onError={() => setFailedImageUrls(prev => new Set([...prev, imageUrl]))}
+                    />
+                    {/* Khi edit: nút X để xóa ảnh */}
+                    {editing ? (
+                      <IconButton
+                        size="small"
+                        onClick={(e) => { e.stopPropagation(); handleRemoveEditingMedia(mediaIndex) }}
+                        sx={{
+                          position: "absolute", top: 4, right: 4,
+                          backgroundColor: "rgba(0,0,0,0.55)",
+                          color: "white",
+                          "&:hover": { backgroundColor: "rgba(200,0,0,0.8)" },
+                          width: 28, height: 28,
+                        }}
+                      >
+                        <Close fontSize="small" />
+                      </IconButton>
+                    ) : (
+                      <Box className="image-overlay" sx={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0, transition: "opacity 0.3s ease" }}>
+                        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.2)", borderRadius: "50%", width: 60, height: 60 }}>
+                          <ZoomIn sx={{ color: "white", fontSize: 30 }} />
+                        </Box>
+                      </Box>
+                    )}
+                  </>
+                )}
               </Box>
-            </Box>
-          ))}
+            )
+          })}
         </Stack>
       </Box>
     )
   }
 
   const renderVideos = () => {
-    const videos = post.videoUrl || post.vidUrl || [];
-    if (videos.length === 0 || !isDetailPage) return null;
+    const videosToShow = editing
+      ? editingMedia.filter((m) => m.resource_type === 'video')
+      : (post.videoUrl || post.vidUrl || [])
+
+    if (videosToShow.length === 0 || !isDetailPage) return null;
 
     return (
       <Box sx={{ mt: 2, mb: 2 }}>
         <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-          Video ({videos.length})
+          Video ({videosToShow.length})
         </Typography>
         <Stack spacing={2}>
-          {videos.map((video, index) => (
-            <Box
-              key={index}
-              sx={{
-                borderRadius: 2,
-                overflow: "hidden",
-                backgroundColor: "black",
-                width: "100%",
-                maxWidth: "500px",
-              }}
-            >
-              <video
-                controls
-                style={{
-                  width: "100%",
-                  maxHeight: "300px",
-                  display: "block",
-                }}
-              >
-                <source src={video} type="video/mp4" />
-                Trình duyệt của bạn không hỗ trợ video.
-              </video>
-            </Box>
-          ))}
+          {videosToShow.map((item, index) => {
+            const videoUrl = editing ? (item.url || item.secure_url || '') : item
+            const mediaIndex = editing ? editingMedia.findIndex((m) => m === item) : index
+            return (
+              <Box key={index} sx={{ position: "relative", borderRadius: 2, overflow: "hidden", backgroundColor: "black", width: "100%", maxWidth: "500px" }}>
+                <video controls style={{ width: "100%", maxHeight: "300px", display: "block" }}>
+                  <source src={videoUrl} type="video/mp4" />
+                  Trình duyệt của bạn không hỗ trợ video.
+                </video>
+                {editing && (
+                  <IconButton
+                    size="small"
+                    onClick={() => handleRemoveEditingMedia(mediaIndex)}
+                    sx={{
+                      position: "absolute", top: 6, right: 6,
+                      backgroundColor: "rgba(0,0,0,0.55)",
+                      color: "white",
+                      "&:hover": { backgroundColor: "rgba(200,0,0,0.8)" },
+                      width: 28, height: 28,
+                    }}
+                  >
+                    <Close fontSize="small" />
+                  </IconButton>
+                )}
+              </Box>
+            )
+          })}
         </Stack>
       </Box>
     )
@@ -540,73 +545,100 @@ const PostCard = (props) => {
                 )}
               </Menu>
 
-              <Typography
-                variant={cardSizing.titleVariant}
-                gutterBottom
-                sx={{
-                  overflow: "hidden",
-                  maxHeight: cardSizing.titleMaxHeight,
-                  wordBreak: "break-word",
-                  display: "-webkit-box",
-                  WebkitLineClamp: isCompactPreview ? 2 : isPreviewMode ? 3 : "none",
-                  WebkitBoxOrient: "vertical",
-                  lineHeight: isCompactPreview ? 1.2 : isPreviewMode ? 1.3 : 1.4,
-                  mb: cardSizing.spacing,
-                }}
-                className="title"
-              >
-                {post.title}
-              </Typography>
-
-              {!isPreviewMode &&
-                (editing ? (
-                  <ContentUpdateEditor
-                    handleSubmit={handleSubmit}
-                    originalContent={post.content}
-                    originalTitle={post.title}
-                    originalFiles={post.files || []}
-                    onCancel={() => setEditing(false)}
-                  />
-                ) : (
-                  <Box>
-                    <HTMLContent content={post.content} maxHeight={cardSizing.contentMaxHeight} />
-                    {/* Read More Button */}
-                    {!expanded && post.content?.length > 500 && (
-                      <Button
-                        size="small"
-                        onClick={handleToggleExpand}
-                        startIcon={<ExpandMore />}
-                        sx={{
-                          mt: 1,
-                          textTransform: "none",
-                          fontSize: "0.875rem",
-                          fontWeight: 500,
-                        }}
-                      >
-                        Đọc thêm
-                      </Button>
-                    )}
-                  </Box>
-                ))}
-              {renderMediaIndicators()}
-              {isDetailPage && (
-                <>
-                  {renderImages()}
-                  {renderVideos()}
-                </>
-              )}
-
-              <HorizontalStack sx={{ mt: cardSizing.spacing }} justifyContent="space-between" alignItems="center">
-                <HorizontalStack spacing={0.5}>
-                  <AiFillMessage size={isCompactPreview ? 14 : isPreviewMode ? 16 : 18} />
+              {/* Thumbnail + text layout khi ở preview mode */}
+              <HorizontalStack spacing={1.5} alignItems="center" sx={{ width: "100%" }}>
+                {/* Phần text chiếm hết không gian còn lại */}
+                <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Typography
-                    variant={isCompactPreview ? "caption" : "subtitle2"}
-                    color="text.secondary"
-                    sx={{ fontWeight: "bold" }}
+                    variant={cardSizing.titleVariant}
+                    gutterBottom
+                    sx={{
+                      overflow: "hidden",
+                      maxHeight: cardSizing.titleMaxHeight,
+                      wordBreak: "break-word",
+                      display: "-webkit-box",
+                      WebkitLineClamp: isCompactPreview ? 2 : isPreviewMode ? 3 : "none",
+                      WebkitBoxOrient: "vertical",
+                      lineHeight: isCompactPreview ? 1.2 : isPreviewMode ? 1.3 : 1.4,
+                      mb: cardSizing.spacing,
+                    }}
+                    className="title"
                   >
-                    {post.commentCount || 0}
+                    {post.title}
                   </Typography>
-                </HorizontalStack>
+
+                  {!isPreviewMode &&
+                    (editing ? (
+                      <ContentUpdateEditor
+                        handleSubmit={handleSubmit}
+                        originalContent={post.content}
+                        originalTitle={post.title}
+                        postId={post._id}
+                        onCancel={() => setEditing(false)}
+                      />
+                    ) : (
+                      <Box>
+                        <HTMLContent content={post.content} maxHeight={cardSizing.contentMaxHeight} />
+                        {!expanded && post.content?.length > 500 && (
+                          <Button
+                            size="small"
+                            onClick={handleToggleExpand}
+                            startIcon={<ExpandMore />}
+                            sx={{
+                              mt: 1,
+                              textTransform: "none",
+                              fontSize: "0.875rem",
+                              fontWeight: 500,
+                            }}
+                          >
+                            Đọc thêm
+                          </Button>
+                        )}
+                      </Box>
+                    ))}
+
+                  {renderMediaIndicators()}
+                  {isDetailPage && (
+                    <>
+                      {renderImages()}
+                      {renderVideos()}
+                    </>
+                  )}
+
+                  <HorizontalStack alignItems="center" spacing={3.75}>
+                    <HorizontalStack spacing={0.5} alignItems="center">
+                      <AiFillMessage size={16} />
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                        {post.commentCount || 0}
+                      </Typography>
+                    </HorizontalStack>
+
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+                      {new Date(post.createdAt).toLocaleString('vi-VN', {
+                        timeZone: 'Asia/Ho_Chi_Minh'
+                      })}
+                    </Typography>
+                  </HorizontalStack>
+                </Box>
+
+                {/* Thumbnail — chỉ hiện khi preview mode VÀ có ảnh */}
+                {isPreviewMode && post.thumbnail && (
+                  <Box
+                    component="img"
+                    src={post.thumbnail}
+                    alt=""
+                    sx={{
+                      width: isCompactPreview ? 64 : 96,
+                      height: isCompactPreview ? 64 : 96,
+                      borderRadius: 2,
+                      objectFit: "cover",
+                      flexShrink: 0,
+                      alignSelf: "center",
+
+                    }}
+                    onError={(e) => { e.target.style.display = "none"; }}
+                  />
+                )}
               </HorizontalStack>
             </PostContentBox>
           </HorizontalStack>

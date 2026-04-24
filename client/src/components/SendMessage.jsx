@@ -24,7 +24,7 @@ const SendMessage = (props) => {
         // Upload files nếu có
         if (selectedFiles.length > 0) {
           // Xác định fileType từ file đầu tiên
-          const firstFile = selectedFiles[0]
+          const firstFile = selectedFiles[0]?.file || selectedFiles[0]
           let fileType = 'image'
           if (firstFile.type.startsWith('video/')) {
             fileType = 'video'
@@ -42,7 +42,7 @@ const SendMessage = (props) => {
 
           // signature.data.presignedUrls is an array of presigned URL objects
           for (let i = 0; i < selectedFiles.length; i++) {
-            const file = selectedFiles[i]
+            const file = selectedFiles[i]?.file || selectedFiles[i]
             const presignedUrl = signature.data.presignedUrls[i]
 
             const result = await uploadToS3(file, presignedUrl)
@@ -61,7 +61,12 @@ const SendMessage = (props) => {
         // Clear typing indicator when sending message
         props.onSendMessage(content.trim(), mediaFiles)
         setContent("")
-        setSelectedFiles([])
+        setSelectedFiles((prev) => {
+          prev.forEach((item) => {
+            if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl)
+          })
+          return []
+        })
         inputRef.current?.focus()
       } catch (error) {
         console.error("Error uploading files:", error)
@@ -100,6 +105,12 @@ const SendMessage = (props) => {
   // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
+      setSelectedFiles((prev) => {
+        prev.forEach((item) => {
+          if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl)
+        })
+        return []
+      })
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current)
       }
@@ -121,12 +132,24 @@ const SendMessage = (props) => {
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files || [])
     if (files.length > 0) {
-      setSelectedFiles(prev => [...prev, ...files])
+      const mapped = files.map((file) => {
+        const isImage = file.type.startsWith('image/')
+        const previewUrl = isImage ? URL.createObjectURL(file) : null
+        return { file, previewUrl, isImage }
+      })
+      setSelectedFiles((prev) => [...prev, ...mapped])
     }
   }
 
   const handleRemoveFile = (index) => {
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index))
+    setSelectedFiles((prev) => {
+      const next = [...prev]
+      const removed = next.splice(index, 1)[0]
+      if (removed?.previewUrl) {
+        URL.revokeObjectURL(removed.previewUrl)
+      }
+      return next
+    })
   }
 
   const handleAttachClick = () => {
@@ -143,17 +166,77 @@ const SendMessage = (props) => {
     >
       {selectedFiles.length > 0 && (
         <Box sx={{ mb: 1, display: "flex", flexWrap: "wrap", gap: 1 }}>
-          {selectedFiles.map((file, index) => (
-            <Chip
-              key={index}
-              label={file.name}
-              onDelete={() => handleRemoveFile(index)}
-              deleteIcon={<CloseIcon />}
-              size="small"
-              color="primary"
-              variant="outlined"
-            />
-          ))}
+          {selectedFiles.map((item, index) => {
+            const file = item.file || item
+            if (item.isImage && item.previewUrl) {
+              return (
+                <Box
+                  key={index}
+                  sx={{
+                    position: "relative",
+                    width: 72,
+                    height: 72,
+                    borderRadius: 1,
+                    overflow: "hidden",
+                    border: "1px solid",
+                    borderColor: "divider",
+                  }}
+                >
+                  <img
+                    src={item.previewUrl}
+                    alt={file.name}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      filter: uploading ? "blur(2px)" : "none",
+                      transition: "filter 0.2s ease",
+                    }}
+                  />
+                  <IconButton
+                    size="small"
+                    onClick={() => handleRemoveFile(index)}
+                    sx={{
+                      position: "absolute",
+                      top: 2,
+                      right: 2,
+                      bgcolor: "rgba(0,0,0,0.5)",
+                      color: "white",
+                      "&:hover": { bgcolor: "rgba(0,0,0,0.7)" },
+                    }}
+                  >
+                    <CloseIcon fontSize="inherit" />
+                  </IconButton>
+                  {uploading && (
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        inset: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        bgcolor: "rgba(255,255,255,0.4)",
+                      }}
+                    >
+                      <CircularProgress size={18} />
+                    </Box>
+                  )}
+                </Box>
+              )
+            }
+
+            return (
+              <Chip
+                key={index}
+                label={file.name}
+                onDelete={() => handleRemoveFile(index)}
+                deleteIcon={<CloseIcon />}
+                size="small"
+                color="primary"
+                variant="outlined"
+              />
+            )
+          })}
         </Box>
       )}
       <input

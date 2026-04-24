@@ -9,7 +9,6 @@ const isLoggedIn = () => {
 // Validate token khi app khởi động hoặc sau thời gian dài không dùng
 const validateSession = async () => {
   const user = JSON.parse(localStorage.getItem("user"));
-
   if (!user) {
     return null;
   }
@@ -20,7 +19,6 @@ const validateSession = async () => {
     if (result.valid) {
       return user;
     } else {
-      // Token không hợp lệ -> clear localStorage
       console.log('Token expired or invalid, clearing session');
       localStorage.removeItem('user');
       localStorage.removeItem('tokenFcm');
@@ -38,34 +36,33 @@ const validateSession = async () => {
 
 const loginUser = async (user) => {
   console.log("checkeed")
-
   disconnectSocket();
-
   localStorage.setItem("user", JSON.stringify(user));
-
   initiateSocketConnection();
+  updateUserTokenAsync(user);
+};
 
-  const token = await requestPermission();
-  console.log('Token firebase ', token)
+const updateUserTokenAsync = async (user) => {
+  try {
+    const token = await requestPermission();
+    console.log('Token firebase ', token)
 
-  if (!token)
-    return
+    if (!token)
+      return
 
+    if (token !== localStorage.getItem("tokenFcm")) {
+      localStorage.setItem("tokenFcm", token);
+    }
 
-  if (token !== localStorage.getItem("tokenFcm")) {
-    localStorage.setItem("tokenFcm", token);
+    const deviceId = user.deviceId || localStorage.getItem("deviceId");
+    await updateToken(token, deviceId)
+  } catch (error) {
+    console.error('Error updating user token:', error);
   }
-
-  const deviceId = user.deviceId || localStorage.getItem("deviceId");
-  await updateToken(token, deviceId)
-
 };
 
 const logoutUser = async () => {
-  // Call the logout API to clear server-side session
   await logoutAPI();
-
-  // Disconnect socket and clear local storage
   disconnectSocket();
   localStorage.removeItem('user')
   localStorage.removeItem("tokenFcm")

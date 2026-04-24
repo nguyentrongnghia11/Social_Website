@@ -6,7 +6,6 @@ import { validateUpdateComment, validateCreateComment } from '../validations/val
 
 const router = Router()
 
-// Configure multer for memory storage (for S3 upload)
 const storage = multer.memoryStorage();
 const upload = multer({
     storage,
@@ -26,7 +25,7 @@ router.post("/upload-image", authenticateMiddleware, upload.single('image'), com
 router.post("/:id/create", authenticateMiddleware, validateCreateComment, commentController.createComment)
 router.patch("/update", validateUpdateComment, commentController.updateComment)
 router.delete("/delete", commentController.removeComment)
-router.get("/:id", commentController.getComment.bind(commentController))
+router.get("/:id", commentController.getComment)
 
 // Content moderation routes
 router.patch("/:id/hide", authenticateMiddleware, commentController.hideComment)

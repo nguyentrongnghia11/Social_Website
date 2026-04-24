@@ -36,6 +36,7 @@ export class S3Service {
                 Key: fullKey,
                 Body: fileBuffer,
                 ContentType: contentType
+
             }
         });
 
@@ -93,8 +94,11 @@ export class S3Service {
     ): Promise<{ url: string; key: string; fields: Record<string, string> }> {
         const command = new PutObjectCommand({
             Bucket: BUCKET_NAME,
-            Key: key
+            Key: key,
+            ContentType: contentType
         });
+
+        // console.log('command', command)
 
         const url = await getSignedUrl(s3Client, command, {
             expiresIn

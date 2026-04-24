@@ -25,13 +25,15 @@ const getALlPosts = async (query) => {
     return data.data;
 }
 
-const getTopPosts = async (limit = 5) => {
+const getTopPosts = async (limit = 5, period = 'week', page = 1) => {
     try {
-        const data = await instance.get(`/post/top?limit=${limit}`);
-        return data.data;
+        const params = new URLSearchParams({ limit, period, page });
+        const { data } = await instance.get(`/post/top?${params}`);
+        // response shape: { message, data: Post[], pagination }
+        return { data: data.data ?? [], pagination: data.pagination };
     } catch (error) {
         console.error('Error fetching top posts:', error);
-        return { result: [] };
+        return { data: [], pagination: { total: 0, page: 1, limit, pages: 0 } };
     }
 }
 
@@ -53,6 +55,7 @@ const getPost = async (params) => {
 }
 
 const getComments = async (params) => {
+    console.log("day la data comment ")
     const data = await instance.get(`/comment/${params}`)
     return data.data;
 }

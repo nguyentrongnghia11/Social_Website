@@ -1,6 +1,5 @@
 import _Post from '../../models/post';
 import _Comment from '../../models/comment';
-import _File from '../../models/file';
 import { Types } from 'mongoose';
 import { ErrorApi } from '../../middleware/error';
 import redisClient from '../../databases/connectRedis';
@@ -31,6 +30,8 @@ const getPresignedUrl = async (url: string): Promise<string> => {
 };
 
 const addStandardPostFields = async (posts: any[], userId?: string): Promise<any[]> => {
+
+    console.log("Adding standard fields to posts. Total posts:", posts.length, "User ID:", userId);
     const userObjectId = userId ? new Types.ObjectId(userId) : null;
 
     const processedPosts = await Promise.all(posts.map(async (post: any) => {
@@ -78,10 +79,20 @@ const addStandardPostFields = async (posts: any[], userId?: string): Promise<any
 
 export class PostService {
     async createPost(title: string, content: string, userId: string, files: Express.Multer.File[]) {
+        // Lấy thông tin tác giả để nhúng vào post (Extended Reference Pattern)
+        const user = await _User.findById(userId).select('name username avt_url').lean();
+
         const newPost = await _Post.create({
             title,
             artistId: userId,
             content,
+            // Nhúng snapshot tác giả — tránh $lookup mỗi lần get posts
+            author: user ? {
+                _id: user._id,
+                name: user.name,
+                username: (user as any).username,
+                avt_url: user.avt_url
+            } : undefined
         }) as any;
 
         if (files.length > 0) {
@@ -112,7 +123,6 @@ export class PostService {
         const folder = typeImg === "avatar" ? "avatar" : "upload";
 
         if (postId && files && Array.isArray(files) && files.length > 0) {
-            console.log("Khi co file")
             for (const file of files) {
                 if (!allowedTypes.includes(file.contentType)) {
                     throw new ErrorApi(400, `File type ${file.contentType} is not allowed. Only images and videos are supported.`);
@@ -122,16 +132,23 @@ export class PostService {
             const uploadUrls = await Promise.all(
                 files.map(async (file) => {
                     const fileKey = `${folder}/${postId}/${uuidv4()}`;
+
+                    console.log("fileKey", file.contentType);
                     const presignedData = await S3Service.getPresignedUploadUrl(
                         fileKey,
                         file.contentType,
                         3600
                     );
+
+                    console.log("presignedData", presignedData.url)
+
+
                     return {
                         uploadUrl: presignedData.url,
                         key: presignedData.key,
                         fileName: file.fileName,
-                        fileSize: file.fileSize
+                        fileSize: file.fileSize,
+                        fileType: file.contentType
                     };
                 })
             );
@@ -149,7 +166,19 @@ export class PostService {
             throw new ErrorApi(400, `File type ${contentType} is not allowed. Only images and videos are supported.`);
         }
 
-        const post_draft = await _Post.create({ title, artistId: userId, content });
+        const author = await _User.findById(userId).select('name username avt_url').lean();
+
+        const post_draft = await _Post.create({
+            title,
+            artistId: userId,
+            content,
+            author: author ? {
+                _id: author._id,
+                name: author.name,
+                username: (author as any).username,
+                avt_url: author.avt_url
+            } : undefined
+        });
 
         if (!post_draft) {
             throw new ErrorApi(500, "Create post draft fail");
@@ -200,6 +229,8 @@ export class PostService {
             3600
         );
 
+        console.log('presignedData', presignedData.url)
+
         const information = {
             uploadUrl: presignedData.url,
             key: presignedData.key,
@@ -218,28 +249,36 @@ export class PostService {
             throw new ErrorApi(400, "Danh sách file trống hoặc không hợp lệ");
         }
 
-        const fileDocs = listFile.map(f => {
-            const doc: any = {
-                public_id: f.key || f.public_id, // S3 key
-                format: f.format || f.key?.split('.').pop() || 'unknown',
-                created_at: f.created_at || new Date(),
-                resource_type: f.resource_type || f.type || 'image',
-                tags: f.tags || [],
-                bytes: f.bytes || f.size || 0,
-                secure_url: f.url || f.secure_url,
-                folder: f.folder || f.asset_folder,
-                postId: postId || null,
-            };
+        const mediaItems = listFile.map((f: any) => ({
+            url: f.url || f.secure_url,
+            resource_type: f.resource_type === 'video' || f.type === 'video' ? 'video' : 'image',
+            public_id: f.key || f.public_id,
+            bytes: f.bytes || f.size || 0,
+            width: f.width,
+            height: f.height,
+            format: f.format || f.key?.split('.').pop() || 'unknown'
+        }));
 
-            if (f.width) doc.width = f.width;
-            if (f.height) doc.height = f.height;
+        const images = mediaItems.filter((m: any) => m.resource_type === 'image');
+        const videos = mediaItems.filter((m: any) => m.resource_type === 'video');
 
-            return doc;
+        await _Post.findByIdAndUpdate(postId, {
+            $push: { media: { $each: mediaItems } },
+            $inc: {
+                imageCount: images.length,
+                videoCount: videos.length
+            }
         });
 
-        await _File.insertMany(fileDocs);
+        // Set thumbnail nếu chưa có
+        if (images.length > 0) {
+            await _Post.updateOne(
+                { _id: postId, $or: [{ thumbnail: { $exists: false } }, { thumbnail: null }, { thumbnail: '' }] },
+                { $set: { thumbnail: images[0].url } }
+            );
+        }
 
-        return { count: fileDocs.length };
+        return { count: mediaItems.length };
     }
 
     async updatePost(postId: string, title: string, content: string, userId: string, files?: any[]) {
@@ -254,9 +293,49 @@ export class PostService {
             throw new ErrorApi(403, "You don't have permission to update this post");
         }
 
+        const updatePayload: any = { title, content };
+
+        if (files && Array.isArray(files)) {
+            console.log("checked 2 - Processing files: ", files);
+
+            const mediaItems = files
+                .map((f: any) => {
+                    if (typeof f === 'object' && (f.url || f.secure_url)) {
+                        return {
+                            url: f.url || f.secure_url,
+                            resource_type: f.resource_type === 'video' || f.type === 'video' ? 'video' : 'image',
+                            public_id: f.key || f.public_id,
+                            bytes: f.bytes || f.size || 0,
+                            width: f.width,
+                            height: f.height,
+                            format: f.format || f.key?.split('.').pop() || 'unknown'
+                        };
+                    }
+                    if (typeof f === 'string') {
+                        const isVideo = /\.(mp4|webm|ogg|mov|avi)$/i.test(f);
+                        return {
+                            url: f,
+                            resource_type: isVideo ? 'video' : 'image',
+                            public_id: `legacy_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                            bytes: 0
+                        };
+                    }
+                    return null;
+                })
+                .filter((item: any) => item !== null);
+
+            const images = mediaItems.filter((m: any) => m.resource_type === 'image');
+            const videos = mediaItems.filter((m: any) => m.resource_type === 'video');
+
+            updatePayload.media = mediaItems;
+            updatePayload.imageCount = images.length;
+            updatePayload.videoCount = videos.length;
+            updatePayload.thumbnail = images.length > 0 && images[0] ? images[0].url : null;
+        }
+
         const post = await _Post.findOneAndUpdate(
             { _id: postId },
-            { title, content },
+            updatePayload,
             { new: true }
         );
 
@@ -264,54 +343,6 @@ export class PostService {
             throw new ErrorApi(400, "Update post failed");
         }
 
-        if (files && Array.isArray(files)) {
-            console.log("checked 2 - Processing files: ", files);
-
-            // Delete existing files
-            await _File.deleteMany({ postId: postId });
-
-            if (files.length > 0) {
-                // Handle both string URLs and objects
-                const fileDocs = files
-                    .map(f => {
-                        // If it's an object with url/secure_url
-                        if (typeof f === 'object' && (f.url || f.secure_url)) {
-                            return {
-                                public_id: f.key || f.public_id,
-                                width: f.width || null,
-                                height: f.height || null,
-                                format: f.format || f.key?.split('.').pop() || 'unknown',
-                                created_at: f.created_at || new Date(),
-                                resource_type: f.resource_type || f.type || 'image',
-                                tags: f.tags || [],
-                                bytes: f.bytes || f.size || 0,
-                                secure_url: f.url || f.secure_url,
-                                folder: f.asset_folder || f.folder,
-                                postId: postId,
-                            };
-                        }
-                        // If it's a string URL, create a basic file document
-                        else if (typeof f === 'string') {
-                            // Determine resource type from URL
-                            const isVideo = /\.(mp4|webm|ogg|mov|avi)$/i.test(f);
-                            return {
-                                public_id: `legacy_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                                secure_url: f,
-                                resource_type: isVideo ? 'video' : 'image',
-                                postId: postId,
-                            };
-                        }
-                        return null;
-                    })
-                    .filter(f => f !== null);
-
-                console.log("checked 3 - Processed file docs: ", fileDocs.length);
-
-                if (fileDocs.length > 0) {
-                    await _File.insertMany(fileDocs);
-                }
-            }
-        }
         return post;
     }
 
@@ -320,48 +351,42 @@ export class PostService {
             throw new ErrorApi(400, "Post id not found");
         }
 
+        const userObjectId = userId ? new Types.ObjectId(userId) : null;
+
         const post = await _Post.aggregate([
             { $match: { _id: new Types.ObjectId(postId) } },
-            { $addFields: { likeCount: { $size: { $ifNull: ['$react', []] } } } },
             {
-                $lookup: {
-                    from: 'users',
-                    localField: 'artistId',
-                    foreignField: '_id',
-                    as: 'author'
+                $addFields: {
+                    likeCount: { $size: { $ifNull: ['$react', []] } },
+                    liked: userObjectId
+                        ? { $in: [userObjectId, { $ifNull: ['$react', []] }] }
+                        : false
                 }
             },
-            {
-                $unwind: {
-                    path: '$author',
-                    preserveNullAndEmptyArrays: true
-                }
-            },
+            // Lấy tất cả user đã like (chỉ 3 cái đầu cho preview)
             {
                 $lookup: {
                     from: 'users',
                     localField: 'react',
                     foreignField: '_id',
-                    as: 'reactUsers'
+                    as: 'reactUsers',
+                    pipeline: [
+                        { $limit: 3 },
+                        { $project: { _id: 1, name: 1, avt_url: 1 } }
+                    ]
                 }
             },
+            // Đếm comment
             {
                 $lookup: {
                     from: 'comments',
                     localField: '_id',
                     foreignField: 'postId',
-                    as: 'comments'
+                    as: '_commentDocs',
+                    pipeline: [{ $project: { _id: 1 } }]
                 }
             },
-            {
-                $lookup: {
-                    from: 'files',
-                    localField: '_id',
-                    foreignField: 'postId',
-                    as: 'files'
-                }
-            },
-            { $addFields: { commentCount: { $size: { $ifNull: ['$comments', []] } } } },
+            { $addFields: { commentCount: { $size: { $ifNull: ['$_commentDocs', []] } } } },
             {
                 $project: {
                     title: 1,
@@ -371,41 +396,41 @@ export class PostService {
                     createdAt: 1,
                     updatedAt: 1,
                     status: 1,
-                    react: 1,
-                    reactUsers: { _id: 1, name: 1 },
-                    files: 1,
+                    liked: 1,
+                    author: 1,  // đã embedded
+                    artistId: 1,
+                    // Media từ embedded array — phân loại rõ ảnh và video
+                    media: 1,
                     imgUrl: {
                         $map: {
                             input: {
                                 $filter: {
-                                    input: '$files',
-                                    as: 'file',
-                                    cond: { $eq: ['$$file.resource_type', 'image'] }
+                                    input: { $ifNull: ['$media', []] },
+                                    as: 'm',
+                                    cond: { $eq: ['$$m.resource_type', 'image'] }
                                 }
                             },
                             as: 'img',
-                            in: '$$img.secure_url'
+                            in: '$$img.url'
                         }
                     },
                     videoUrl: {
                         $map: {
                             input: {
                                 $filter: {
-                                    input: '$files',
-                                    as: 'file',
-                                    cond: { $eq: ['$$file.resource_type', 'video'] }
+                                    input: { $ifNull: ['$media', []] },
+                                    as: 'm',
+                                    cond: { $eq: ['$$m.resource_type', 'video'] }
                                 }
                             },
-                            as: 'video',
-                            in: '$$video.secure_url'
+                            as: 'vid',
+                            in: '$$vid.url'
                         }
                     },
-                    author: {
-                        _id: '$author._id',
-                        name: '$author.name',
-                        avatar: '$author.avatar',
-                        email: '$author.email'
-                    }
+                    reactUsers: 1,
+                    imageCount: 1,
+                    videoCount: 1,
+                    thumbnail: 1
                 }
             }
         ]);
@@ -413,8 +438,27 @@ export class PostService {
         if (!post || post.length === 0) {
             throw new ErrorApi(404, "Post not found");
         }
-        const processedPosts = await addStandardPostFields(post, userId);
-        return processedPosts[0];
+
+        // Sign presigned URLs cho S3
+        const result = post[0];
+        if (result.imgUrl?.length > 0) {
+            result.imgUrl = await Promise.all(
+                result.imgUrl.map((url: string) => getPresignedUrl(url))
+            );
+        }
+        if (result.videoUrl?.length > 0) {
+            result.videoUrl = await Promise.all(
+                result.videoUrl.map((url: string) => getPresignedUrl(url))
+            );
+        }
+
+        // userLikePreview
+        result.userLikePreview = (result.reactUsers || []).slice(0, 3).map((u: any) =>
+            ({ _id: u._id, username: u.name })
+        );
+        delete result.reactUsers;
+
+        return result;
     }
 
     async hiddenPost(postId: string, accountId: string) {
@@ -483,144 +527,132 @@ export class PostService {
 
     async getAllPost(page: number = 1, limit: number = 10, sortBy: string = 'latest', userId?: string) {
         const skip: number = (page - 1) * limit;
+        const userObjectId = userId ? new Types.ObjectId(userId) : null;
 
-        let sortCriteria: any = { createdAt: -1 };
+        // Map sort key từ frontend sang field trong DB
+        const sortMap: Record<string, any> = {
+            'likes': { likeCount: -1, createdAt: -1 },
+            'comments': { commentCount: -1, createdAt: -1 },
+            'earliest': { createdAt: 1 },
+            'latest': { createdAt: -1 },
+            '-createdAt': { createdAt: -1 },
+            'createdAt': { createdAt: 1 },
+            '-likeCount': { likeCount: -1, createdAt: -1 },
+            '-commentCount': { commentCount: -1, createdAt: -1 },
+        };
+        const sortCriteria = sortMap[sortBy] ?? { createdAt: -1 };
 
-        switch (sortBy.toLowerCase()) {
-            case 'likes':
-                sortCriteria = { likeCount: -1, createdAt: -1 };
-                break;
-            case 'comments':
-                sortCriteria = { commentCount: -1, createdAt: -1 };
-                break;
-            case 'earliest':
-                sortCriteria = { createdAt: 1 };
-                break;
-            case 'latest':
-            default:
-                sortCriteria = { createdAt: -1 };
-                break;
-        }
-
+        //
+        // getAllPost trả về ĐÚÂ TỐI THIỂU để hiển thị card.
+        // Không có content, không có react[], không có files[].
+        // Tất cả các giá trị count được tính từ embedded fields hoặc 1 đoạn count nhẹ.
+        //
         const listPost = await _Post.aggregate([
+            { $match: { deleted: { $ne: true } } },
             {
                 $addFields: {
-                    likeCount: { $size: { $ifNull: ['$react', []] } }
+                    likeCount: { $size: { $ifNull: ['$react', []] } },
+                    // liked: kiểm tra user hiện tại có trong react[] không (không cần lookup)
+                    liked: userObjectId
+                        ? { $in: [userObjectId, { $ifNull: ['$react', []] }] }
+                        : false
                 }
             },
-            {
-                $lookup: {
-                    from: 'users',
-                    localField: 'artistId',
-                    foreignField: '_id',
-                    as: 'author'
-                }
-            },
-            {
-                $unwind: {
-                    path: '$author',
-                    preserveNullAndEmptyArrays: true
-                }
-            },
+            // Đếm comment — chỉ count, không kéo data
             {
                 $lookup: {
                     from: 'comments',
                     localField: '_id',
                     foreignField: 'postId',
-                    as: 'comments'
-                }
-            },
-            {
-                $lookup: {
-                    from: 'files',
-                    localField: '_id',
-                    foreignField: 'postId',
-                    as: 'files'
+                    as: '_commentDocs',
+                    pipeline: [{ $project: { _id: 1 } }]  // chỉ _id để đếm
                 }
             },
             {
                 $addFields: {
-                    commentCount: { $size: { $ifNull: ['$comments', []] } },
+                    commentCount: { $size: { $ifNull: ['$_commentDocs', []] } },
+                    // imageCount/videoCount/thumbnail: dùng từ embedded media[]
+                    // Nếu chưa có (backfill chưa chạy): fallback về 0
                     imageCount: {
-                        $size: {
-                            $filter: {
-                                input: '$files',
-                                as: 'file',
-                                cond: { $eq: ['$$file.resource_type', 'image'] }
-                            }
+                        $cond: {
+                            if: { $gt: [{ $size: { $ifNull: ['$media', []] } }, 0] },
+                            then: {
+                                $size: {
+                                    $filter: {
+                                        input: { $ifNull: ['$media', []] },
+                                        as: 'm',
+                                        cond: { $eq: ['$$m.resource_type', 'image'] }
+                                    }
+                                }
+                            },
+                            else: { $ifNull: ['$imageCount', 0] }
                         }
                     },
                     videoCount: {
-                        $size: {
-                            $filter: {
-                                input: '$files',
-                                as: 'file',
-                                cond: { $eq: ['$$file.resource_type', 'video'] }
-                            }
+                        $cond: {
+                            if: { $gt: [{ $size: { $ifNull: ['$media', []] } }, 0] },
+                            then: {
+                                $size: {
+                                    $filter: {
+                                        input: { $ifNull: ['$media', []] },
+                                        as: 'm',
+                                        cond: { $eq: ['$$m.resource_type', 'video'] }
+                                    }
+                                }
+                            },
+                            else: { $ifNull: ['$videoCount', 0] }
+                        }
+                    },
+                    // thumbnail: ảnh đầu tiên trong media[], fallback về thumbnail field
+                    thumbnail: {
+                        $cond: {
+                            if: { $gt: [{ $size: { $ifNull: ['$media', []] } }, 0] },
+                            then: {
+                                $let: {
+                                    vars: {
+                                        firstImage: {
+                                            $first: {
+                                                $filter: {
+                                                    input: { $ifNull: ['$media', []] },
+                                                    as: 'm',
+                                                    cond: { $eq: ['$$m.resource_type', 'image'] }
+                                                }
+                                            }
+                                        }
+                                    },
+                                    in: '$$firstImage.url'
+                                }
+                            },
+                            else: { $ifNull: ['$thumbnail', null] }
                         }
                     }
                 }
             },
+            // Project chỉ các field cần thiết cho card
             {
                 $project: {
+                    _id: 1,
                     title: 1,
-                    content: 1,
+                    createdAt: 1,
+                    // Author từ embedded field (không cần $lookup users)
+                    author: 1,
+                    // Counts
                     likeCount: 1,
                     commentCount: 1,
                     imageCount: 1,
                     videoCount: 1,
-                    createdAt: 1,
-                    updatedAt: 1,
-                    status: 1,
-                    react: 1,
-                    reactUsers: { _id: 1, name: 1 },
-                    files: 1,
-                    imgUrl: {
-                        $map: {
-                            input: {
-                                $filter: {
-                                    input: '$files',
-                                    as: 'file',
-                                    cond: { $eq: ['$$file.resource_type', 'image'] }
-                                }
-                            },
-                            as: 'img',
-                            in: '$$img.secure_url'
-                        }
-                    },
-                    videoUrl: {
-                        $map: {
-                            input: {
-                                $filter: {
-                                    input: '$files',
-                                    as: 'file',
-                                    cond: { $eq: ['$$file.resource_type', 'video'] }
-                                }
-                            },
-                            as: 'video',
-                            in: '$$video.secure_url'
-                        }
-                    },
-                    author: {
-                        _id: '$author._id',
-                        name: '$author.name',
-                        avatar: '$author.avatar',
-                        email: '$author.email'
-                    }
+                    // Preview
+                    thumbnail: 1,
+                    liked: 1,
+                    // Loại bỏ: content, react[], media[], _commentDocs
                 }
             },
-            {
-                $sort: sortCriteria
-            },
-            {
-                $skip: skip
-            },
-            {
-                $limit: limit
-            }
+            { $sort: sortCriteria },
+            { $skip: skip },
+            { $limit: limit }
         ]);
 
-        return await addStandardPostFields(listPost, userId);
+        return listPost;
     }
 
 
@@ -642,34 +674,10 @@ export class PostService {
                 }
             },
             {
-                $lookup: {
-                    from: 'files',
-                    localField: '_id',
-                    foreignField: 'postId',
-                    as: 'files'
-                }
-            },
-            {
                 $addFields: {
                     commentCount: { $size: { $ifNull: ['$comments', []] } },
-                    imageCount: {
-                        $size: {
-                            $filter: {
-                                input: '$files',
-                                as: 'file',
-                                cond: { $eq: ['$$file.resource_type', 'image'] }
-                            }
-                        }
-                    },
-                    videoCount: {
-                        $size: {
-                            $filter: {
-                                input: '$files',
-                                as: 'file',
-                                cond: { $eq: ['$$file.resource_type', 'video'] }
-                            }
-                        }
-                    }
+                    imageCount: { $ifNull: ['$imageCount', 0] },
+                    videoCount: { $ifNull: ['$videoCount', 0] }
                 }
             },
             {
@@ -709,37 +717,13 @@ export class PostService {
             },
             { $unwind: '$post' },
             {
-                $lookup: {
-                    from: 'files',
-                    localField: '_id',
-                    foreignField: 'postId',
-                    as: 'files'
-                }
-            },
-            {
                 $addFields: {
                     likeCount: { $size: { $ifNull: ['$post.react', []] } },
-                    imageCount: {
-                        $size: {
-                            $filter: {
-                                input: '$files',
-                                as: 'file',
-                                cond: { $eq: ['$$file.resource_type', 'image'] }
-                            }
-                        }
-                    },
-                    videoCount: {
-                        $size: {
-                            $filter: {
-                                input: '$files',
-                                as: 'file',
-                                cond: { $eq: ['$$file.resource_type', 'video'] }
-                            }
-                        }
-                    }
+                    imageCount: { $ifNull: ['$post.imageCount', 0] },
+                    videoCount: { $ifNull: ['$post.videoCount', 0] }
                 }
             },
-            { $project: { _id: 0, comments: 0, files: 0 } }
+            { $project: { _id: 0, comments: 0 } }
         ]);
 
         return listPost;
@@ -758,34 +742,10 @@ export class PostService {
                 }
             },
             {
-                $lookup: {
-                    from: 'files',
-                    localField: '_id',
-                    foreignField: 'postId',
-                    as: 'files'
-                }
-            },
-            {
                 $addFields: {
                     commentCount: { $size: { $ifNull: ['$comments', []] } },
-                    imageCount: {
-                        $size: {
-                            $filter: {
-                                input: '$files',
-                                as: 'file',
-                                cond: { $eq: ['$$file.resource_type', 'image'] }
-                            }
-                        }
-                    },
-                    videoCount: {
-                        $size: {
-                            $filter: {
-                                input: '$files',
-                                as: 'file',
-                                cond: { $eq: ['$$file.resource_type', 'video'] }
-                            }
-                        }
-                    }
+                    imageCount: { $ifNull: ['$imageCount', 0] },
+                    videoCount: { $ifNull: ['$videoCount', 0] }
                 }
             },
             {
@@ -813,131 +773,109 @@ export class PostService {
         return post;
     }
 
-    async getTopPost(limit: number = 10, period: string = 'week') {
-        // Calculate date range based on period
-        const now = new Date();
-        let startDate = new Date();
+    async getTopPost(limit: number = 10, period: string = 'week', page: number = 1) {
+        const cacheKey = `top_posts:${period}:${page}:${limit}`;
+        const cached = await redisClient.get(cacheKey);
+        if (cached) return JSON.parse(cached);
 
-        switch (period) {
-            case 'day':
-                startDate.setDate(now.getDate() - 1);
-                break;
-            case 'week':
-                startDate.setDate(now.getDate() - 7);
-                break;
-            case 'month':
-                startDate.setMonth(now.getMonth() - 1);
-                break;
-            case 'year':
-                startDate.setFullYear(now.getFullYear() - 1);
-                break;
-            case 'all':
-            default:
-                startDate = new Date(0); // Beginning of time
-                break;
-        }
+        const startDate = this.getStartDate(period);
+        const skip = (page - 1) * limit;
 
-        const topPosts = await _Post.aggregate([
-            {
-                $match: {
-                    createdAt: { $gte: startDate },
-                    visibility: 'published'
-                }
-            },
-            {
-                $addFields: {
-                    likeCount: { $size: { $ifNull: ['$react', []] } }
-                }
-            },
-            {
-                $lookup: {
-                    from: 'users',
-                    localField: 'artistId',
-                    foreignField: '_id',
-                    as: 'author'
-                }
-            },
-            {
-                $unwind: {
-                    path: '$author',
-                    preserveNullAndEmptyArrays: true
-                }
-            },
+        // Helper expression dùng chung cho thumbnail (ảnh đầu tiên trong media[])
+        const thumbnailExpr = {
+            $let: {
+                vars: {
+                    firstImg: {
+                        $first: {
+                            $filter: {
+                                input: { $ifNull: ['$media', []] },
+                                as: 'm',
+                                cond: { $eq: ['$$m.resource_type', 'image'] }
+                            }
+                        }
+                    }
+                },
+                in: { $ifNull: ['$$firstImg.url', '$thumbnail'] }
+            }
+        };
+
+        const [result] = await _Post.aggregate([
+            { $match: { createdAt: { $gte: startDate }, deleted: { $ne: true } } },
+            // Đếm comment nhẹ
             {
                 $lookup: {
                     from: 'comments',
                     localField: '_id',
                     foreignField: 'postId',
-                    as: 'comments'
-                }
-            },
-            {
-                $lookup: {
-                    from: 'files',
-                    localField: '_id',
-                    foreignField: 'postId',
-                    as: 'files'
+                    as: '_c',
+                    pipeline: [{ $project: { _id: 1 } }]
                 }
             },
             {
                 $addFields: {
-                    commentCount: { $size: { $ifNull: ['$comments', []] } },
+                    likeCount: { $size: { $ifNull: ['$react', []] } },
+                    commentCount: { $size: { $ifNull: ['$_c', []] } },
                     imageCount: {
                         $size: {
                             $filter: {
-                                input: '$files',
-                                as: 'file',
-                                cond: { $eq: ['$$file.resource_type', 'image'] }
+                                input: { $ifNull: ['$media', []] },
+                                as: 'm',
+                                cond: { $eq: ['$$m.resource_type', 'image'] }
                             }
                         }
                     },
                     videoCount: {
                         $size: {
                             $filter: {
-                                input: '$files',
-                                as: 'file',
-                                cond: { $eq: ['$$file.resource_type', 'video'] }
+                                input: { $ifNull: ['$media', []] },
+                                as: 'm',
+                                cond: { $eq: ['$$m.resource_type', 'video'] }
                             }
                         }
                     },
-                    // Calculate engagement score: likes * 2 + comments * 3
-                    engagementScore: {
-                        $add: [
-                            { $multiply: [{ $size: { $ifNull: ['$react', []] } }, 2] },
-                            { $multiply: [{ $size: { $ifNull: ['$comments', []] } }, 3] }
-                        ]
-                    }
+                    thumbnail: thumbnailExpr
                 }
             },
             {
                 $project: {
-                    _id: 1,
-                    title: 1,
-                    content: 1,
-                    likeCount: 1,
-                    commentCount: 1,
-                    imageCount: 1,
-                    videoCount: 1,
-                    engagementScore: 1,
-                    createdAt: 1,
-                    imgUrl: '$files.secure_url',
-                    author: {
-                        _id: '$author._id',
-                        name: '$author.name',
-                        avatar: '$author.avatar',
-                        avt_url: '$author.avt_url'
-                    }
+                    _id: 1, title: 1, author: 1, createdAt: 1,
+                    likeCount: 1, commentCount: 1,
+                    imageCount: 1, videoCount: 1, thumbnail: 1
                 }
             },
+            { $sort: { likeCount: -1, commentCount: -1, createdAt: -1 } },
             {
-                $sort: { engagementScore: -1, likeCount: -1, commentCount: -1 }
-            },
-            {
-                $limit: limit
+                $facet: {
+                    metadata: [{ $count: 'total' }],
+                    data: [{ $skip: skip }, { $limit: limit }]
+                }
             }
         ]);
 
-        return topPosts;
+        const response = {
+            data: result?.data ?? [],
+            pagination: {
+                total: result?.metadata[0]?.total ?? 0,
+                page,
+                limit,
+                pages: Math.ceil((result?.metadata[0]?.total ?? 0) / limit)
+            }
+        };
+
+        await redisClient.setEx(cacheKey, 3600, JSON.stringify(response));
+        return response;
+    }
+
+    /** Tính ngày bắt đầu của period */
+    private getStartDate(period: string): Date {
+        const now = new Date();
+        switch (period) {
+            case 'day': return new Date(now.setDate(now.getDate() - 1));
+            case 'week': return new Date(now.setDate(now.getDate() - 7));
+            case 'month': return new Date(now.setMonth(now.getMonth() - 1));
+            case 'year': return new Date(now.setFullYear(now.getFullYear() - 1));
+            default: return new Date(0); // all time
+        }
     }
 
     async searchPost(keyword: string, page: number = 1, limit: number = 10) {
@@ -945,20 +883,6 @@ export class PostService {
         const searchRegex = new RegExp(keyword, 'i');
 
         const listPost = await _Post.aggregate([
-            {
-                $lookup: {
-                    from: 'users',
-                    localField: 'artistId',
-                    foreignField: '_id',
-                    as: 'author'
-                }
-            },
-            {
-                $unwind: {
-                    path: '$author',
-                    preserveNullAndEmptyArrays: true
-                }
-            },
             {
                 $match: {
                     $or: [
@@ -982,31 +906,24 @@ export class PostService {
                 }
             },
             {
-                $lookup: {
-                    from: 'files',
-                    localField: '_id',
-                    foreignField: 'postId',
-                    as: 'files'
-                }
-            },
-            {
                 $addFields: {
-                    commentCount: { $size: { $ifNull: ['$comments', []] } }
+                    commentCount: { $size: { $ifNull: ['$comments', []] } },
+                    imageCount: { $ifNull: ['$imageCount', 0] },
+                    videoCount: { $ifNull: ['$videoCount', 0] },
+                    thumbnail: { $ifNull: ['$thumbnail', null] }
                 }
             },
             {
                 $project: {
+                    _id: 1,
                     title: 1,
-                    content: 1,
+                    createdAt: 1,
+                    author: 1,
                     likeCount: 1,
                     commentCount: 1,
-                    createdAt: 1,
-                    imgUrl: '$files.secure_url',
-                    author: {
-                        _id: '$author._id',
-                        name: '$author.name',
-                        avatar: '$author.avatar'
-                    }
+                    imageCount: 1,
+                    videoCount: 1,
+                    thumbnail: 1
                 }
             },
             {
@@ -1032,6 +949,8 @@ export class PostService {
         if (!currentPost) {
             throw new ErrorApi(404, "Post not found");
         }
+
+        const userObjectId = userId ? new Types.ObjectId(userId) : null;
 
         // If no embedding, fallback to recent posts
         if (!currentPost.embedding || currentPost.embedding.length === 0) {
@@ -1082,27 +1001,12 @@ export class PostService {
             const similarPostIds = topSimilar.map(s => s.postId);
             const similarPosts = await _Post.aggregate([
                 { $match: { _id: { $in: similarPostIds } } },
-                { $addFields: { likeCount: { $size: { $ifNull: ['$react', []] } } } },
                 {
-                    $lookup: {
-                        from: 'users',
-                        localField: 'artistId',
-                        foreignField: '_id',
-                        as: 'author'
-                    }
-                },
-                {
-                    $unwind: {
-                        path: '$author',
-                        preserveNullAndEmptyArrays: true
-                    }
-                },
-                {
-                    $lookup: {
-                        from: 'users',
-                        localField: 'react',
-                        foreignField: '_id',
-                        as: 'reactUsers'
+                    $addFields: {
+                        likeCount: { $size: { $ifNull: ['$react', []] } },
+                        liked: userObjectId
+                            ? { $in: [userObjectId, { $ifNull: ['$react', []] }] }
+                            : false
                     }
                 },
                 {
@@ -1114,58 +1018,25 @@ export class PostService {
                     }
                 },
                 {
-                    $lookup: {
-                        from: 'files',
-                        localField: '_id',
-                        foreignField: 'postId',
-                        as: 'files'
+                    $addFields: {
+                        commentCount: { $size: { $ifNull: ['$comments', []] } },
+                        imageCount: { $ifNull: ['$imageCount', 0] },
+                        videoCount: { $ifNull: ['$videoCount', 0] },
+                        thumbnail: { $ifNull: ['$thumbnail', null] }
                     }
                 },
-                { $addFields: { commentCount: { $size: { $ifNull: ['$comments', []] } } } },
                 {
                     $project: {
+                        _id: 1,
                         title: 1,
-                        content: 1,
+                        createdAt: 1,
+                        author: 1,
                         likeCount: 1,
                         commentCount: 1,
-                        createdAt: 1,
-                        updatedAt: 1,
-                        status: 1,
-                        react: 1,
-                        reactUsers: { _id: 1, name: 1 },
-                        files: 1,
-                        imgUrl: {
-                            $map: {
-                                input: {
-                                    $filter: {
-                                        input: '$files',
-                                        as: 'file',
-                                        cond: { $eq: ['$$file.resource_type', 'image'] }
-                                    }
-                                },
-                                as: 'img',
-                                in: '$$img.secure_url'
-                            }
-                        },
-                        videoUrl: {
-                            $map: {
-                                input: {
-                                    $filter: {
-                                        input: '$files',
-                                        as: 'file',
-                                        cond: { $eq: ['$$file.resource_type', 'video'] }
-                                    }
-                                },
-                                as: 'video',
-                                in: '$$video.secure_url'
-                            }
-                        },
-                        author: {
-                            _id: '$author._id',
-                            name: '$author.name',
-                            avatar: '$author.avatar',
-                            email: '$author.email'
-                        }
+                        imageCount: 1,
+                        videoCount: 1,
+                        thumbnail: 1,
+                        liked: 1
                     }
                 }
             ]);
@@ -1176,7 +1047,7 @@ export class PostService {
             ).filter((p: any) => p);
 
             console.log(`✅ Found ${orderedPosts.length} similar posts for ${postId}`);
-            return await addStandardPostFields(orderedPosts, userId);
+            return orderedPosts;
 
         } catch (error) {
             console.error('Error getting similar posts:', error);

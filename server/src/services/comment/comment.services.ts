@@ -8,13 +8,22 @@ import { Types } from 'mongoose';
 
 export class CommentService {
     async createComment(postId: string, content: string, userId: string, parentID?: string, imageUrl?: string) {
+        // Lấy thông tin tác giả để nhúng vào comment (Extended Reference Pattern)
+        const user = await _User.findById(userId).select('name avt_url').lean();
+
         const newComment = await _Comment.create({
             postId,
             content,
             userId,
             parentID,
             imageUrl,
-            path: "abc"
+            path: "abc",
+            // Nhúng snapshot tác giả — tránh $lookup mỗi lần get comments
+            author: user ? {
+                _id: user._id,
+                name: user.name,
+                avt_url: user.avt_url
+            } : undefined
         });
 
         if (newComment) {
@@ -23,15 +32,14 @@ export class CommentService {
             const post = await _Post.findById(postId);
             console.log('Post found for comment notification:', post?.artistId);
 
-            console.log("Fucking ", post, ' ', post?.artistId.toString(), ' ', userId)
             if (post && post.artistId.toString() !== userId) {
-                const user = await _User.findById(userId).select('name');
-
                 await handleNotification({
                     message: `${user?.name || 'Someone'} đã bình luận về bài viết của bạn: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`,
                     title: 'Bình luận mới',
                     receiver: post.artistId,
                     sender: new Types.ObjectId(userId),
+                    // Nhúng senderInfo để notification service không cần query lại
+                    senderInfo: user ? { _id: user._id as any, name: user.name, avt_url: user.avt_url } : undefined,
                     type: 'comment',
                     read: false,
                     link: `/posts/${postId}`,
@@ -43,13 +51,12 @@ export class CommentService {
             if (parentID) {
                 const parentComment = await _Comment.findById(parentID).select('userId');
                 if (parentComment && parentComment.userId.toString() !== userId) {
-                    const user = await _User.findById(userId).select('name');
-
                     await handleNotification({
                         message: `${user?.name || 'Someone'} đã trả lời bình luận của bạn: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`,
                         title: 'Trả lời bình luận',
                         receiver: parentComment.userId,
                         sender: new Types.ObjectId(userId),
+                        senderInfo: user ? { _id: user._id as any, name: user.name, avt_url: user.avt_url } : undefined,
                         type: 'comment',
                         read: false,
                         link: `/posts/${postId}`,
@@ -85,13 +92,14 @@ export class CommentService {
     }
 
     async getComment(postId: string) {
+        console.log("Get comment for post id ", postId)
+        // Dùng author embedded — không cần .populate('userId') nữa
+        // Giữ lại .populate() như fallback cho comments cũ chưa có author field
         const comments = await _Comment.findWithDeleted({ postId })
-            .select('_id content imageUrl userId parentID createdAt isToxic')
+            .select('_id content imageUrl userId author parentID createdAt isToxic deleted')
             .lean();
 
-        const tree = this.buildTree(comments);
-
-        return tree;
+        return this.buildTree(comments);
     }
 
     async updateComment(id: string, content: any) {

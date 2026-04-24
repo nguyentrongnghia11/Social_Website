@@ -16,19 +16,23 @@ services:
         condition: service_healthy
     networks:
       - social-network
+    volumes:
+      - ./server/src:/app/src
+      - ./server/workers:/app/workers
+      - /app/dist
   
-  frontend:
-    build:
-      context: ./client
-      dockerfile: dockerfile
-    container_name: social_frontend
-    restart: unless-stopped
-    ports:
-      - "8080:3001"
-    env_file:
-      - ./client/.env.docker
-    networks:
-      - social-network
+  # frontend:
+  #   build:
+  #     context: ./client
+  #     dockerfile: dockerfile
+  #   container_name: social_frontend
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8080:3001"
+  #   env_file:
+  #     - ./client/.env.docker
+  #   networks:
+  #     - social-network
 
   redis:
     image: redis:alpine
@@ -97,6 +101,13 @@ networks:
   #     rabbitmq:
   #       condition: service_healthy
   #   networks:
+  #     - social-network
+  #   watch:
+  #     - action: rebuild
+  #       path: ./AI_Services/app
+  #       ignore:
+  #         - __pycache__
+  #         - .venv
   #     - social-network
   #   healthcheck:
   #     test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
