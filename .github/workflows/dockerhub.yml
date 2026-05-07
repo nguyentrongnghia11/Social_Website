@@ -49,15 +49,11 @@ jobs:
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            # Login ECR trên máy EC2
             aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin 412461686047.dkr.ecr.ap-southeast-1.amazonaws.com
             
-            # Pull image mới
             docker pull 412461686047.dkr.ecr.ap-southeast-1.amazonaws.com/social_website:latest
             
-            # Restart service
             cd backend
             docker compose up -d --force-recreate server
             
-            # Dọn dẹp rác
             docker image prune -f
