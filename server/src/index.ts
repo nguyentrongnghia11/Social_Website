@@ -20,7 +20,7 @@ import { s3Client } from './databases/s3';
 
 dotenv.config()
 
-console.log("Starting JustVibing Server Deploy #2")
+console.log("Starting JustVibing Server Deploy #3")
 
 
 // run workers
