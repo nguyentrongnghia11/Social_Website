@@ -15,10 +15,12 @@ import dotenv from 'dotenv'
 import { cors_conf } from './utils/cors-config';
 import { errorHandling } from './middleware/handleError';
 import { startWorkers } from '../workers/startWorker';
+import { s3Client } from './databases/s3';
+
 
 dotenv.config()
 
-console.log("Starting JustVibing Server...")
+console.log("Starting JustVibing Server testtttt")
 
 
 // run workers
@@ -76,6 +78,11 @@ mainRouter(app);
 app.use(errorHandling)
 
 const PORT = process.env.PORT || 8000;
+
+// heath check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
 
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

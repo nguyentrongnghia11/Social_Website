@@ -159,13 +159,16 @@ const SendMessage = (props) => {
   return (
     <Stack
       sx={{
-        m: 2,
+        px: 2,
+        py: 1,
         minHeight: "60px",
+        maxHeight: "auto",
+        overflow: "hidden",
       }}
       justifyContent="center"
     >
       {selectedFiles.length > 0 && (
-        <Box sx={{ mb: 1, display: "flex", flexWrap: "wrap", gap: 1 }}>
+        <Box sx={{ mb: 1, display: "flex", flexWrap: "wrap", gap: 1, maxHeight: "150px", overflowY: "auto" }}>
           {selectedFiles.map((item, index) => {
             const file = item.file || item
             if (item.isImage && item.previewUrl) {
@@ -243,7 +246,14 @@ const SendMessage = (props) => {
         type="file"
         ref={fileInputRef}
         onChange={handleFileSelect}
-        style={{ display: "none" }}
+        style={{ 
+          position: "absolute", 
+          left: "-9999px", 
+          top: "-9999px",
+          visibility: "hidden",
+          width: 0,
+          height: 0
+        }}
         multiple
         accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
       />
