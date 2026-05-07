@@ -576,10 +576,10 @@ const Messages = (props) => {
   }, [onlineUsers]);
 
   return props.conservant ? (
-    <>
+    <Stack sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
       {(conversation && messages) || loading === false ? (
         <>
-          <HorizontalStack alignItems="center" justifyContent="space-between" sx={{ px: 2, height: "60px" }}>
+          <HorizontalStack alignItems="center" justifyContent="space-between" sx={{ px: 2, height: "60px", flexShrink: 0 }}>
             <HorizontalStack alignItems="center" spacing={2}>
               {props.mobile && (
                 <IconButton onClick={() => props.setConservant(null)} sx={{ padding: 0 }}>
@@ -650,12 +650,12 @@ const Messages = (props) => {
               )}
             </HorizontalStack>
           </HorizontalStack>
-          <Divider />
-          <Box sx={{ height: "calc(100vh - 240px)" }}>
-            <Box sx={{ height: "100%" }}>
+          <Divider sx={{ flexShrink: 0 }} />
+          <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
               <Stack
                 ref={messagesContainerRef}
-                sx={{ padding: 2, overflowY: "auto", maxHeight: "100%" }}
+                sx={{ flex: 1, padding: 2, overflowY: "auto", minHeight: 0 }}
                 direction="column"
                 onScroll={handleScroll}
               >
@@ -723,12 +723,14 @@ const Messages = (props) => {
               </Stack>
             </Box>
           </Box>
-          <SendMessage
-            conversationId={conversation?._id}
-            onSendMessage={handleSendMessage}
-            onSendKeyBoard={handleSendListenerKeyBoard}
-            onRecevieKeyBoard={handleReciveListenerKeyBoard}
-          />
+          <Box sx={{ flexShrink: 0, borderTop: "1px solid", borderColor: "divider" }}>
+            <SendMessage
+              conversationId={conversation?._id}
+              onSendMessage={handleSendMessage}
+              onSendKeyBoard={handleSendListenerKeyBoard}
+              onRecevieKeyBoard={handleReciveListenerKeyBoard}
+            />
+          </Box>
           {/* {scrollToBottom()} */}
         </>
       ) : (
@@ -843,7 +845,7 @@ const Messages = (props) => {
           </Button>
         </DialogActions>
       </Dialog>
-    </>
+    </Stack>
   ) : (
     <Stack sx={{ height: "100%" }} justifyContent="center" alignItems="center" spacing={2}>
       <AiFillMessage size={80} />

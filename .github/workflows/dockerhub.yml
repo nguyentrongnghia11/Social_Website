@@ -1,4 +1,4 @@
-name: CI/CD to Docker Hub and EC2
+name: CI/CD to AWS ECR and EC2
 
 on:
   push:
@@ -10,27 +10,36 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./server
-          push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/social_website-server:latest
-  
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, Tag and Push to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: social_website
+          IMAGE_TAG: latest
+        run: |
+          docker build -t social_website ./server
+          docker tag social_website:latest $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
   deploy:
     needs: build-and-push
-    if: github.event_name == 'push' 
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to EC2 via SSH
@@ -40,9 +49,15 @@ jobs:
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd /home/ubuntu/backend
-            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
-
-            docker compose pull server
+            # Login ECR trên máy EC2
+            aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin 412461686047.dkr.ecr.ap-southeast-1.amazonaws.com
+            
+            # Pull image mới
+            docker pull 412461686047.dkr.ecr.ap-southeast-1.amazonaws.com/social_website:latest
+            
+            # Restart service
+            cd backend
             docker compose up -d --force-recreate server
+            
+            # Dọn dẹp rác
             docker image prune -f
