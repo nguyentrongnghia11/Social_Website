@@ -1,15 +1,14 @@
 import { Grid } from "@mui/material";
 import React from "react";
 
-const GridLayout = (props) => {
-  const { left, right } = props;
-
+const GridLayout = ({ left, right }) => {
   return (
-    <Grid container maxWidth="xl" spacing={2}>
-      <Grid size={{ xs: 12, md: 8 }}>
+    <Grid container spacing={2} sx={{ mt: 0 }}>
+      <Grid item xs={12} md={8}>
         {left}
       </Grid>
-      <Grid size={{ xs: 12, md: 4 }}>
+
+      <Grid item xs={12} md={4}>
         {right}
       </Grid>
     </Grid>

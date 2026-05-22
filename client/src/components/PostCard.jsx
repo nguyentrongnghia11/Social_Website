@@ -441,7 +441,6 @@ const PostCard = (props) => {
         sx={{
           padding: cardSizing.padding,
           width: "100%",
-          maxWidth: "100%",
           minWidth: 0,
           overflow: "hidden",
           boxSizing: "border-box",
@@ -458,8 +457,8 @@ const PostCard = (props) => {
         }}
         className="post-card"
       >
-        <Box className={preview}>
-          <HorizontalStack spacing={0} alignItems="initial">
+        <Box className={preview} sx={{ width: "100%", overflow: "hidden" }}>
+          <HorizontalStack spacing={0} alignItems="initial" sx={{ width: "100%", maxWidth: "100%", overflow: "hidden" }}>
             <Stack
               justifyContent="space-between"
               alignItems="center"
@@ -481,7 +480,6 @@ const PostCard = (props) => {
               sx={{
                 flex: 1,
                 minWidth: 0,
-                width: `calc(100% - ${cardSizing.likeBoxWidth}px)`,
                 p: isCompactPreview ? 1 : isPreviewMode ? 1.5 : 2,
               }}
             >
@@ -546,16 +544,19 @@ const PostCard = (props) => {
               </Menu>
 
               {/* Thumbnail + text layout khi ở preview mode */}
-              <HorizontalStack spacing={1.5} alignItems="center" sx={{ width: "100%" }}>
+              <HorizontalStack spacing={1.5} alignItems="center" sx={{ width: "100%", overflow: "hidden", minWidth: 0 }}>
                 {/* Phần text chiếm hết không gian còn lại */}
-                <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Box sx={{ flex: 1, minWidth: 0, width: "100%", maxWidth: "100%" }}>
                   <Typography
                     variant={cardSizing.titleVariant}
                     gutterBottom
                     sx={{
                       overflow: "hidden",
                       maxHeight: cardSizing.titleMaxHeight,
+                      maxWidth: "100%",
                       wordBreak: "break-word",
+                      whiteSpace: "normal",
+                      textOverflow: "ellipsis",
                       display: "-webkit-box",
                       WebkitLineClamp: isCompactPreview ? 2 : isPreviewMode ? 3 : "none",
                       WebkitBoxOrient: "vertical",
