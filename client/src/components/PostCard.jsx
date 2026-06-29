@@ -558,7 +558,7 @@ const PostCard = (props) => {
                       whiteSpace: "normal",
                       textOverflow: "ellipsis",
                       display: "-webkit-box",
-                      WebkitLineClamp: isCompactPreview ? 2 : isPreviewMode ? 3 : "none",
+                      WebkitLineClamp: isCompactPreview ? 2 : isPreviewMode ? 2 : "none",
                       WebkitBoxOrient: "vertical",
                       lineHeight: isCompactPreview ? 1.2 : isPreviewMode ? 1.3 : 1.4,
                       mb: cardSizing.spacing,

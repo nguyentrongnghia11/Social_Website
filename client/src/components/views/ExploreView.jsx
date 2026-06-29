@@ -24,11 +24,11 @@ const ExploreView = () => {
 
           <Grid item xs={12} lg sx={{ flexGrow: 1, minWidth: 0 }}>
             <Navbar />
-            <Grid container spacing={2} sx={{ mt: 0 }} wrap="nowrap">
-              <Grid item xs={8}>
+            <Grid container spacing={2} sx={{ mt: 0 }}>
+              <Grid item xs={12} md={8}>
                 <PostBrowser createPost contentType="posts" />
               </Grid>
-              <Grid item xs={4}>
+              <Grid item xs={12} md={4}>
                 <Sidebar />
               </Grid>
             </Grid>
